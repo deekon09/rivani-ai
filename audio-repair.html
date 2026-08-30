@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Repair noisy voice recordings in your browser with RIVANI AI Audio Repair Beta.">
   <title>AI Audio Repair Beta — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,13 +26,14 @@
     <section class="audio-tool-hero section">
       <div class="container audio-tool-hero-grid">
         <div class="reveal">
-          <span class="status-pill live-beta">Beta · Local processing</span>
+          <span class="status-pill live-beta">Neural Beta · Local processing</span>
           <span class="section-kicker">RIVANI AUDIO</span>
           <h1>Repair bad voice recordings.</h1>
           <p>Upload a recording, scan common quality problems, choose a repair style, compare before and after, and export the repaired audio.</p>
           <div class="audio-hero-points">
-            <span>✓ No file upload to RIVANI servers</span>
-            <span>✓ Before / after preview</span>
+            <span>✓ RNNoise neural cleanup</span>
+            <span>✓ No audio upload to RIVANI servers</span>
+            <span>✓ Smooth Before / After preview</span>
             <span>✓ WAV export</span>
           </div>
         </div>
@@ -99,6 +100,23 @@
                 </div>
               </div>
 
+              <div class="neural-engine-card" id="neuralEngineCard">
+                <div class="neural-engine-icon">
+                  <span class="neural-core">N</span>
+                  <i></i><i></i><i></i>
+                </div>
+                <div class="neural-engine-copy">
+                  <div class="neural-title-row">
+                    <strong>Neural Noise Removal</strong>
+                    <span class="engine-live" id="neuralEngineStatus">RNNoise · Ready</span>
+                  </div>
+                  <p>RNNoise handles the main speech denoising pass first. RIVANI then applies rumble, hum, adaptive room-floor control, voice tone protection and final level smoothing.</p>
+                </div>
+                <button class="toggle-control active neural-toggle" id="neuralToggle" type="button" aria-pressed="true">
+                  <span></span><b>ON</b>
+                </button>
+              </div>
+
               <div class="preset-grid" id="presetGrid">
                 <button class="preset-card active" data-preset="natural" type="button">
                   <span>Natural</span><small>Light cleanup, keeps room tone</small>
@@ -115,8 +133,8 @@
                 <div class="strength-card">
                   <label for="repairStrength">
                     <span>
-                      <b>Overall Noise Removal</b>
-                      <small>Controls the total cleanup strength</small>
+                      <b>AI Noise Removal</b>
+                      <small>Controls RNNoise + local cleanup strength</small>
                     </span>
                     <strong id="repairStrengthValue">55%</strong>
                   </label>
@@ -259,7 +277,7 @@
 
             <div class="audio-result hidden" id="audioResult">
               <div class="result-head">
-                <div><span class="status-pill live-beta">Repair complete</span><h2>Compare the result.</h2><p>The Beta currently uses local signal analysis, filtering, adaptive gating, dynamics and normalization. Neural denoising is the next engine upgrade.</p></div>
+                <div><span class="status-pill live-beta">Repair complete</span><h2>Compare the result.</h2><p>The Neural Beta now runs RNNoise first, then RIVANI’s local hum/rumble filtering, smooth room-floor control, voice protection, dynamics and normalization.</p></div>
                 <div class="result-score"><span>New health</span><strong id="newHealthScore">--</strong></div>
               </div>
 
@@ -275,7 +293,7 @@
 
               <div class="repair-disclosure">
                 <strong>Privacy note</strong>
-                <p>This Beta processes the file in your browser. The audio file is not sent to RIVANI’s account API or LUKI AI backend.</p>
+                <p>This Beta processes the audio in your browser. RNNoise runs locally through WebAssembly; the audio file is not sent to RIVANI’s account API or LUKI AI backend.</p>
               </div>
             </div>
           </div>
@@ -283,7 +301,7 @@
 
         <div class="audio-beta-note">
           <span>Beta engine</span>
-          <p>This first working release focuses on a safe local repair pipeline. It does not yet use DeepFilterNet/RNNoise neural denoising, so difficult traffic, crowd noise and heavy echo can remain. That is the next implementation phase.</p>
+          <p>This Neural Beta combines RNNoise with RIVANI’s local repair pipeline. Normal steady background noise should improve much more clearly. Heavy echo, background music and overlapping speakers still need separate future engines.</p>
           <a href="article-audio-repair.html">Read the detailed Audio Repair guide →</a>
         </div>
       </div>
@@ -318,8 +336,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=10"></script>
-  <script type="module" src="auth-nav.js?v=10"></script>
-  <script type="module" src="audio-repair.js?v=10"></script>
+  <script src="script.js?v=11"></script>
+  <script type="module" src="auth-nav.js?v=11"></script>
+  <script type="module" src="audio-repair.js?v=11"></script>
 </body>
 </html>

@@ -24,6 +24,8 @@ let analysis = null;
 let selectedPreset = 'natural';
 let voiceLockEnabled = true;
 let environmentMode = 'balanced';
+let neuralEnabled = true;
+let neuralWorker = null;
 
 chooseBtn?.addEventListener('click', () => input?.click());
 replaceBtn?.addEventListener('click', () => input?.click());
@@ -54,6 +56,20 @@ presets.forEach(btn => btn.addEventListener('click', () => {
 }));
 strength?.addEventListener('input', () => strengthValue.textContent = `${strength.value}%`);
 
+
+$('neuralToggle')?.addEventListener('click', () => {
+  neuralEnabled = !neuralEnabled;
+  const btn = $('neuralToggle');
+  btn.classList.toggle('active', neuralEnabled);
+  btn.setAttribute('aria-pressed', String(neuralEnabled));
+  const label = btn.querySelector('b');
+  if (label) label.textContent = neuralEnabled ? 'ON' : 'OFF';
+  const status = $('neuralEngineStatus');
+  if (status) {
+    status.textContent = neuralEnabled ? 'RNNoise · Ready' : 'RNNoise · Bypassed';
+    status.classList.toggle('muted', !neuralEnabled);
+  }
+});
 
 $('voiceLockToggle')?.addEventListener('click', () => {
   voiceLockEnabled = !voiceLockEnabled;
@@ -108,6 +124,13 @@ async function loadAudioFile(file) {
     sourceBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     await ctx.close();
 
+    // Free Beta target: more generous than many hosted enhancers, while keeping
+    // browser memory/CPU safe enough for local neural processing.
+    if (sourceBuffer.duration > 45 * 60) {
+      sourceBuffer = null;
+      throw new Error('FREE_FILE_LIMIT');
+    }
+
     if (sourceUrl) URL.revokeObjectURL(sourceUrl);
     sourceUrl = URL.createObjectURL(file);
 
@@ -122,7 +145,11 @@ async function loadAudioFile(file) {
     editor.classList.remove('hidden');
     editor.scrollIntoView({behavior:'smooth', block:'start'});
   } catch (err) {
-    alert('This browser could not decode that audio file. Try WAV, MP3, M4A or OGG in a modern browser.');
+    if (String(err?.message || err) === 'FREE_FILE_LIMIT') {
+      alert('Free Beta supports files up to 45 minutes. Try a shorter file for now.');
+    } else {
+      alert('This browser could not decode that audio file. Try WAV, MP3, M4A or OGG in a modern browser.');
+    }
     console.error(err);
   } finally {
     setEditorLoading(false);
@@ -269,73 +296,243 @@ function analyzeBuffer(buffer) {
 
 async function repairAudio() {
   if (!sourceBuffer) return;
+
+  repairBtn.disabled = true;
   repairPanel.classList.add('hidden');
   result.classList.add('hidden');
   processing.classList.remove('hidden');
   processing.scrollIntoView({behavior:'smooth', block:'center'});
-  setProcessingStage('scan');
-  updateProgress(4, 'Preparing local repair engine…');
-  await tick(80);
 
-  const s = Number(strength.value)/100;
-  const preset = selectedPreset;
-  const cfg = {
-    natural: { gateDb: 9, highpass:75, presence:1.4, comp:-15, ratio:2.1, humQ:7, bright:0.4 },
-    clean:   { gateDb: 16, highpass:90, presence:2.4, comp:-18, ratio:2.8, humQ:9, bright:0.9 },
-    studio:  { gateDb: 21, highpass:105,presence:3.3, comp:-20, ratio:3.6, humQ:10,bright:1.4 }
-  }[preset];
+  try {
+    const s = Number(strength.value) / 100;
+    const preset = selectedPreset;
 
-  // Voice Lock intentionally softens the most aggressive tonal changes.
-  if (voiceLockEnabled) {
-    cfg.presence *= 0.82;
-    cfg.bright *= 0.75;
-    cfg.ratio *= 0.92;
+    const cfg = {
+      natural: { gateDb: 7.5, highpass:72, presence:1.25, comp:-15, ratio:1.9, humQ:7, bright:0.25 },
+      clean:   { gateDb: 12.5, highpass:86, presence:2.0, comp:-18, ratio:2.45, humQ:9, bright:0.65 },
+      studio:  { gateDb: 16.5, highpass:98, presence:2.6, comp:-20, ratio:3.0, humQ:10, bright:0.95 }
+    }[preset];
+
+    if (voiceLockEnabled) {
+      cfg.presence *= 0.82;
+      cfg.bright *= 0.70;
+      cfg.ratio *= 0.90;
+    }
+
+    const environmentFactor =
+      environmentMode === 'studio' ? 1.12 :
+      environmentMode === 'natural' ? 0.62 : 0.88;
+
+    setProcessingStage('scan');
+    updateProgress(3, neuralEnabled ? 'Loading neural speech engine…' : 'Preparing local repair engine…');
+    await tick(60);
+
+    let working = sourceBuffer;
+
+    // RNNoise natively operates at 48 kHz / 480-sample frames.
+    if (neuralEnabled) {
+      setProcessingStage('noise');
+      updateProgress(8, 'Preparing 48 kHz neural frames…');
+
+      working = await resampleAudioBuffer(sourceBuffer, 48000);
+
+      updateProgress(13, 'RNNoise is separating speech from background noise…');
+      const neuralStrength = getNeuralStrength(s, preset, environmentMode);
+
+      try {
+        working = await runRnnoiseInWorker(
+          working,
+          neuralStrength,
+          voiceLockEnabled,
+          (p) => {
+            const mapped = 14 + p * 43;
+            updateProgress(mapped, p < .35
+              ? 'Neural noise suppression is listening for speech…'
+              : p < .75
+                ? 'Removing steady background noise while protecting voice…'
+                : 'Finishing the neural cleanup pass…'
+            );
+          }
+        );
+        const status = $('neuralEngineStatus');
+        if (status) {
+          status.textContent = 'RNNoise · Active';
+          status.classList.remove('engine-error');
+        }
+      } catch (neuralError) {
+        console.error('RNNoise failed, using DSP fallback:', neuralError);
+        const status = $('neuralEngineStatus');
+        if (status) {
+          status.textContent = 'RNNoise unavailable · DSP fallback';
+          status.classList.add('engine-error');
+        }
+        updateProgress(55, 'Neural engine unavailable — continuing with local DSP repair…');
+        await tick(120);
+      }
+    } else {
+      setProcessingStage('noise');
+      updateProgress(20, 'Neural cleanup bypassed — using local repair only…');
+      await tick(100);
+    }
+
+    // Smooth adaptive floor control after RNNoise. This is intentionally less
+    // aggressive than the old version so words do not sound chopped.
+    const gateReduction = cfg.gateDb * (0.48 + 0.48 * s) * environmentFactor;
+    const gated = applySoftAdaptiveGate(working, gateReduction);
+
+    setProcessingStage('voice');
+    updateProgress(62, 'Smoothing voice tone, hum and rumble…');
+    const filtered = await processWithOfflineAudio(gated, {
+      highpass: cfg.highpass + 16 * (s - .5),
+      presence: cfg.presence * s,
+      bright: cfg.bright * s,
+      compressorThreshold: cfg.comp,
+      compressorRatio: cfg.ratio,
+      humQ: cfg.humQ,
+      strength: s
+    });
+
+    setProcessingStage('level');
+    updateProgress(82, 'Balancing loudness without crushing the voice…');
+    normalizeAudioBuffer(filtered, preset === 'studio' ? 0.86 : 0.80);
+
+    // Restore the input sample rate for a friendlier export when possible.
+    let finalBuffer = filtered;
+    if (filtered.sampleRate !== sourceBuffer.sampleRate) {
+      finalBuffer = await resampleAudioBuffer(filtered, sourceBuffer.sampleRate);
+    }
+
+    setProcessingStage('export');
+    updateProgress(93, 'Encoding repaired WAV…');
+    const wav = encodeWav(finalBuffer);
+
+    repairedBlob = new Blob([wav], {type:'audio/wav'});
+    if (repairedUrl) URL.revokeObjectURL(repairedUrl);
+    repairedUrl = URL.createObjectURL(repairedBlob);
+    $('afterPlayer').src = repairedUrl;
+    $('afterPresetLabel').textContent = `${capitalize(preset)} neural repair`;
+
+    const gain = neuralEnabled
+      ? (preset === 'natural' ? 13 : preset === 'clean' ? 19 : 23)
+      : (preset === 'natural' ? 7 : preset === 'clean' ? 11 : 15);
+    $('newHealthScore').textContent = Math.min(99, (analysis?.score || 65) + gain);
+
+    updateProgress(100, 'Repair complete.');
+    await tick(260);
+
+    processing.classList.add('hidden');
+    result.classList.remove('hidden');
+    result.scrollIntoView({behavior:'smooth', block:'start'});
+  } catch (error) {
+    console.error('Audio repair failed:', error);
+    processing.classList.add('hidden');
+    repairPanel.classList.remove('hidden');
+    alert('Audio repair could not finish on this device. Try a shorter file or a modern Chrome/Edge/Safari browser.');
+  } finally {
+    repairBtn.disabled = false;
+  }
+}
+
+function getNeuralStrength(baseStrength, preset, envMode) {
+  const presetBoost = preset === 'studio' ? 0.12 : preset === 'clean' ? 0.06 : 0;
+  const environmentAdjust = envMode === 'natural' ? -0.10 : envMode === 'studio' ? 0.05 : 0;
+  return Math.max(0.22, Math.min(1, baseStrength + presetBoost + environmentAdjust));
+}
+
+async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, onProgress) {
+  const channels = [];
+  const transfers = [];
+
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const copy = new Float32Array(buffer.getChannelData(c));
+    channels.push(copy.buffer);
+    transfers.push(copy.buffer);
   }
 
-  // "Keep the vibe" controls how much room tone the adaptive gate preserves.
-  const environmentFactor = environmentMode === 'studio' ? 1.18 : environmentMode === 'natural' ? 0.72 : 1;
+  if (neuralWorker) {
+    try { neuralWorker.terminate(); } catch {}
+  }
 
-  setProcessingStage('scan');
-  updateProgress(15, 'Estimating room floor and voice activity…');
-  await tick(30);
-  const gated = applySoftAdaptiveGate(sourceBuffer, cfg.gateDb * (0.55 + 0.55*s) * environmentFactor);
+  neuralWorker = new Worker('rnnoise-worker.js?v=11', { type: 'module' });
 
-  setProcessingStage('noise');
-  updateProgress(42, 'Reducing rumble, hum and steady noise…');
-  const filtered = await processWithOfflineAudio(gated, {
-    highpass: cfg.highpass + 20*(s-.5),
-    presence: cfg.presence*s,
-    bright: cfg.bright*s,
-    compressorThreshold: cfg.comp,
-    compressorRatio: cfg.ratio,
-    humQ: cfg.humQ,
-    strength: s
+  return await new Promise((resolve, reject) => {
+    const cleanup = () => {
+      if (neuralWorker) {
+        neuralWorker.terminate();
+        neuralWorker = null;
+      }
+    };
+
+    neuralWorker.onmessage = (event) => {
+      const data = event.data || {};
+
+      if (data.type === 'progress') {
+        onProgress?.(Math.max(0, Math.min(1, Number(data.progress || 0))));
+        return;
+      }
+
+      if (data.type === 'error') {
+        cleanup();
+        reject(new Error(data.message || 'RNNoise worker failed'));
+        return;
+      }
+
+      if (data.type === 'done') {
+        try {
+          const returned = data.channels || [];
+          const out = new AudioBuffer({
+            length: new Float32Array(returned[0]).length,
+            numberOfChannels: returned.length,
+            sampleRate: 48000
+          });
+
+          returned.forEach((buf, index) => {
+            out.copyToChannel(new Float32Array(buf), index);
+          });
+
+          cleanup();
+          resolve(out);
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      }
+    };
+
+    neuralWorker.onerror = (event) => {
+      cleanup();
+      reject(new Error(event.message || 'RNNoise worker could not load'));
+    };
+
+    neuralWorker.postMessage({
+      type: 'denoise',
+      channels,
+      strength: neuralStrength,
+      voiceLock
+    }, transfers);
   });
+}
 
-  setProcessingStage('voice');
-  updateProgress(68, 'Protecting voice tone and clarity…');
-  await tick(90);
-  setProcessingStage('level');
-  updateProgress(78, 'Balancing voice level and dynamics…');
-  normalizeAudioBuffer(filtered, preset === 'studio' ? 0.88 : 0.82);
+async function resampleAudioBuffer(buffer, targetSampleRate) {
+  if (buffer.sampleRate === targetSampleRate) return buffer;
 
-  setProcessingStage('export');
-  updateProgress(91, 'Encoding repaired WAV…');
-  const wav = encodeWav(filtered);
-  repairedBlob = new Blob([wav], {type:'audio/wav'});
-  if (repairedUrl) URL.revokeObjectURL(repairedUrl);
-  repairedUrl = URL.createObjectURL(repairedBlob);
-  $('afterPlayer').src = repairedUrl;
-  $('afterPresetLabel').textContent = `${capitalize(preset)} repair`;
+  const targetLength = Math.max(
+    1,
+    Math.ceil(buffer.duration * targetSampleRate)
+  );
 
-  const gain = preset === 'natural' ? 8 : preset === 'clean' ? 13 : 17;
-  $('newHealthScore').textContent = Math.min(99, (analysis?.score || 65) + gain);
+  const offline = new OfflineAudioContext(
+    buffer.numberOfChannels,
+    targetLength,
+    targetSampleRate
+  );
 
-  updateProgress(100, 'Repair complete.');
-  await tick(250);
-  processing.classList.add('hidden');
-  result.classList.remove('hidden');
-  result.scrollIntoView({behavior:'smooth', block:'start'});
+  const source = offline.createBufferSource();
+  source.buffer = buffer;
+  source.connect(offline.destination);
+  source.start();
+
+  return await offline.startRendering();
 }
 
 function applySoftAdaptiveGate(buffer, reductionDb) {
@@ -355,8 +552,8 @@ function applySoftAdaptiveGate(buffer, reductionDb) {
     }
     const sorted=[...rmsFrames].sort((a,b)=>a-b);
     const floor=sorted[Math.floor(sorted.length*.22)] || 0.001;
-    const openThreshold = floor * 2.5;
-    const fullThreshold = floor * 5.5;
+    const openThreshold = floor * 2.15;
+    const fullThreshold = floor * 5.1;
     let smoothGain = 1;
 
     for (let fi=0; fi<rmsFrames.length; fi++) {
@@ -368,7 +565,7 @@ function applySoftAdaptiveGate(buffer, reductionDb) {
         const t=(r-openThreshold)/(fullThreshold-openThreshold);
         target=reduction+(1-reduction)*(t*t*(3-2*t));
       }
-      const coeff = target > smoothGain ? 0.38 : 0.10;
+      const coeff = target > smoothGain ? 0.22 : 0.045;
       smoothGain += (target-smoothGain)*coeff;
       const start=fi*frame, end=Math.min(start+frame,src.length);
       for(let i=start;i<end;i++) dst[i]=src[i]*smoothGain;
