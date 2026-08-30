@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#030616">
-  <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a 48K speech-enhancement engine.">
+  <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=16.2.1f">
+  <link rel="stylesheet" href="styles.css?v=17.1f">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,25 +26,25 @@
     <section class="audio-tool-hero section">
       <div class="container audio-tool-hero-grid">
         <div class="reveal">
-          <span class="status-pill live-beta">Clear Voice X Beta</span>
+          <span class="status-pill live-beta">AI Clear Voice Beta</span>
           <span class="section-kicker">RIVANI AUDIO</span>
           <h1>Make the voice the focus.</h1>
-          <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated Full-band MossFormer2 speech enhancement running directly on your device—built for a more natural, cleaner one-click result.</p>
+          <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated AI-powered voice enhancement built to reduce background noise while keeping speech clear, smooth and natural.</p>
           <div class="audio-hero-points">
             <span>✓ One clear repair workflow</span>
-            <span>✓ MossFormer2 48 kHz</span>
+            <span>✓ AI Powered Enhancement</span>
             <span>✓ Before / after preview</span>
             <span>✓ WAV export</span>
           </div>
         </div>
         <div class="audio-health-demo reveal delay-1">
-          <span class="audio-health-label">CLEAR VOICE X</span>
-          <strong>AI<span> 48K</span></strong>
+          <span class="audio-health-label">AI CLEAR VOICE</span>
+          <strong>AI<span> POWERED</span></strong>
           <div class="health-demo-bar"><i style="width:82%"></i></div>
           <ul>
-            <li><b>Speech denoising</b><span>MossFormer2</span></li>
-            <li><b>Processing</b><span>Your device</span></li>
-            <li><b>Voice path</b><span>Full-band 48K</span></li>
+            <li><b>Noise cleanup</b><span>AI Powered</span></li>
+            <li><b>Voice clarity</b><span>Adaptive</span></li>
+            <li><b>Final polish</b><span>Studio Ready</span></li>
           </ul>
         </div>
       </div>
@@ -59,7 +59,7 @@
             <h2>Drop your voice recording here</h2>
             <p>or choose a file from your device</p>
             <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
-            <small>No manual model install. On first use, RIVANI automatically streams and caches the Clear Voice X model through its model-delivery endpoint; your recording itself stays on your device.</small>
+            <small>No manual setup. RIVANI AI prepares itself automatically; your recording stays on your device during enhancement.</small>
           </div>
 
           <div class="audio-editor hidden" id="audioEditor">
@@ -94,12 +94,12 @@
             <div class="repair-panel hidden" id="repairPanel">
               <div class="repair-head">
                 <div>
-                  <span class="section-kicker">CLEAR VOICE X ENGINE</span>
+                  <span class="section-kicker">AI CLEAR VOICE ENGINE</span>
                   <h2>One repair. You control how much noise goes.</h2>
-                  <p class="repair-subcopy">Natural / Clean / Studio are no longer separate denoise engines. One neural speech-enhancement path. The slider changes mask strength without mixing delayed dry/wet waveforms.</p>
+                  <p class="repair-subcopy">Natural / Clean / Studio are no longer separate denoise engines. One focused AI enhancement path designed to keep the voice natural while reducing unwanted background sound.</p>
                 </div>
                 <div class="repair-plan-badges">
-                  <span class="gpu-badge">ON-DEVICE AI</span>
+                  <span class="gpu-badge">AI POWERED</span>
                   <span class="free-badge">FREE BETA</span>
                 </div>
               </div>
@@ -108,26 +108,39 @@
                 <div class="clear-engine-orb"><span>R</span><i></i><i></i></div>
                 <div>
                   <div class="neural-title-row">
-                    <strong>RIVANI Clear Voice X</strong>
-                    <span class="engine-live" id="clearEngineStatus">MossFormer2 48K · loads automatically</span>
+                    <strong>RIVANI AI Clear Voice</strong>
+                    <span class="engine-live" id="clearEngineStatus">RIVANI AI Engine · Preparing</span>
                   </div>
-                  <p>MossFormer2 predicts a full-band speech mask at 48 kHz. RIVANI applies it in the spectral domain, so there is no delayed neural/dry waveform blend that can create comb-filter or phasey artifacts.</p>
+                  <p>RIVANI AI separates useful speech detail from unwanted background sound, then protects the voice with a restrained finishing stage.</p>
                 </div>
               </div>
 
               <div class="clear-control-card">
                 <label for="repairStrength">
-                  <span><b>Enhancement Strength</b><small>85% is the starting point. Lower keeps more room sound; higher pushes the learned speech mask harder.</small></span>
+                  <span><b>AI Enhancement</b><small>85% is the recommended starting point. Lower keeps more ambience; higher removes background sound more strongly.</small></span>
                   <strong id="repairStrengthValue">85%</strong>
                 </label>
                 <input id="repairStrength" type="range" min="25" max="100" value="85">
                 <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
               </div>
-<div class="repair-feature-row">
-                <span><i>✓</i> MossFormer2 48K</span>
-                <span><i>✓</i> Full-band speech mask</span>
-                <span><i>✓</i> No dry/wet neural mix</span>
-                <span><i>✓</i> Automatic voice level</span>
+
+              <div class="studio-finish-card">
+                <div>
+                  <span class="studio-finish-kicker">STUDIO FINISH</span>
+                  <strong>Polish the enhanced voice</strong>
+                  <small>Adaptive tone balance, gentle harshness control, light compression and final loudness polish.</small>
+                </div>
+                <button id="studioFinishToggle" class="studio-toggle active" type="button" aria-pressed="true">
+                  <span class="studio-toggle-dot"></span>
+                  <b id="studioFinishState">ON</b>
+                </button>
+              </div>
+
+              <div class="repair-feature-row">
+                <span><i>✓</i> AI noise cleanup</span>
+                <span><i>✓</i> Voice detail protection</span>
+                <span><i>✓</i> Adaptive background control</span>
+                <span><i>✓</i> Studio Finish</span>
                 <span><i>✓</i> Peak protection</span>
               </div>
 <button class="btn btn-primary audio-main-action gpu-repair-button" id="repairAudioBtn" type="button">
@@ -138,13 +151,13 @@
                 <div class="pro-mixer-head">
                   <div>
                     <div class="pro-title-row"><span class="pro-chip">PRO</span><h3>Noise Mixer</h3></div>
-                    <p>Future granular controls stay locked until their dedicated separation engines are actually ready.</p>
+                    <p>Advanced controls unlock only when their dedicated AI processing is connected—no fake sliders.</p>
                   </div>
                   <button class="pro-unlock-btn" type="button" data-pro-preview><span>🔒</span> Pro preview</button>
                 </div>
                 <div class="pro-feature-strip">
-                  <span>🔒 Fan / AC</span><span>🔒 Traffic</span><span>🔒 Background Voices</span>
-                  <span>🔒 Music Remove</span><span>🔒 De-Reverb</span><span>🔒 Noise Map</span>
+                  <span>✓ Overall Noise</span><span>🔒 Fan / AC</span><span>🔒 Traffic</span><span>🔒 Background Voices</span>
+                  <span>🔒 Music Control</span><span>🔒 De-Reverb</span><span>🔒 Click Repair</span>
                 </div>
               </section>
             </div>
@@ -158,12 +171,12 @@
                   <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
                 </div>
               </div>
-              <span class="processing-kicker">RIVANI CLEAR VOICE X</span>
+              <span class="processing-kicker">RIVANI AI CLEAR VOICE</span>
               <h3 id="processingTitle">Preparing your repair…</h3>
-              <p id="processingText">Preparing MossFormer2 48K.</p>
+              <p id="processingText">Preparing AI Voice Engine.</p>
               <div class="processing-stages" id="processingStages">
                 <span class="active" data-stage="upload">Upload</span>
-                <span data-stage="model">MossFormer</span>
+                <span data-stage="model">AI Enhance</span>
                 <span data-stage="restore">Smooth</span>
                 <span data-stage="level">Finish</span>
                 <span data-stage="export">Result</span>
@@ -177,9 +190,9 @@
                 <div>
                   <span class="status-pill live-beta">Clear Voice complete</span>
                   <h2>Listen before you download.</h2>
-                  <p>The repaired file was created on this device with MossFormerNet3 and RIVANI’s local finishing. Compare at a similar listening volume and listen for background reduction, consonant clarity and any unnatural artifacts.</p>
+                  <p>The repaired file was created on this device with AI EnhanceNet3 and RIVANI’s local finishing. Compare at a similar listening volume and listen for background reduction, consonant clarity and any unnatural artifacts.</p>
                 </div>
-                <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">48K</strong></div>
+                <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">AI</strong></div>
               </div>
               <div class="compare-grid">
                 <article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio id="beforePlayer" controls></audio></article>
@@ -198,8 +211,8 @@
         </div>
 
         <div class="audio-beta-note">
-          <span>Clear Voice X Beta</span>
-          <p>MossFormerNet3 is for speech noise suppression. Background music and another person speaking over the target voice remain separate-source problems for a future engine.</p>
+          <span>AI Clear Voice Beta</span>
+          <p>AI EnhanceNet3 is for speech noise suppression. Background music and another person speaking over the target voice remain separate-source problems for a future engine.</p>
         </div>
       </div>
     </section>
@@ -226,8 +239,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=16.2.1f"></script>
-  <script type="module" src="auth-nav.js?v=16.2.1f"></script>
-  <script type="module" src="audio-repair-v16.js?v=16.2"></script>
+  <script src="script.js?v=17.1f"></script>
+  <script type="module" src="auth-nav.js?v=17.1f"></script>
+  <script type="module" src="audio-repair-v16.js?v=17"></script>
 </body>
 </html>

@@ -60,7 +60,7 @@ self.onmessage = async (event) => {
     self.postMessage({
       type:"phase",
       phase:"model",
-      text:"MossFormer2 48K running with full WebAssembly compatibility mode…"
+      text:"RIVANI AI is enhancing the voice…"
     });
 
     const started = performance.now();
@@ -87,7 +87,7 @@ async function ensureRuntime() {
 
   if (!runtimePromise) {
     runtimePromise = (async () => {
-      self.postMessage({type:"phase", phase:"model", text:"Loading ONNX Runtime…"});
+      self.postMessage({type:"phase", phase:"model", text:"Loading RIVANI AI engine…"});
       const mod = await import(ORT_URL);
 
       mod.env.wasm.wasmPaths = ORT_WASM_BASE;
@@ -115,7 +115,7 @@ async function ensureSession() {
     self.postMessage({
       type:"phase",
       phase:"model",
-      text:"Starting MossFormer2 with full ONNX Runtime WebAssembly…"
+      text:"Starting RIVANI AI engine…"
     });
 
     try {
@@ -165,7 +165,7 @@ async function loadModelBytes() {
           type:"modelProgress",
           cached:true,
           progress:100,
-          text:"MossFormer2 model loaded from browser cache."
+          text:"AI engine loaded from browser cache."
         });
         return await blob.arrayBuffer();
       }
@@ -239,7 +239,7 @@ async function loadModelBytes() {
             type:"modelProgress",
             cached:false,
             progress:pct,
-            text:`Loading Clear Voice X model… ${Math.round(pct)}%`
+            text:`Loading RIVANI AI engine… ${Math.round(pct)}%`
           });
         }
       }
@@ -267,7 +267,7 @@ async function loadModelBytes() {
         type:"modelProgress",
         cached:false,
         progress:100,
-        text:"MossFormer2 AI model ready."
+        text:"RIVANI AI engine ready."
       });
 
       return await blob.arrayBuffer();
@@ -364,7 +364,7 @@ async function denoiseLong(input, strength) {
       segment:s+1,
       segments:positions.length,
       progress:Math.round((s / positions.length) * 100),
-      text:`Enhancing speech segment ${s+1} of ${positions.length}…`
+      text:`AI enhancing segment ${s+1} of ${positions.length}…`
     });
 
     const enhanced = await enhanceSegment(seg, strength);
@@ -384,7 +384,7 @@ async function denoiseLong(input, strength) {
     segment:positions.length,
     segments:positions.length,
     progress:100,
-    text:"Neural speech cleanup complete."
+    text:"AI voice cleanup complete."
   });
 
   return out;
@@ -505,17 +505,25 @@ function applyMaskISTFT(scaled, mask, featureFrames, strength) {
   const ola = new Float64Array(Math.max(outLen, scaled.length));
   const winSq = new Float64Array(Math.max(outLen, scaled.length));
 
-  // At default ~85%, gamma is ~1.02: nearly the trained model's native mask.
-  // Low settings relax suppression; 100% is only mildly stronger. No waveform
-  // dry/wet blend is used, so there is no comb-filter / flanging failure mode.
-  const gamma = 0.55 + 0.55 * strength;
-  const maxAttDb = 18 + 30 * strength; // 25.5..48 dB floor
+  // V17: use the model's own mask confidence to decide how hard to suppress.
+  // Speech-like frames keep near-native masks; noise-heavy frames are pushed
+  // slightly harder. This avoids globally increasing enhancement strength.
+  const baseGamma = 0.52 + 0.55 * strength;
+  const maxAttDb = 20 + 31 * strength;
   const maskFloor = Math.pow(10, -maxAttDb / 20);
 
+  // Temporal smoothing of masks reduces flutter / musical residue.
+  // Recovery toward speech is faster than movement toward suppression.
+  const previous = new Float64Array(BINS);
+  previous.fill(1);
+
+  const rawFrame = new Float64Array(BINS);
+  const smoothFrame = new Float64Array(BINS);
   const time = new Float64Array(WIN);
 
-  for (let t=0;t<nFrames;t++) {
+  for (let t=0; t<nFrames; t++) {
     const start=t*HOP;
+
     for (let n=0;n<WIN;n++) {
       time[n] = scaled[start+n] * symmetricHamming1920[n];
     }
@@ -525,14 +533,58 @@ function applyMaskISTFT(scaled, mask, featureFrames, strength) {
     const im = spec.im;
 
     const mo=t*BINS;
+
+    // Measure the model mask in the main voice/noise range ~100 Hz–12 kHz.
+    let maskSum=0, maskCount=0;
+    const lowBin = 4;
+    const highBin = Math.min(BINS-1, 480); // ~12 kHz at 48 kHz / 1920 FFT
+
     for (let f=0;f<BINS;f++) {
       let m=mask[mo+f];
       if (!Number.isFinite(m)) m=1;
       m=Math.max(0,Math.min(1.5,m));
+      rawFrame[f]=m;
 
-      // Preserve any learned >1 boost, shape only attenuation masks below 1.
+      if (f>=lowBin && f<=highBin) {
+        maskSum += Math.min(1,m);
+        maskCount++;
+      }
+    }
+
+    const meanMask = maskSum / Math.max(1,maskCount);
+
+    // Lower mean mask = model thinks this frame needs more suppression.
+    // The extra push is capped and only applied to values below 1.
+    let adaptiveBoost = 0;
+    if (meanMask < .72) {
+      adaptiveBoost = Math.min(.18, (.72-meanMask)*.55);
+    }
+
+    const gamma = baseGamma + adaptiveBoost;
+
+    // Light 3-bin frequency smoothing before temporal smoothing.
+    for (let f=0;f<BINS;f++) {
+      const a=rawFrame[Math.max(0,f-1)];
+      const b=rawFrame[f];
+      const c=rawFrame[Math.min(BINS-1,f+1)];
+      smoothFrame[f]=(a+b*2+c)/4;
+    }
+
+    for (let f=0;f<BINS;f++) {
+      let m=smoothFrame[f];
+
+      // Attack/release smoothing:
+      // if mask opens (speech/detail returns), follow quickly;
+      // if mask closes (suppression), move a little slower.
+      const prev=previous[f];
+      const alpha=m>prev ? .78 : .42;
+      m=prev + (m-prev)*alpha;
+      previous[f]=m;
+
       let effective=m;
-      if (m<1) effective=Math.max(maskFloor, Math.pow(m, gamma));
+      if (m<1) {
+        effective=Math.max(maskFloor,Math.pow(m,gamma));
+      }
 
       re[f]*=effective;
       im[f]*=effective;
@@ -548,9 +600,9 @@ function applyMaskISTFT(scaled, mask, featureFrames, strength) {
 
     for (let n=0;n<WIN;n++) {
       const idx=start+n;
-      const w=symmetricHamming1920[n];
-      ola[idx] += restored[n] * w;
-      winSq[idx] += w*w;
+      const ww=symmetricHamming1920[n];
+      ola[idx] += restored[n] * ww;
+      winSq[idx] += ww*ww;
     }
   }
 

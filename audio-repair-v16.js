@@ -26,6 +26,7 @@ let worker=null;
 let warmupStarted=false;
 let modelReady=false;
 let activeProvider="";
+let studioFinish=true;
 
 chooseBtn?.addEventListener("click",()=>input?.click());
 replaceBtn?.addEventListener("click",()=>input?.click());
@@ -52,6 +53,15 @@ dropZone?.addEventListener("drop",e=>{
 
 strength?.addEventListener("input",()=>{
   strengthValue.textContent=`${strength.value}%`;
+});
+
+const studioFinishBtn = $("studioFinishToggle");
+studioFinishBtn?.addEventListener("click",()=>{
+  studioFinish=!studioFinish;
+  studioFinishBtn.classList.toggle("active",studioFinish);
+  studioFinishBtn.setAttribute("aria-pressed",String(studioFinish));
+  const state=$("studioFinishState");
+  if(state)state.textContent=studioFinish?"ON":"OFF";
 });
 
 document.querySelectorAll("[data-pro-preview]").forEach(btn=>{
@@ -177,7 +187,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("mossformer2-worker.js?v=16.2",{type:"module"});
+  worker=new Worker("mossformer2-worker.js?v=17",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -204,7 +214,7 @@ function getWorker(){
       modelReady=true;
       activeProvider=d.provider||"";
       if(status){
-        status.textContent="MossFormer2 48K · Full WASM ready";
+        status.textContent="RIVANI AI Engine · Ready";
         status.classList.remove("engine-error");
       }
     }
@@ -219,7 +229,7 @@ async function warmupEngine(){
 
   const status=$("clearEngineStatus");
   if(status){
-    status.textContent="MossFormer2 48K · loading automatically…";
+    status.textContent="RIVANI AI Engine · Loading…";
     status.classList.remove("engine-error");
   }
 
@@ -237,7 +247,7 @@ async function warmupEngine(){
       warmupStarted=false;
       w.removeEventListener("message",listener);
       if(status){
-        status.textContent="MossFormer2 48K · tap Enhance to retry";
+        status.textContent="RIVANI AI Engine · Tap Enhance to retry";
         status.classList.add("engine-error");
       }
     }
@@ -264,7 +274,7 @@ async function repairLocally(){
     const mono=mixToMono(buffer48);
 
     setStage("model");
-    updateProgress(8,"Preparing MossFormer2 48K…");
+    updateProgress(8,"Preparing RIVANI AI Engine…");
 
     const enhanced=await runMossFormer(
       mono,
@@ -280,11 +290,18 @@ async function repairLocally(){
     updateProgress(82,"Applying transparent voice finishing—no dry/wet neural blend…");
 
     let repaired48=rebuildFromMono(buffer48,enhanced);
-    repaired48=await applyAutoFinish(repaired48);
+
+    if(studioFinish){
+      updateProgress(84,"Applying Studio Finish for smoother, more balanced voice…");
+      repaired48=await applyStudioFinish(repaired48);
+    }else{
+      updateProgress(84,"Keeping the AI-enhanced voice natural…");
+      repaired48=await applyNaturalFinish(repaired48);
+    }
 
     setStage("level");
-    updateProgress(91,"Balancing spoken-word loudness and protecting peaks…");
-    levelVoiceRms(repaired48,-17.0,-1.2);
+    updateProgress(91,"Balancing voice loudness and protecting peaks…");
+    levelVoiceRms(repaired48,studioFinish?-18.0:-18.5,-1.2);
 
     let finalBuffer=repaired48;
     if(sourceBuffer.sampleRate!==48000){
@@ -302,11 +319,11 @@ async function repairLocally(){
 
     $("afterPlayer").src=repairedUrl;
     $("afterPresetLabel").textContent=
-      `Clear Voice X · ${strength.value}% · Full WASM`;
+      `Clear Voice · ${strength.value}% · AI Powered`;
 
     const status=$("clearEngineStatus");
     if(status){
-      status.textContent="MossFormer2 48K · Full WASM · ready";
+      status.textContent="RIVANI AI Engine · Ready";
       status.classList.remove("engine-error");
     }
 
@@ -323,7 +340,7 @@ async function repairLocally(){
 
     const status=$("clearEngineStatus");
     if(status){
-      status.textContent="MossFormer2 48K · could not start";
+      status.textContent="RIVANI AI Engine · Could not start";
       status.classList.add("engine-error");
     }
 
@@ -355,7 +372,7 @@ async function runMossFormer(mono,strength,onProgress){
       }
 
       if(d.type==="phase"){
-        onProgress?.(18,d.text||"Running MossFormer2…",d.provider);
+        onProgress?.(18,d.text||"Running RIVANI AI enhancement…",d.provider);
         return;
       }
 
@@ -367,7 +384,7 @@ async function runMossFormer(mono,strength,onProgress){
 
       if(d.type==="error"){
         w.removeEventListener("message",listener);
-        reject(new Error(d.message||"MossFormer2 failed."));
+        reject(new Error(d.message||"RIVANI AI enhancement failed."));
         return;
       }
 
@@ -387,7 +404,58 @@ async function runMossFormer(mono,strength,onProgress){
   });
 }
 
-async function applyAutoFinish(buffer){
+async function applyNaturalFinish(buffer){
+  const offline=new OfflineAudioContext(
+    buffer.numberOfChannels,
+    buffer.length,
+    buffer.sampleRate
+  );
+
+  const src=offline.createBufferSource();
+  src.buffer=buffer;
+
+  const hp=offline.createBiquadFilter();
+  hp.type="highpass";
+  hp.frequency.value=62;
+  hp.Q.value=.58;
+
+  const comp=offline.createDynamicsCompressor();
+  comp.threshold.value=-12;
+  comp.knee.value=26;
+  comp.ratio.value=1.15;
+  comp.attack.value=.024;
+  comp.release.value=.36;
+
+  src.connect(hp).connect(comp).connect(offline.destination);
+  src.start();
+  return await offline.startRendering();
+}
+
+async function applyStudioFinish(buffer){
+  const profile=measureToneProfile(buffer);
+
+  // All adjustments are deliberately small. The AI engine remains responsible
+  // for restoration; Studio Finish only presents the already-good voice.
+  const mudGain = clamp(
+    profile.lowMidRatio > .54 ? -1.05 :
+    profile.lowMidRatio > .45 ? -.65 : -.25,
+    -1.2,0
+  );
+
+  const presenceGain = clamp(
+    profile.presenceRatio < .075 ? .70 :
+    profile.presenceRatio < .105 ? .42 :
+    profile.presenceRatio > .18 ? -.20 : .18,
+    -.3,.8
+  );
+
+  const deEssGain = clamp(
+    profile.sibilanceRatio > .115 ? -1.15 :
+    profile.sibilanceRatio > .085 ? -.70 :
+    profile.sibilanceRatio > .060 ? -.35 : -.10,
+    -1.25,0
+  );
+
   const offline=new OfflineAudioContext(
     buffer.numberOfChannels,
     buffer.length,
@@ -404,27 +472,142 @@ async function applyAutoFinish(buffer){
 
   const mud=offline.createBiquadFilter();
   mud.type="peaking";
-  mud.frequency.value=235;
-  mud.Q.value=.85;
-  mud.gain.value=-.55;
+  mud.frequency.value=245;
+  mud.Q.value=.82;
+  mud.gain.value=mudGain;
+
+  const body=offline.createBiquadFilter();
+  body.type="peaking";
+  body.frequency.value=145;
+  body.Q.value=.72;
+  body.gain.value=profile.bodyRatio<.18?.45:.12;
 
   const presence=offline.createBiquadFilter();
   presence.type="peaking";
-  presence.frequency.value=2850;
-  presence.Q.value=.8;
-  presence.gain.value=.35;
+  presence.frequency.value=2900;
+  presence.Q.value=.78;
+  presence.gain.value=presenceGain;
+
+  const deess=offline.createBiquadFilter();
+  deess.type="highshelf";
+  deess.frequency.value=6200;
+  deess.gain.value=deEssGain;
 
   const comp=offline.createDynamicsCompressor();
-  comp.threshold.value=-14;
-  comp.knee.value=24;
-  comp.ratio.value=1.3;
-  comp.attack.value=.020;
-  comp.release.value=.32;
+  comp.threshold.value=-15;
+  comp.knee.value=26;
+  comp.ratio.value=1.28;
+  comp.attack.value=.022;
+  comp.release.value=.34;
 
-  src.connect(hp).connect(mud).connect(presence).connect(comp).connect(offline.destination);
+  src
+    .connect(hp)
+    .connect(mud)
+    .connect(body)
+    .connect(presence)
+    .connect(deess)
+    .connect(comp)
+    .connect(offline.destination);
+
   src.start();
   return await offline.startRendering();
 }
+
+function measureToneProfile(buffer){
+  const mono=mixToMono(buffer);
+  const sr=buffer.sampleRate;
+  const fftSize=2048;
+  const hop=Math.max(fftSize,Math.floor(sr*.18));
+  const maxSamples=Math.min(mono.length,Math.floor(sr*45));
+  const win=new Float64Array(fftSize);
+
+  for(let i=0;i<fftSize;i++){
+    win[i]=.5-.5*Math.cos(2*Math.PI*i/(fftSize-1));
+  }
+
+  let low=0,body=0,lowMid=0,presence=0,sibilance=0,total=0,frames=0;
+
+  for(let start=0;start+fftSize<=maxSamples;start+=hop){
+    const re=new Float64Array(fftSize);
+    const im=new Float64Array(fftSize);
+    let rms=0;
+
+    for(let i=0;i<fftSize;i++){
+      const v=mono[start+i];
+      rms+=v*v;
+      re[i]=v*win[i];
+    }
+
+    rms=Math.sqrt(rms/fftSize);
+    if(rms<.006)continue;
+
+    fftRadix2Local(re,im);
+
+    for(let k=1;k<fftSize/2;k++){
+      const hz=k*sr/fftSize;
+      const p=re[k]*re[k]+im[k]*im[k];
+      total+=p;
+
+      if(hz>=70&&hz<180)low+=p;
+      if(hz>=180&&hz<500){body+=p;lowMid+=p;}
+      if(hz>=500&&hz<1100)lowMid+=p;
+      if(hz>=2200&&hz<4500)presence+=p;
+      if(hz>=5500&&hz<10000)sibilance+=p;
+    }
+    frames++;
+  }
+
+  total=Math.max(1e-12,total);
+  return {
+    lowRatio:low/total,
+    bodyRatio:body/total,
+    lowMidRatio:lowMid/total,
+    presenceRatio:presence/total,
+    sibilanceRatio:sibilance/total,
+    frames
+  };
+}
+
+function fftRadix2Local(re,im){
+  const n=re.length;
+
+  for(let i=1,j=0;i<n;i++){
+    let bit=n>>1;
+    for(;j&bit;bit>>=1)j^=bit;
+    j^=bit;
+    if(i<j){
+      let tr=re[i];re[i]=re[j];re[j]=tr;
+      let ti=im[i];im[i]=im[j];im[j]=ti;
+    }
+  }
+
+  for(let len=2;len<=n;len<<=1){
+    const angle=-2*Math.PI/len;
+    const wrStep=Math.cos(angle),wiStep=Math.sin(angle);
+
+    for(let i=0;i<n;i+=len){
+      let wr=1,wi=0;
+      const half=len>>1;
+
+      for(let j=0;j<half;j++){
+        const ur=re[i+j],ui=im[i+j];
+        const vr=re[i+j+half]*wr-im[i+j+half]*wi;
+        const vi=re[i+j+half]*wi+im[i+j+half]*wr;
+
+        re[i+j]=ur+vr;
+        im[i+j]=ui+vi;
+        re[i+j+half]=ur-vr;
+        im[i+j+half]=ui-vi;
+
+        const nwr=wr*wrStep-wi*wiStep;
+        wi=wr*wiStep+wi*wrStep;
+        wr=nwr;
+      }
+    }
+  }
+}
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
 function levelVoiceRms(buffer,targetDb=-17,peakCeilingDb=-1.2){
   let sum=0,n=0;
