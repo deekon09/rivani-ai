@@ -1172,3 +1172,268 @@ body{
 .pro-specialist-card.lab-active em{
   color:#82efce
 }
+
+
+/* ==========================================================
+   RIVANI V21.2 · Static dashboard brand + stronger page pulse
+   Visual-only update.
+   ========================================================== */
+
+/* ----------------------------------------------------------
+   Homepage dashboard mockup:
+   keep its RIVANI logo + Welcome RIVANI AI text STATIC.
+   This overrides the global logo/text shimmer only here.
+   ---------------------------------------------------------- */
+.dashboard-shell .rivani-logo-shine-shell::before,
+.dashboard-shell .rivani-logo-shine-shell::after{
+  display:none!important;
+  animation:none!important;
+}
+
+.dashboard-shell .rivani-logo-shine-shell,
+.dashboard-shell .rivani-logo-shine-shell>img,
+.dashboard-shell .dash-logo img{
+  animation:none!important;
+  filter:none!important;
+  transform:none!important;
+}
+
+.dashboard-shell .rivani-ai-textfx{
+  animation:none!important;
+  text-shadow:none!important;
+}
+
+.dashboard-shell .rivani-ai-textfx::after{
+  display:none!important;
+  animation:none!important;
+}
+
+/* ----------------------------------------------------------
+   Large soft pulse behind the homepage dashboard preview.
+   The card/logo itself remains still; only light breathes.
+   ---------------------------------------------------------- */
+.hero-visual::before,
+.hero-visual::after{
+  content:"";
+  position:absolute;
+  pointer-events:none;
+  left:50%;
+  top:50%;
+  border-radius:50%;
+  transform:translate3d(-50%,-50%,0);
+  will-change:transform,opacity;
+}
+
+.hero-visual::before{
+  width:min(900px,92vw);
+  height:min(760px,82vw);
+  z-index:0;
+  opacity:.19;
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(28,151,255,.34) 0%,
+      rgba(38,89,255,.20) 28%,
+      rgba(91,55,255,.12) 48%,
+      transparent 72%
+    );
+  filter:blur(54px);
+  animation:rivaniHeroHaloPulse 11.5s ease-in-out infinite;
+}
+
+.hero-visual::after{
+  width:min(720px,78vw);
+  height:min(620px,70vw);
+  z-index:1;
+  opacity:.10;
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(112,69,255,.30) 0%,
+      rgba(34,124,255,.15) 38%,
+      transparent 70%
+    );
+  filter:blur(66px);
+  animation:rivaniHeroHaloPulseAlt 14s ease-in-out infinite;
+}
+
+.dashboard-shell{
+  z-index:2;
+}
+
+@keyframes rivaniHeroHaloPulse{
+  0%,100%{
+    opacity:.12;
+    transform:translate3d(-50%,-50%,0) scale(.90)
+  }
+  48%{
+    opacity:.28;
+    transform:translate3d(-50%,-52%,0) scale(1.075)
+  }
+  68%{
+    opacity:.22;
+    transform:translate3d(-50%,-49%,0) scale(1.02)
+  }
+}
+
+@keyframes rivaniHeroHaloPulseAlt{
+  0%,100%{
+    opacity:.07;
+    transform:translate3d(-50%,-50%,0) scale(.92)
+  }
+  54%{
+    opacity:.20;
+    transform:translate3d(-48%,-50%,0) scale(1.10)
+  }
+}
+
+/* ----------------------------------------------------------
+   Stronger whole-page breathing background.
+   V20/V21 pulse existed but was intentionally very subtle.
+   This version makes it actually visible while staying slow.
+   ---------------------------------------------------------- */
+.rivani-bg-pulse-layer{
+  z-index:-2;
+  inset:-8vmax;
+  opacity:.16;
+  filter:blur(68px);
+  background:
+    radial-gradient(
+      circle at 18% 31%,
+      rgba(20,174,255,.40) 0%,
+      rgba(24,105,255,.23) 24%,
+      rgba(19,55,174,.08) 44%,
+      transparent 66%
+    ),
+    radial-gradient(
+      circle at 79% 43%,
+      rgba(100,68,255,.34) 0%,
+      rgba(74,50,232,.18) 27%,
+      rgba(176,45,255,.07) 46%,
+      transparent 68%
+    ),
+    radial-gradient(
+      circle at 53% 77%,
+      rgba(24,118,255,.29) 0%,
+      rgba(15,76,196,.12) 30%,
+      transparent 62%
+    );
+  animation:
+    rivaniFullPagePulseV212 12.8s ease-in-out infinite,
+    rivaniFullPageDriftV212 28s ease-in-out infinite alternate;
+}
+
+@keyframes rivaniFullPagePulseV212{
+  0%,100%{
+    opacity:.10;
+    transform:translate3d(0,0,0) scale(.92)
+  }
+  45%{
+    opacity:.24;
+    transform:translate3d(0,-1.3%,0) scale(1.045)
+  }
+  62%{
+    opacity:.20;
+    transform:translate3d(0,.6%,0) scale(1.015)
+  }
+}
+
+@keyframes rivaniFullPageDriftV212{
+  0%{
+    background-position:0 0,0 0,0 0
+  }
+  35%{
+    background-position:5vw -2vh,-4vw 4vh,2vw 3vh
+  }
+  70%{
+    background-position:-2vw 4vh,5vw -3vh,-3vw 1vh
+  }
+  100%{
+    background-position:3vw 1vh,-2vw -2vh,4vw -4vh
+  }
+}
+
+/* Existing fixed blue/violet ambience also breathes more clearly. */
+.ambient-one{
+  animation:rivaniAmbientBlueV212 15s ease-in-out infinite alternate!important;
+}
+
+.ambient-two{
+  animation:rivaniAmbientVioletV212 18s ease-in-out infinite alternate!important;
+}
+
+@keyframes rivaniAmbientBlueV212{
+  0%{
+    opacity:.08;
+    transform:translate3d(-7%,2%,0) scale(.88)
+  }
+  55%{
+    opacity:.19;
+    transform:translate3d(15%,-8%,0) scale(1.14)
+  }
+  100%{
+    opacity:.12;
+    transform:translate3d(2%,12%,0) scale(.99)
+  }
+}
+
+@keyframes rivaniAmbientVioletV212{
+  0%{
+    opacity:.07;
+    transform:translate3d(7%,-3%,0) scale(.90)
+  }
+  52%{
+    opacity:.17;
+    transform:translate3d(-14%,9%,0) scale(1.12)
+  }
+  100%{
+    opacity:.10;
+    transform:translate3d(-2%,-8%,0) scale(.97)
+  }
+}
+
+/* Grid heartbeat remains very quiet so the page never looks like flashing. */
+.grid-overlay{
+  animation:
+    rivaniGridDrift 32s linear infinite,
+    rivaniGridBreathV212 13.5s ease-in-out infinite!important;
+}
+
+@keyframes rivaniGridBreathV212{
+  0%,100%{opacity:.065}
+  50%{opacity:.135}
+}
+
+/* Mobile: reduce blur area and intensity to keep rendering light. */
+@media(max-width:850px){
+  .hero-visual::before{
+    width:110vw;
+    height:92vw;
+    opacity:.13;
+    filter:blur(42px)
+  }
+  .hero-visual::after{
+    width:92vw;
+    height:80vw;
+    filter:blur(48px)
+  }
+  .rivani-bg-pulse-layer{
+    filter:blur(54px)
+  }
+}
+
+/* Respect device/user motion preference. */
+@media(prefers-reduced-motion:reduce){
+  .hero-visual::before,
+  .hero-visual::after,
+  .rivani-bg-pulse-layer,
+  .ambient-one,
+  .ambient-two,
+  .grid-overlay{
+    animation:none!important
+  }
+
+  .hero-visual::before{opacity:.15}
+  .hero-visual::after{opacity:.08}
+  .rivani-bg-pulse-layer{opacity:.12}
+}
