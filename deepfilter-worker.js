@@ -50,7 +50,7 @@ self.onmessage = async (event) => {
 
   try {
     if (data.type === "warmup") {
-      await ensureEngine(26, 0.006);
+      await ensureEngine(20, 0.0);
       return;
     }
 

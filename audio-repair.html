@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a LOCAL speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=14ff">
+  <link rel="stylesheet" href="styles.css?v=15f">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -111,16 +111,16 @@
                     <strong>RIVANI Local Clear Voice</strong>
                     <span class="engine-live" id="clearEngineStatus">DeepFilterNet3 · waiting to load</span>
                   </div>
-                  <p>DeepFilterNet3 full-band denoising runs in WebAssembly. RIVANI then uses Artifact Guard, restrained voice finishing and loudness control.</p>
+                  <p>DeepFilterNet3 runs locally, then RIVANI automatically aligns neural latency before a conservative Artifact Guard blend. This prevents dry/wet phase damage and reduces metallic/choppy voice.</p>
                 </div>
               </div>
 
               <div class="clear-control-card">
                 <label for="repairStrength">
-                  <span><b>Noise Removal</b><small>Lower keeps more ambience. Higher pushes background noise down harder.</small></span>
-                  <strong id="repairStrengthValue">80%</strong>
+                  <span><b>Noise Removal</b><small>60% is the recommended smooth setting. Higher values remove more noise but can sound less natural.</small></span>
+                  <strong id="repairStrengthValue">60%</strong>
                 </label>
-                <input id="repairStrength" type="range" min="25" max="100" value="80">
+                <input id="repairStrength" type="range" min="25" max="100" value="60">
                 <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
               </div>
 
@@ -239,8 +239,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=14ff"></script>
-  <script type="module" src="auth-nav.js?v=14ff"></script>
-  <script type="module" src="audio-repair-local.js?v=14f"></script>
+  <script src="script.js?v=15f"></script>
+  <script type="module" src="auth-nav.js?v=15f"></script>
+  <script type="module" src="audio-repair-local.js?v=15"></script>
 </body>
 </html>

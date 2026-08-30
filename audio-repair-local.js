@@ -261,11 +261,20 @@ async function repairLocally() {
     );
 
     setStage('restore');
-    updateProgress(62, 'Artifact Guard is smoothing metallic residue…');
+    updateProgress(60, 'Checking neural timing before blending the voice…');
+
+    const aligned = alignNeuralToDry(dryMono, processed.audio, 48000);
+
+    if (aligned.lagSamples !== 0) {
+      updateProgress(
+        64,
+        `Aligning neural latency (${(aligned.lagSamples/48).toFixed(1)} ms) to protect voice phase…`
+      );
+    }
 
     const guardedMono = artifactGuardMono(
       dryMono,
-      processed.audio,
+      aligned.audio,
       speechMask,
       amount
     );
@@ -337,20 +346,22 @@ async function repairLocally() {
 }
 
 function mapNoiseStrength(amount) {
-  // Avoid extreme attenuation that creates metallic / musical-noise artifacts.
-  // 25% -> ~13 dB, 80% -> ~31 dB, 100% -> ~38 dB.
+  // V15 deliberately caps neural attenuation. The old 30–38 dB range was
+  // too aggressive for this sample and produced musical/metallic artifacts.
+  // 25% -> ~10 dB, 60% -> ~17 dB, 100% -> ~25 dB.
   const x = Math.max(.25, Math.min(1, amount));
-  const attenuationLimit = 5 + 33 * x;
-  const postFilterBeta =
-    x < .55 ? .002 :
-    x < .85 ? .006 : .010;
+  const attenuationLimit = 5 + 20 * x;
+
+  // Keep the DeepFilter post-filter off at low/medium settings and extremely
+  // light at the top end. Strong post-filtering can create "jhil-jhil".
+  const postFilterBeta = x > .90 ? .0015 : 0.0;
 
   return {attenuationLimit, postFilterBeta};
 }
 
 function getDeepFilterWorker() {
   if (!dfWorker) {
-    dfWorker = new Worker('deepfilter-worker.js?v=14f', {type:'module'});
+    dfWorker = new Worker('deepfilter-worker.js?v=15', {type:'module'});
   }
   return dfWorker;
 }
@@ -444,54 +455,129 @@ function buildEnergySpeechMask(mono, sampleRate) {
   return mask;
 }
 
+function alignNeuralToDry(dry, wetInput, sampleRate) {
+  const wet = ensureLength(wetInput, dry.length);
+  const maxLag = Math.floor(sampleRate * 0.045); // +/-45 ms
+  const probeLength = Math.min(dry.length, Math.floor(sampleRate * 4.0));
+
+  // Find a reasonably energetic 1.5 s probe so silence does not dominate
+  // correlation. This detects algorithmic delay introduced by neural DSP.
+  const win = Math.min(probeLength, Math.floor(sampleRate * 1.5));
+  let bestStart = 0;
+  let bestEnergy = -1;
+
+  for (let s=0; s+win<=probeLength; s+=Math.floor(sampleRate*.25)) {
+    let e=0;
+    for (let i=s; i<s+win; i+=8) e += dry[i]*dry[i];
+    if (e > bestEnergy) { bestEnergy=e; bestStart=s; }
+  }
+
+  // Downsample correlation by 4 for speed.
+  const step = 4;
+  let bestLag = 0;
+  let bestCorr = -Infinity;
+
+  for (let lag=-maxLag; lag<=maxLag; lag+=step) {
+    let xy=0, xx=0, yy=0, n=0;
+    for (let i=bestStart; i<bestStart+win; i+=step) {
+      const j=i+lag;
+      if (j<0 || j>=wet.length) continue;
+      const a=dry[i], b=wet[j];
+      xy+=a*b; xx+=a*a; yy+=b*b; n++;
+    }
+    if (n<100 || xx<1e-10 || yy<1e-10) continue;
+    const corr=xy/Math.sqrt(xx*yy);
+    if (corr>bestCorr) { bestCorr=corr; bestLag=lag; }
+  }
+
+  // Refine around the coarse best lag one sample at a time.
+  let refinedLag=bestLag, refinedCorr=bestCorr;
+  for (let lag=bestLag-step; lag<=bestLag+step; lag++) {
+    let xy=0,xx=0,yy=0,n=0;
+    for (let i=bestStart; i<bestStart+win; i+=8) {
+      const j=i+lag;
+      if (j<0 || j>=wet.length) continue;
+      const a=dry[i],b=wet[j];
+      xy+=a*b;xx+=a*a;yy+=b*b;n++;
+    }
+    if(n<100||xx<1e-10||yy<1e-10)continue;
+    const corr=xy/Math.sqrt(xx*yy);
+    if(corr>refinedCorr){refinedCorr=corr;refinedLag=lag;}
+  }
+
+  // If correlation is weak, don't invent a shift.
+  if (!Number.isFinite(refinedCorr) || refinedCorr < .20 || Math.abs(refinedLag) < 2) {
+    return {audio:wet, lagSamples:0, correlation:refinedCorr};
+  }
+
+  const aligned=new Float32Array(dry.length);
+
+  // Correlation used wet[i+lag] against dry[i]. Copy that aligned sample.
+  for(let i=0;i<aligned.length;i++){
+    const j=i+refinedLag;
+    if(j>=0&&j<wet.length) aligned[i]=wet[j];
+    else aligned[i]=dry[i]; // dry fill at unsupported edges avoids clicks
+  }
+
+  return {audio:aligned, lagSamples:refinedLag, correlation:refinedCorr};
+}
+
 function artifactGuardMono(dry, wetInput, speechMask, amount) {
   const wet = ensureLength(wetInput, dry.length);
   const out = new Float32Array(dry.length);
 
-  // Stronger removal can use more of the neural output during silence.
-  const speechWet = 0.82 + amount * 0.12;
-  const silenceWet = 0.94 + amount * 0.055;
+  // Speech stays noticeably drier than silence. This preserves consonants and
+  // avoids the processed voice becoming hollow/phasey even after alignment.
+  const speechWet = 0.56 + amount * 0.16;   // ~60% to 72%
+  const silenceWet = 0.86 + amount * 0.10; // ~89% to 96%
 
-  // Smooth only the neural residual above the main voice band. This specifically
-  // targets "jhil-jhil"/musical-noise without low-passing the actual dry voice.
-  const cutoff = amount > .85 ? 7200 : amount > .55 ? 8200 : 9200;
-  const rc=1/(2*Math.PI*cutoff);
-  const dt=1/48000;
-  const alpha=dt/(rc+dt);
-  let residualLP=0;
-  let mix=speechWet;
+  // Smooth the neural residual rather than low-pass filtering the whole voice.
+  const cutoff = amount > .85 ? 7600 : amount > .55 ? 8600 : 9600;
+  const rc = 1 / (2 * Math.PI * cutoff);
+  const dt = 1 / 48000;
+  const alpha = dt / (rc + dt);
+  let residualLP = 0;
+  let mix = speechWet;
 
-  const frame=1200; // 25 ms
-  for(let start=0; start<dry.length; start+=frame){
+  const frame = 960; // 20 ms
+  for (let start=0; start<dry.length; start+=frame) {
     const end=Math.min(dry.length,start+frame);
-    let dryPow=1e-10,diffPow=1e-10,speech=0;
+    let dryPow=1e-10,diffPow=1e-10,speech=0,transient=0;
 
     for(let i=start;i<end;i++){
       const diff=wet[i]-dry[i];
       dryPow+=dry[i]*dry[i];
       diffPow+=diff*diff;
       speech+=speechMask[i]||0;
+      if(i>0) transient+=Math.abs(dry[i]-dry[i-1]);
     }
 
     speech/=Math.max(1,end-start);
     const change=Math.sqrt(diffPow/dryPow);
+    const transientAvg=transient/Math.max(1,end-start);
 
     let target=speechWet*speech + silenceWet*(1-speech);
 
-    // If the model changed active speech unusually strongly, blend a little
-    // natural voice back in instead of accepting a metallic frame.
-    if(speech>.35 && change>.80){
-      target-=Math.min(.18,(change-.80)*.13);
+    // Strong model change in active speech means "protect more dry".
+    if(speech>.30 && change>.58){
+      target-=Math.min(.20,(change-.58)*.16);
     }
-    target=Math.max(.68,Math.min(.997,target));
+
+    // Consonant/transient protection: P/T/K/S attacks are where denoisers most
+    // easily sound broken. Pull a little dry signal back during such frames.
+    if(speech>.35 && transientAvg>.010){
+      target-=Math.min(.12,(transientAvg-.010)*4.0);
+    }
+
+    target=Math.max(.48,Math.min(.97,target));
 
     for(let i=start;i<end;i++){
-      mix+=(target-mix)*.005;
+      mix+=(target-mix)*.0035;
       const residual=wet[i]-dry[i];
       residualLP+=alpha*(residual-residualLP);
 
-      // Preserve most model correction; soften only the fastest HF residual.
-      const smoothResidual=residual*.76 + residualLP*.24;
+      // Less raw HF residual than V14F.
+      const smoothResidual=residual*.68 + residualLP*.32;
       out[i]=Math.max(-.999,Math.min(.999,dry[i]+smoothResidual*mix));
     }
   }
@@ -554,19 +640,19 @@ async function applyVoiceFinish(buffer, finish) {
   presence.type='peaking';
   presence.frequency.value=2850;
   presence.Q.value=.82;
-  presence.gain.value=finish==='natural'?.25:finish==='studio'?1.25:.85;
+  presence.gain.value=finish==='natural'?.10:finish==='studio'?.65:.45;
 
   const air=offline.createBiquadFilter();
   air.type='highshelf';
   air.frequency.value=7000;
-  air.gain.value=finish==='natural'?-.10:finish==='studio'?.22:.10;
+  air.gain.value=finish==='natural'?-.20:finish==='studio'?.05:-.05;
 
   const comp=offline.createDynamicsCompressor();
-  comp.threshold.value=finish==='natural'?-12:finish==='studio'?-18:-16;
+  comp.threshold.value=finish==='natural'?-10:finish==='studio'?-16:-14;
   comp.knee.value=20;
-  comp.ratio.value=finish==='natural'?1.25:finish==='studio'?2.05:1.65;
-  comp.attack.value=.010;
-  comp.release.value=.22;
+  comp.ratio.value=finish==='natural'?1.15:finish==='studio'?1.55:1.35;
+  comp.attack.value=.018;
+  comp.release.value=.30;
 
   src.connect(hp).connect(mud).connect(presence).connect(air).connect(comp).connect(offline.destination);
   src.start();
