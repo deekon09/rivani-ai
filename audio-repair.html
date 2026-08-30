@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Repair noisy voice recordings in your browser with RIVANI AI Audio Repair Beta.">
   <title>AI Audio Repair Beta — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -108,7 +108,7 @@
                 <div class="neural-engine-copy">
                   <div class="neural-title-row">
                     <strong>Neural Noise Removal</strong>
-                    <span class="engine-live" id="neuralEngineStatus">RNNoise · Ready</span>
+                    <span class="engine-live" id="neuralEngineStatus">RNNoise · Tuned V12</span>
                   </div>
                   <p>RNNoise handles the main speech denoising pass first. RIVANI then applies rumble, hum, adaptive room-floor control, voice tone protection and final level smoothing.</p>
                 </div>
@@ -119,13 +119,13 @@
 
               <div class="preset-grid" id="presetGrid">
                 <button class="preset-card active" data-preset="natural" type="button">
-                  <span>Natural</span><small>Light cleanup, keeps room tone</small>
+                  <span>Natural</span><small>≈45% neural · light cleanup, most natural room tone</small>
                 </button>
                 <button class="preset-card" data-preset="clean" type="button">
-                  <span>Clean</span><small>Stronger cleanup + clearer voice</small>
+                  <span>Clean</span><small>≈78% neural · clearly stronger background suppression</small>
                 </button>
                 <button class="preset-card" data-preset="studio" type="button">
-                  <span>Studio</span><small>Tighter dynamics + brighter presence</small>
+                  <span>Studio</span><small>≈100% neural · strongest cleanup + studio voice polish</small>
                 </button>
               </div>
 
@@ -138,7 +138,7 @@
                     </span>
                     <strong id="repairStrengthValue">55%</strong>
                   </label>
-                  <input id="repairStrength" type="range" min="20" max="100" value="55">
+                  <input id="repairStrength" type="range" min="20" max="100" value="45">
                   <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
                 </div>
 
@@ -336,8 +336,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=11"></script>
-  <script type="module" src="auth-nav.js?v=11"></script>
-  <script type="module" src="audio-repair.js?v=11"></script>
+  <script src="script.js?v=12"></script>
+  <script type="module" src="auth-nav.js?v=12"></script>
+  <script type="module" src="audio-repair.js?v=12"></script>
 </body>
 </html>

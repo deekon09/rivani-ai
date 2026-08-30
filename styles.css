@@ -176,3 +176,10 @@
   .neural-engine-card{grid-template-columns:auto 1fr}
   .neural-toggle{grid-column:1/-1;justify-self:start}
 }
+
+
+/* ===== RIVANI Audio Repair V12 tuning ===== */
+.preset-card small{min-height:30px}
+.preset-card[data-preset="natural"].active{border-color:rgba(71,211,197,.52);box-shadow:0 0 0 1px rgba(54,194,180,.18),0 14px 34px rgba(25,125,132,.10)}
+.preset-card[data-preset="clean"].active{border-color:rgba(55,169,255,.62);box-shadow:0 0 0 1px rgba(55,147,255,.20),0 14px 34px rgba(25,86,205,.14)}
+.preset-card[data-preset="studio"].active{border-color:rgba(168,77,255,.62);box-shadow:0 0 0 1px rgba(150,69,255,.20),0 14px 36px rgba(99,37,205,.15)}

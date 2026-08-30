@@ -50,7 +50,7 @@ dropZone?.addEventListener('drop', e => {
 presets.forEach(btn => btn.addEventListener('click', () => {
   selectedPreset = btn.dataset.preset || 'natural';
   presets.forEach(p => p.classList.toggle('active', p === btn));
-  const defaults = { natural:55, clean:75, studio:88 };
+  const defaults = { natural:45, clean:78, studio:100 };
   strength.value = defaults[selectedPreset];
   strengthValue.textContent = `${strength.value}%`;
 }));
@@ -308,15 +308,17 @@ async function repairAudio() {
     const preset = selectedPreset;
 
     const cfg = {
-      natural: { gateDb: 7.5, highpass:72, presence:1.25, comp:-15, ratio:1.9, humQ:7, bright:0.25 },
-      clean:   { gateDb: 12.5, highpass:86, presence:2.0, comp:-18, ratio:2.45, humQ:9, bright:0.65 },
-      studio:  { gateDb: 16.5, highpass:98, presence:2.6, comp:-20, ratio:3.0, humQ:10, bright:0.95 }
+      natural: { gateDb: 4.5, highpass:68, presence:0.85, comp:-14, ratio:1.55, humQ:7, bright:0.05, targetSpeechDb:-18.5 },
+      clean:   { gateDb: 9.5, highpass:84, presence:1.75, comp:-17, ratio:2.25, humQ:9, bright:0.45, targetSpeechDb:-17.2 },
+      studio:  { gateDb: 13.5, highpass:100, presence:2.7, comp:-20, ratio:3.1, humQ:11, bright:0.95, targetSpeechDb:-16.2 }
     }[preset];
 
     if (voiceLockEnabled) {
-      cfg.presence *= 0.82;
-      cfg.bright *= 0.70;
-      cfg.ratio *= 0.90;
+      // Voice Lock softens tonal reshaping without cancelling the preset's
+      // actual denoise strength.
+      cfg.presence *= preset === 'studio' ? 0.90 : 0.82;
+      cfg.bright *= preset === 'studio' ? 0.86 : 0.72;
+      cfg.ratio *= 0.94;
     }
 
     const environmentFactor =
@@ -344,6 +346,7 @@ async function repairAudio() {
           working,
           neuralStrength,
           voiceLockEnabled,
+          preset,
           (p) => {
             const mapped = 14 + p * 43;
             updateProgress(mapped, p < .35
@@ -393,8 +396,8 @@ async function repairAudio() {
     });
 
     setProcessingStage('level');
-    updateProgress(82, 'Balancing loudness without crushing the voice…');
-    normalizeAudioBuffer(filtered, preset === 'studio' ? 0.86 : 0.80);
+    updateProgress(82, 'Balancing speech loudness without boosting the noise floor…');
+    levelVoiceSmoothly(filtered, cfg.targetSpeechDb, -1.4);
 
     // Restore the input sample rate for a friendlier export when possible.
     let finalBuffer = filtered;
@@ -410,11 +413,11 @@ async function repairAudio() {
     if (repairedUrl) URL.revokeObjectURL(repairedUrl);
     repairedUrl = URL.createObjectURL(repairedBlob);
     $('afterPlayer').src = repairedUrl;
-    $('afterPresetLabel').textContent = `${capitalize(preset)} neural repair`;
+    $('afterPresetLabel').textContent = `${capitalize(preset)} · ${Math.round(neuralStrength*100)}% neural cleanup`;
 
     const gain = neuralEnabled
-      ? (preset === 'natural' ? 13 : preset === 'clean' ? 19 : 23)
-      : (preset === 'natural' ? 7 : preset === 'clean' ? 11 : 15);
+      ? (preset === 'natural' ? 9 : preset === 'clean' ? 16 : 22)
+      : (preset === 'natural' ? 5 : preset === 'clean' ? 9 : 13);
     $('newHealthScore').textContent = Math.min(99, (analysis?.score || 65) + gain);
 
     updateProgress(100, 'Repair complete.');
@@ -434,12 +437,23 @@ async function repairAudio() {
 }
 
 function getNeuralStrength(baseStrength, preset, envMode) {
-  const presetBoost = preset === 'studio' ? 0.12 : preset === 'clean' ? 0.06 : 0;
-  const environmentAdjust = envMode === 'natural' ? -0.10 : envMode === 'studio' ? 0.05 : 0;
-  return Math.max(0.22, Math.min(1, baseStrength + presetBoost + environmentAdjust));
+  // Preset floors make the modes intentionally distinct even if the user
+  // leaves the strength slider near its default.
+  const floor =
+    preset === 'studio' ? 0.90 :
+    preset === 'clean'  ? 0.68 : 0.32;
+
+  const environmentAdjust =
+    envMode === 'natural' ? -0.08 :
+    envMode === 'studio'  ? 0.04 : 0;
+
+  return Math.max(
+    0.20,
+    Math.min(1, Math.max(floor, baseStrength) + environmentAdjust)
+  );
 }
 
-async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, onProgress) {
+async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, preset, onProgress) {
   const channels = [];
   const transfers = [];
 
@@ -508,7 +522,8 @@ async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, onProgress)
       type: 'denoise',
       channels,
       strength: neuralStrength,
-      voiceLock
+      voiceLock,
+      preset
     }, transfers);
   });
 }
@@ -603,6 +618,73 @@ async function processWithOfflineAudio(buffer, settings) {
   src.connect(hp).connect(hum50).connect(hum60).connect(hum100).connect(hum120).connect(presence).connect(air).connect(comp).connect(offline.destination);
   src.start();
   return await offline.startRendering();
+}
+
+function levelVoiceSmoothly(buffer, targetSpeechDb = -17.5, peakCeilingDb = -1.4) {
+  const frameSize = Math.max(256, Math.floor(buffer.sampleRate * 0.02));
+  const framePowers = [];
+
+  // Build a mono energy estimate only for level detection.
+  for (let start = 0; start < buffer.length; start += frameSize) {
+    let sum = 0;
+    let count = 0;
+    for (let c = 0; c < buffer.numberOfChannels; c++) {
+      const d = buffer.getChannelData(c);
+      const end = Math.min(start + frameSize, d.length);
+      for (let i = start; i < end; i++) {
+        sum += d[i] * d[i];
+        count++;
+      }
+    }
+    framePowers.push(sum / Math.max(1, count));
+  }
+
+  const rmsFrames = framePowers.map(p => Math.sqrt(Math.max(0, p)));
+  const sorted = [...rmsFrames].sort((a,b) => a-b);
+  const floor = sorted[Math.floor(sorted.length * 0.22)] || 1e-5;
+
+  // Treat frames clearly above the measured floor as likely speech/activity.
+  const active = rmsFrames.filter(r => r > Math.max(floor * 3.2, 0.004));
+  const speechRms = active.length
+    ? Math.sqrt(active.reduce((s,r) => s + r*r, 0) / active.length)
+    : Math.sqrt(rmsFrames.reduce((s,r) => s + r*r, 0) / Math.max(1, rmsFrames.length));
+
+  const currentDb = 20 * Math.log10(Math.max(1e-8, speechRms));
+  const wantedGain = Math.pow(10, (targetSpeechDb - currentDb) / 20);
+
+  // Never make a cleanup result massively louder just because quiet sections
+  // were suppressed. This was the biggest reason the sample sounded "different"
+  // mostly by volume instead of by cleanup.
+  let gain = Math.max(0.68, Math.min(1.85, wantedGain));
+
+  let peak = 0;
+  for (let c=0; c<buffer.numberOfChannels; c++) {
+    const d = buffer.getChannelData(c);
+    for (let i=0; i<d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  }
+
+  const peakCeiling = Math.pow(10, peakCeilingDb / 20);
+  if (peak > 1e-8 && peak * gain > peakCeiling) {
+    gain = peakCeiling / peak;
+  }
+
+  // Apply a short cosine fade at the boundaries to avoid clicks after
+  // resampling/processing and use the soft limiter only as a last safety net.
+  const fadeSamples = Math.min(Math.floor(buffer.sampleRate * 0.012), Math.floor(buffer.length / 4));
+
+  for (let c=0; c<buffer.numberOfChannels; c++) {
+    const d = buffer.getChannelData(c);
+    for (let i=0; i<d.length; i++) {
+      let edge = 1;
+      if (fadeSamples > 0 && i < fadeSamples) {
+        edge = 0.5 - 0.5 * Math.cos(Math.PI * i / fadeSamples);
+      } else if (fadeSamples > 0 && i >= d.length - fadeSamples) {
+        const j = d.length - 1 - i;
+        edge = 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0,j) / fadeSamples);
+      }
+      d[i] = softLimit(d[i] * gain * edge);
+    }
+  }
 }
 
 function normalizeAudioBuffer(buffer, targetPeak=.82) {

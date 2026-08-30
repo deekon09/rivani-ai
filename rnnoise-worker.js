@@ -14,7 +14,8 @@ self.onmessage = async (event) => {
   const {
     channels = [],
     strength = 0.72,
-    voiceLock = true
+    voiceLock = true,
+    preset = "natural"
   } = data;
 
   try {
@@ -58,14 +59,22 @@ self.onmessage = async (event) => {
           // - noise-only frames can receive full requested suppression
           // - speech-confident frames stay a little drier when Voice Lock is enabled
           let wet = Math.max(0, Math.min(1, strength));
+          const vad01 = Math.max(0, Math.min(1, vad));
+
+          // The old build protected speech too aggressively in every preset,
+          // which made Natural / Clean / Studio sound almost the same.
+          // V12 keeps Natural conservative, but allows Clean and Studio to
+          // suppress noise that is present underneath speech much more strongly.
           if (voiceLock) {
-            const speechProtection = 0.48 + 0.52 * (1 - Math.max(0, Math.min(1, vad)));
-            wet *= speechProtection;
+            const speechWetMultiplier =
+              preset === "studio" ? (1 - 0.12 * vad01) :
+              preset === "clean"  ? (1 - 0.25 * vad01) :
+                                    (1 - 0.48 * vad01);
+            wet *= speechWetMultiplier;
           }
 
-          // RNNoise has one-frame temporal state. Keep the opening frame mostly dry
-          // and ramp in over the first few frames to avoid a hard transition.
-          const warmup = Math.min(1, Math.max(0.12, (f + 1) / 5));
+          // Soft startup ramp prevents the first few 10 ms frames from jumping.
+          const warmup = Math.min(1, Math.max(0.16, (f + 1) / 7));
           wet *= warmup;
 
           for (let i = 0; i < remaining; i++) {
