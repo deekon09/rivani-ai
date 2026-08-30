@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#030616">
-  <meta name="description" content="Create or sign in to your RIVANI AI account with email, Google, or Facebook.">
+  <meta name="description" content="Create or sign in to your RIVANI AI account with email and password or Google.">
   <title>Log in or Sign up — RIVANI AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -21,7 +21,7 @@
     <div class="auth-copy reveal">
       <span class="section-kicker">RIVANI ACCOUNT</span>
       <h1>Your tools, one secure account.</h1>
-      <p>Create a RIVANI AI account with email and password, or continue with Google or Facebook. Your account will later keep your preferences, saved tools, and account settings together.</p>
+      <p>Create your RIVANI AI account with a username, email and strong password, or use Google. After signup, you will confirm the account and then log in to open your personal dashboard.</p>
       <img src="assets/about.svg" alt="RIVANI account illustration">
     </div>
 
@@ -29,13 +29,13 @@
       <div class="auth-tabs"><button id="loginTab" type="button">Log in</button><button id="signupTab" type="button">Sign up</button></div>
       <div class="auth-card-head"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><h2 id="authTitle">Welcome back</h2><p id="authSubtitle">Sign in to continue to RIVANI AI.</p></div>
 
-      <div id="authNotice" class="auth-notice">Firebase Authentication is connected. Email/password and enabled social providers can now create real accounts.</div>
+      <div id="authNotice" class="auth-notice">Secure authentication is powered by Firebase Authentication.</div>
 
       <form id="emailAuthForm" class="auth-form" novalidate>
         <div class="signup-only auth-field">
           <label for="username">Username</label>
-          <input id="username" name="username" type="text" maxlength="40" autocomplete="username" placeholder="Choose a username">
-          <small>2–40 characters. This will be your display name.</small>
+          <input id="username" name="username" type="text" minlength="3" maxlength="20" autocomplete="username" inputmode="text" pattern="[A-Za-z0-9]{3,20}" placeholder="Example: Rivani123">
+          <small>3–20 characters. Letters and numbers only. No @, spaces, dots or symbols.</small>
         </div>
 
         <div class="auth-field">
@@ -45,13 +45,20 @@
 
         <div class="auth-field">
           <label for="password">Password</label>
-          <div class="password-wrap"><input id="password" name="password" type="password" minlength="6" autocomplete="current-password" placeholder="Enter your password" required><button class="password-toggle" type="button" data-toggle-password="password" aria-label="Show password">Show</button></div>
-          <small class="signup-only">Use at least 6 characters. A longer unique password is recommended.</small>
+          <div class="password-wrap"><input id="password" name="password" type="password" minlength="8" maxlength="64" autocomplete="current-password" placeholder="Enter your password" required><button class="password-toggle" type="button" data-toggle-password="password" aria-label="Show password">Show</button></div>
+          <div class="signup-only password-rules" id="passwordRules" aria-label="Password requirements">
+            <span data-rule="capital">First character is a capital letter</span>
+            <span data-rule="length">At least 8 characters</span>
+            <span data-rule="lowercase">Contains a lowercase letter</span>
+            <span data-rule="number">Contains a number</span>
+            <span data-rule="special">Contains a special character such as @ # !</span>
+            <span data-rule="spaces">Contains no spaces</span>
+          </div>
         </div>
 
         <div class="signup-only auth-field">
           <label for="confirmPassword">Confirm password</label>
-          <div class="password-wrap"><input id="confirmPassword" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Enter the same password again"><button class="password-toggle" type="button" data-toggle-password="confirmPassword" aria-label="Show confirm password">Show</button></div>
+          <div class="password-wrap"><input id="confirmPassword" name="confirmPassword" type="password" minlength="8" maxlength="64" autocomplete="new-password" placeholder="Enter the same password again"><button class="password-toggle" type="button" data-toggle-password="confirmPassword" aria-label="Show confirm password">Show</button></div>
         </div>
 
         <label class="signup-only terms-check" for="acceptTerms">
@@ -63,21 +70,10 @@
       </form>
 
       <div class="auth-divider"><span>or continue with</span></div>
-      <button class="social-btn google" id="googleAuth" type="button"><span class="social-g">G</span><b>Continue with Google</b></button>
-      <button class="social-btn facebook" id="facebookAuth" type="button"><span class="social-f">f</span><b>Continue with Facebook</b></button>
+      <button class="social-btn google" id="googleAuth" type="button"><span class="social-g">G</span><b id="googleButtonText">Continue with Google</b></button><small class="signup-only google-signup-hint">Google signup also uses the username and Terms confirmation above.</small>
 
       <div class="auth-status" id="authStatus" aria-live="polite"></div>
-      <button class="signout-btn" id="signOutBtn" type="button" hidden>Sign out</button>
-      <p class="auth-legal">Social sign-in also means you agree to our <a href="terms.html">Terms</a> and acknowledge our <a href="privacy.html">Privacy Policy</a>.</p>
-
-      <details class="setup-details"><summary>Authentication setup status</summary><ol>
-        <li>Firebase Web app: <b>Connected</b>.</li>
-        <li>Email/Password provider: enable it in Firebase Authentication.</li>
-        <li>Google provider: enable it in Firebase Authentication.</li>
-        <li>For Facebook, create a Meta app and add its App ID and secret to Firebase’s Facebook provider.</li>
-        <li><code>rivani-ai.rivani.workers.dev</code>: authorized domain added.</li>
-        <li>Firebase web configuration: <b>Connected</b>.</li>
-      </ol></details>
+      <p class="auth-legal">By continuing, you agree to our <a href="terms.html">Terms</a> and acknowledge our <a href="privacy.html">Privacy Policy</a>.</p>
     </div>
   </div></section></main>
 

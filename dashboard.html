@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030616">
+  <meta name="description" content="Your RIVANI AI account dashboard.">
+  <title>Dashboard — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="account-dashboard-page">
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+  <header class="site-header"><div class="container nav-wrap">
+    <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav class="main-nav" id="mainNav" aria-label="Primary navigation"><a href="index.html">Home</a><a href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="articles.html">Articles</a></nav>
+    <div class="nav-account"><a class="nav-cta active" href="dashboard.html">Dashboard</a></div>
+  </div></header>
+
+  <main><section class="dashboard-page section"><div class="container">
+    <div class="dashboard-welcome reveal"><div><span class="section-kicker">MY RIVANI</span><h1>Welcome, <span id="welcomeName">RIVANI user</span>.</h1><p>Manage your profile, current plan and account security from one place.</p></div><button class="dashboard-logout" id="logoutBtn" type="button">Log out</button></div>
+
+    <div id="dashboardLoading" class="dashboard-loading">Checking your secure session…</div>
+    <div id="dashboardContent" hidden>
+      <div class="account-dashboard-grid">
+        <aside class="profile-card reveal">
+          <div class="profile-avatar" id="profileAvatar">R</div>
+          <h2 id="profileUsername">RIVANI user</h2>
+          <p id="profileEmail">—</p>
+          <span class="verified-pill">Authenticated account</span>
+          <div class="profile-meta"><div><small>Sign-in method</small><b id="profileProvider">—</b></div><div><small>Member since</small><b id="profileCreated">—</b></div><div><small>Last sign in</small><b id="profileLastLogin">—</b></div></div>
+        </aside>
+
+        <div class="dashboard-stack">
+          <section class="plan-card reveal delay-1"><div><span class="section-kicker">CURRENT PLAN</span><h2 id="currentPlan">FREE</h2><p>Your account starts on the Free plan. Pro and Premium plan controls will be connected when billing is added.</p></div><div class="plan-badge" id="planBadge">FREE</div></section>
+
+          <section class="account-details-card reveal delay-2"><div class="card-title-row"><div><span class="section-kicker">PROFILE DETAILS</span><h2>Your account information</h2></div></div><div class="account-detail-grid"><div><small>Username</small><b id="detailUsername">—</b></div><div><small>Email</small><b id="detailEmail">—</b></div><div><small>Account status</small><b class="status-good">Active</b></div><div><small>Plan</small><b id="detailPlan">Free</b></div></div></section>
+
+          <section class="danger-card reveal delay-3"><div><span class="section-kicker danger-kicker">DANGER ZONE</span><h2>Delete your account</h2><p>RIVANI is designed to use a 7-day grace period before permanent account deletion. You will need to type your exact username and confirm the deletion notice.</p></div><button class="danger-btn" id="openDeleteModal" type="button">Delete account</button><div id="deletionBanner" class="deletion-banner" hidden></div></section>
+        </div>
+      </div>
+    </div>
+  </div></section></main>
+
+  <div class="account-modal" id="deleteModal" aria-hidden="true">
+    <div class="account-modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+      <button class="account-modal-close" id="closeDeleteModal" type="button" aria-label="Close">×</button>
+      <span class="section-kicker danger-kicker">ACCOUNT DELETION</span>
+      <h2 id="deleteTitle">Start a 7-day deletion request</h2>
+      <p>Type your exact username below. This development build records the grace-period request in the browser; automatic server-side Firebase deletion will be connected in the backend step before production launch.</p>
+      <div class="auth-field"><label for="deleteUsername">Confirm username</label><input id="deleteUsername" type="text" autocomplete="off" placeholder="Type your exact username"></div>
+      <label class="terms-check" for="deleteAcknowledge"><input id="deleteAcknowledge" type="checkbox"><span>I understand that the final production flow will permanently delete my account after the 7-day grace period unless I cancel the request.</span></label>
+      <div class="auth-status" id="deleteStatus" aria-live="polite"></div>
+      <button class="danger-btn full" id="scheduleDeleteBtn" type="button">Start 7-day deletion request</button>
+      <button class="cancel-delete-btn" id="cancelDeleteRequest" type="button" hidden>Cancel deletion request</button>
+    </div>
+  </div>
+
+  <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a></div><div><strong>Account</strong><a href="dashboard.html">Dashboard</a><a href="privacy.html">Privacy</a></div><div><strong>Legal</strong><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Account access secured with Firebase Authentication.</span></div></footer>
+
+  <script src="script.js"></script>
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

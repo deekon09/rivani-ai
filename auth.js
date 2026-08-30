@@ -2,9 +2,8 @@ import { firebaseConfig } from './assets/firebase-config.js';
 
 const statusEl = document.getElementById('authStatus');
 const noticeEl = document.getElementById('authNotice');
-const signOutBtn = document.getElementById('signOutBtn');
 const googleBtn = document.getElementById('googleAuth');
-const facebookBtn = document.getElementById('facebookAuth');
+const googleButtonText = document.getElementById('googleButtonText');
 const title = document.getElementById('authTitle');
 const subtitle = document.getElementById('authSubtitle');
 const loginTab = document.getElementById('loginTab');
@@ -16,17 +15,37 @@ const emailEl = document.getElementById('email');
 const passwordEl = document.getElementById('password');
 const confirmEl = document.getElementById('confirmPassword');
 const termsEl = document.getElementById('acceptTerms');
+const passwordRules = document.getElementById('passwordRules');
 let auth;
 let authMod;
 let mode = 'login';
+let userActionInProgress = false;
 
 const configured = Object.values(firebaseConfig).every(v => typeof v === 'string' && v.trim());
+const usernamePattern = /^[A-Za-z0-9]{3,20}$/;
+const passwordChecks = {
+  capital: value => /^[A-Z]/.test(value),
+  length: value => value.length >= 8 && value.length <= 64,
+  lowercase: value => /[a-z]/.test(value),
+  number: value => /\d/.test(value),
+  special: value => /[^A-Za-z0-9\s]/.test(value),
+  spaces: value => !/\s/.test(value)
+};
 
 function message(text, type='info') {
   if (!statusEl) return;
   statusEl.textContent = text;
   statusEl.dataset.type = type;
 }
+
+function updatePasswordRuleUI(){
+  const value = passwordEl?.value || '';
+  passwordRules?.querySelectorAll('[data-rule]').forEach(el => {
+    const key = el.dataset.rule;
+    el.classList.toggle('met', Boolean(passwordChecks[key]?.(value)));
+  });
+}
+passwordEl?.addEventListener('input', updatePasswordRuleUI);
 
 function setMode(nextMode){
   mode = nextMode === 'signup' ? 'signup' : 'login';
@@ -35,13 +54,15 @@ function setMode(nextMode){
   signupTab?.classList.toggle('active', signup);
   document.querySelectorAll('.signup-only').forEach(el => el.hidden = !signup);
   if (title) title.textContent = signup ? 'Create your RIVANI account' : 'Welcome back';
-  if (subtitle) subtitle.textContent = signup ? 'Create an account with email, Google, or Facebook.' : 'Sign in with email, Google, or Facebook.';
+  if (subtitle) subtitle.textContent = signup ? 'Sign up with email or Google.' : 'Log in with email or Google.';
   if (emailSubmit) emailSubmit.textContent = signup ? 'Create account' : 'Log in';
+  if (googleButtonText) googleButtonText.textContent = signup ? 'Sign up with Google' : 'Log in with Google';
   if (passwordEl) passwordEl.autocomplete = signup ? 'new-password' : 'current-password';
   if (!signup) {
     if (confirmEl) confirmEl.value = '';
     if (termsEl) termsEl.checked = false;
   }
+  updatePasswordRuleUI();
   message('');
   const u = new URL(location.href); u.searchParams.set('mode', mode); history.replaceState({}, '', u);
 }
@@ -66,98 +87,135 @@ function validateSignup(){
   const email = emailEl?.value.trim() || '';
   const password = passwordEl?.value || '';
   const confirmPassword = confirmEl?.value || '';
-  if (username.length < 2) return 'Please enter a username with at least 2 characters.';
+  if (!usernamePattern.test(username)) return 'Username must be 3–20 characters and contain letters or numbers only.';
   if (!email || !emailEl.checkValidity()) return 'Please enter a valid email address.';
-  if (password.length < 6) return 'Password must contain at least 6 characters.';
+  if (!passwordChecks.capital(password)) return 'Password must start with a capital letter.';
+  if (!passwordChecks.length(password)) return 'Password must be 8–64 characters long.';
+  if (!passwordChecks.lowercase(password)) return 'Password must include at least one lowercase letter.';
+  if (!passwordChecks.number(password)) return 'Password must include at least one number.';
+  if (!passwordChecks.special(password)) return 'Password must include at least one special character such as @, # or !.';
+  if (!passwordChecks.spaces(password)) return 'Password cannot contain spaces.';
   if (password !== confirmPassword) return 'Password and confirm password do not match.';
   if (!termsEl?.checked) return 'Please accept the Terms & Conditions before creating your account.';
   return '';
 }
 
+function friendlyAuthError(err, context='login'){
+  const code = err?.code || '';
+  const map = {
+    'auth/email-already-in-use': 'An account already exists with this email. Please log in instead.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/weak-password': 'Firebase rejected this password as too weak. Choose a stronger password.',
+    'auth/operation-not-allowed': 'This sign-in method is not enabled in Firebase Authentication.',
+    'auth/invalid-credential': 'Email or password is incorrect.',
+    'auth/user-not-found': 'No account was found with this email. Please sign up first.',
+    'auth/wrong-password': 'Email or password is incorrect.',
+    'auth/too-many-requests': 'Too many attempts. Please wait a little and try again.',
+    'auth/popup-closed-by-user': 'The Google sign-in popup was closed before login finished.',
+    'auth/popup-blocked': 'Your browser blocked the Google sign-in popup. Allow popups and try again.',
+    'auth/unauthorized-domain': 'This website domain is not authorized in Firebase Authentication.',
+    'auth/account-exists-with-different-credential': 'An account already exists with this email using another sign-in method.'
+  };
+  return map[code] || err?.message || (context === 'signup' ? 'Account could not be created.' : 'Sign-in could not be completed.');
+}
+
+function goToCreated(name){
+  sessionStorage.setItem('rivani_signup_name', name || 'your account');
+  location.href = 'account-created.html';
+}
+
 if (!configured) {
-  noticeEl.textContent = 'Authentication UI is ready. Add your Firebase web config and enable Email/Password, Google, and Facebook providers to activate real accounts.';
+  noticeEl.textContent = 'Authentication UI is ready, but Firebase configuration is missing.';
   googleBtn?.classList.add('needs-setup');
-  facebookBtn?.classList.add('needs-setup');
-  emailForm?.addEventListener('submit', e => {
-    e.preventDefault();
-    if (mode === 'signup') {
-      const err = validateSignup();
-      if (err) return message(err, 'error');
-    } else if (!emailEl?.checkValidity() || !(passwordEl?.value || '')) {
-      return message('Enter your email and password.', 'error');
-    }
-    message('Complete the Firebase setup note below to activate real account login and signup.', 'warning');
-  });
-  [googleBtn,facebookBtn].forEach(btn=>btn?.addEventListener('click',()=>message('Complete the Firebase setup note below to activate real social login.', 'warning')));
+  emailForm?.addEventListener('submit', e => { e.preventDefault(); message('Firebase configuration is required before account login can work.', 'warning'); });
+  googleBtn?.addEventListener('click',()=>message('Firebase configuration is required before Google login can work.', 'warning'));
 } else {
   noticeEl.textContent = 'Secure account authentication is enabled through Firebase Authentication.';
   const appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
   authMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js');
-  const app = appMod.initializeApp(firebaseConfig);
+  const app = appMod.getApps().length ? appMod.getApps()[0] : appMod.initializeApp(firebaseConfig);
   auth = authMod.getAuth(app);
 
   emailForm?.addEventListener('submit', async e => {
     e.preventDefault();
     const email = emailEl?.value.trim() || '';
     const password = passwordEl?.value || '';
+    userActionInProgress = true;
 
     if (mode === 'signup') {
       const validationError = validateSignup();
-      if (validationError) return message(validationError, 'error');
+      if (validationError) { userActionInProgress = false; return message(validationError, 'error'); }
       emailSubmit.disabled = true;
       message('Creating your RIVANI account…');
       try {
         const credential = await authMod.createUserWithEmailAndPassword(auth, email, password);
-        await authMod.updateProfile(credential.user, { displayName: usernameEl.value.trim() });
-        message(`Account created. Welcome, ${usernameEl.value.trim()}!`, 'success');
+        const username = usernameEl.value.trim();
+        await authMod.updateProfile(credential.user, { displayName: username });
+        await authMod.signOut(auth);
+        goToCreated(username);
       } catch (err) {
-        const friendly = err?.code === 'auth/email-already-in-use' ? 'An account already exists with this email. Try logging in.' :
-          err?.code === 'auth/weak-password' ? 'Please choose a stronger password.' :
-          err?.code === 'auth/invalid-email' ? 'Please enter a valid email address.' :
-          err?.code === 'auth/operation-not-allowed' ? 'This sign-in method is not enabled in Firebase yet.' :
-          (err?.message || 'Account could not be created.');
-        message(friendly, 'error');
+        userActionInProgress = false;
+        message(friendlyAuthError(err, 'signup'), 'error');
       } finally { emailSubmit.disabled = false; }
     } else {
-      if (!email || !emailEl?.checkValidity() || !password) return message('Enter a valid email and password.', 'error');
+      if (!email || !emailEl?.checkValidity() || !password) { userActionInProgress = false; return message('Enter a valid email and password.', 'error'); }
       emailSubmit.disabled = true;
       message('Signing you in…');
       try {
-        const result = await authMod.signInWithEmailAndPassword(auth, email, password);
-        message(`Signed in as ${result.user.displayName || result.user.email || 'RIVANI user'}.`, 'success');
+        await authMod.signInWithEmailAndPassword(auth, email, password);
+        location.href = 'dashboard.html';
       } catch (err) {
-        message('Email or password is incorrect, or this sign-in method is not enabled.', 'error');
+        userActionInProgress = false;
+        message(friendlyAuthError(err, 'login'), 'error');
       } finally { emailSubmit.disabled = false; }
     }
   });
 
-  const doSocialLogin = async provider => {
-    message('Opening secure sign-in…');
-    try {
-      const result = await authMod.signInWithPopup(auth, provider);
-      message(`Signed in as ${result.user.displayName || result.user.email || 'RIVANI user'}.`, 'success');
-    } catch (err) {
-      const friendly = err?.code === 'auth/operation-not-allowed' ? 'This social sign-in provider is not enabled in Firebase yet.' :
-        err?.code === 'auth/popup-closed-by-user' ? 'Sign-in popup was closed before login finished.' :
-        err?.code === 'auth/popup-blocked' ? 'Your browser blocked the sign-in popup. Allow popups and try again.' :
-        err?.code === 'auth/unauthorized-domain' ? 'This website domain is not authorized in Firebase Authentication.' :
-        (err?.message || 'Sign-in could not be completed.');
-      message(friendly, 'error');
+  googleBtn?.addEventListener('click', async () => {
+    if (mode === 'signup') {
+      const chosenUsername = usernameEl?.value.trim() || '';
+      if (!usernamePattern.test(chosenUsername)) return message('Choose a username with 3–20 letters or numbers before signing up with Google.', 'error');
+      if (!termsEl?.checked) return message('Please accept the Terms & Conditions before signing up with Google.', 'error');
     }
-  };
-  googleBtn?.addEventListener('click',()=>doSocialLogin(new authMod.GoogleAuthProvider()));
-  facebookBtn?.addEventListener('click',()=>doSocialLogin(new authMod.FacebookAuthProvider()));
+    userActionInProgress = true;
+    googleBtn.disabled = true;
+    message(mode === 'signup' ? 'Opening Google signup…' : 'Opening Google login…');
+    try {
+      const provider = new authMod.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await authMod.signInWithPopup(auth, provider);
+      const info = authMod.getAdditionalUserInfo(result);
+      const isNew = Boolean(info?.isNewUser);
+
+      if (mode === 'signup') {
+        if (!isNew) {
+          await authMod.signOut(auth);
+          userActionInProgress = false;
+          message('This Google account is already registered. Please use Log in instead.', 'warning');
+          return;
+        }
+        const name = usernameEl?.value.trim() || result.user.displayName || result.user.email || 'Google account';
+        await authMod.updateProfile(result.user, { displayName: name });
+        await authMod.signOut(auth);
+        goToCreated(name);
+      } else {
+        if (isNew) {
+          // Firebase creates a user automatically on first Google sign-in. Undo that here
+          // so the Log in tab never silently creates a new account.
+          await authMod.deleteUser(result.user);
+          userActionInProgress = false;
+          message('No RIVANI account exists for this Google account. Please use Sign up first.', 'warning');
+          return;
+        }
+        location.href = 'dashboard.html';
+      }
+    } catch (err) {
+      userActionInProgress = false;
+      message(friendlyAuthError(err, mode), 'error');
+    } finally { googleBtn.disabled = false; }
+  });
 
   authMod.onAuthStateChanged(auth, user => {
-    if (user) {
-      message(`Signed in as ${user.displayName || user.email || 'RIVANI user'}.`, 'success');
-      signOutBtn.hidden = false;
-    } else {
-      signOutBtn.hidden = true;
-    }
-  });
-  signOutBtn?.addEventListener('click', async()=>{
-    await authMod.signOut(auth);
-    message('Signed out.', 'success');
+    if (user && !userActionInProgress) location.replace('dashboard.html');
   });
 }

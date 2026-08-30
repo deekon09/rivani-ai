@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030616">
+  <meta name="description" content="Your RIVANI AI account was created successfully.">
+  <title>Account Created — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+  <header class="site-header"><div class="container nav-wrap">
+    <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
+    <nav class="main-nav" aria-label="Primary navigation"><a href="index.html">Home</a><a href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a></nav>
+    <div class="nav-account"><a class="nav-login" href="auth.html?mode=login">Log in</a></div>
+  </div></header>
+
+  <main class="success-page"><section class="section"><div class="container success-wrap reveal">
+    <div class="success-orb">✓</div>
+    <span class="section-kicker">ACCOUNT CREATED</span>
+    <h1>Your RIVANI account is ready.</h1>
+    <p id="successMessage">Account created successfully. You are signed out now — log in to open your personal dashboard.</p>
+    <div class="success-actions"><a class="btn btn-primary" href="auth.html?mode=login">Log in now →</a><a class="btn btn-secondary" href="index.html">Back to home</a></div>
+    <div class="success-note"><b>Next step</b><span>Use the same email/password or Google account you used during signup.</span></div>
+  </div></section></main>
+
+  <footer class="site-footer"><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Smarter tools. Better results.</span></div></footer>
+  <script src="script.js"></script>
+  <script>
+    const signupName=sessionStorage.getItem('rivani_signup_name');
+    if(signupName){document.getElementById('successMessage').textContent=`Account created successfully for ${signupName}. You are signed out now — log in to open your personal dashboard.`;sessionStorage.removeItem('rivani_signup_name');}
+  </script>
+</body>
+</html>
