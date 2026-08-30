@@ -22,6 +22,8 @@ let repairedBlob = null;
 let repairedUrl = null;
 let analysis = null;
 let selectedPreset = 'natural';
+let voiceLockEnabled = true;
+let environmentMode = 'balanced';
 
 chooseBtn?.addEventListener('click', () => input?.click());
 replaceBtn?.addEventListener('click', () => input?.click());
@@ -51,6 +53,33 @@ presets.forEach(btn => btn.addEventListener('click', () => {
   strengthValue.textContent = `${strength.value}%`;
 }));
 strength?.addEventListener('input', () => strengthValue.textContent = `${strength.value}%`);
+
+
+$('voiceLockToggle')?.addEventListener('click', () => {
+  voiceLockEnabled = !voiceLockEnabled;
+  const btn = $('voiceLockToggle');
+  btn.classList.toggle('active', voiceLockEnabled);
+  btn.setAttribute('aria-pressed', String(voiceLockEnabled));
+  const label = btn.querySelector('b');
+  if (label) label.textContent = voiceLockEnabled ? 'ON' : 'OFF';
+});
+
+document.querySelectorAll('#environmentOptions button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    environmentMode = btn.dataset.env || 'balanced';
+    document.querySelectorAll('#environmentOptions button').forEach(x => x.classList.toggle('active', x === btn));
+  });
+});
+
+document.querySelectorAll('[data-pro-preview]').forEach(btn => {
+  btn.addEventListener('click', () => $('proPreviewModal')?.classList.remove('hidden'));
+});
+document.querySelectorAll('[data-close-pro]').forEach(btn => {
+  btn.addEventListener('click', () => $('proPreviewModal')?.classList.add('hidden'));
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') $('proPreviewModal')?.classList.add('hidden');
+});
 
 scanBtn?.addEventListener('click', runScan);
 repairBtn?.addEventListener('click', repairAudio);
@@ -244,6 +273,7 @@ async function repairAudio() {
   result.classList.add('hidden');
   processing.classList.remove('hidden');
   processing.scrollIntoView({behavior:'smooth', block:'center'});
+  setProcessingStage('scan');
   updateProgress(4, 'Preparing local repair engine…');
   await tick(80);
 
@@ -255,11 +285,23 @@ async function repairAudio() {
     studio:  { gateDb: 21, highpass:105,presence:3.3, comp:-20, ratio:3.6, humQ:10,bright:1.4 }
   }[preset];
 
+  // Voice Lock intentionally softens the most aggressive tonal changes.
+  if (voiceLockEnabled) {
+    cfg.presence *= 0.82;
+    cfg.bright *= 0.75;
+    cfg.ratio *= 0.92;
+  }
+
+  // "Keep the vibe" controls how much room tone the adaptive gate preserves.
+  const environmentFactor = environmentMode === 'studio' ? 1.18 : environmentMode === 'natural' ? 0.72 : 1;
+
+  setProcessingStage('scan');
   updateProgress(15, 'Estimating room floor and voice activity…');
   await tick(30);
-  const gated = applySoftAdaptiveGate(sourceBuffer, cfg.gateDb * (0.55 + 0.55*s));
+  const gated = applySoftAdaptiveGate(sourceBuffer, cfg.gateDb * (0.55 + 0.55*s) * environmentFactor);
 
-  updateProgress(42, 'Reducing rumble and hum…');
+  setProcessingStage('noise');
+  updateProgress(42, 'Reducing rumble, hum and steady noise…');
   const filtered = await processWithOfflineAudio(gated, {
     highpass: cfg.highpass + 20*(s-.5),
     presence: cfg.presence*s,
@@ -270,10 +312,15 @@ async function repairAudio() {
     strength: s
   });
 
-  updateProgress(75, 'Normalizing voice level…');
+  setProcessingStage('voice');
+  updateProgress(68, 'Protecting voice tone and clarity…');
+  await tick(90);
+  setProcessingStage('level');
+  updateProgress(78, 'Balancing voice level and dynamics…');
   normalizeAudioBuffer(filtered, preset === 'studio' ? 0.88 : 0.82);
 
-  updateProgress(90, 'Encoding repaired WAV…');
+  setProcessingStage('export');
+  updateProgress(91, 'Encoding repaired WAV…');
   const wav = encodeWav(filtered);
   repairedBlob = new Blob([wav], {type:'audio/wav'});
   if (repairedUrl) URL.revokeObjectURL(repairedUrl);
@@ -463,6 +510,16 @@ function drawWaveform(buffer, canvas) {
   }
   ctx.stroke();
   ctx.globalAlpha=.2;ctx.strokeStyle='#8ba8ff';ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(cssW,mid);ctx.stroke();
+}
+
+function setProcessingStage(stage) {
+  document.querySelectorAll('#processingStages [data-stage]').forEach(el => {
+    const names = ['scan','noise','voice','level','export'];
+    const current = names.indexOf(stage);
+    const idx = names.indexOf(el.dataset.stage);
+    el.classList.toggle('active', idx === current);
+    el.classList.toggle('done', idx < current);
+  });
 }
 
 function updateProgress(p,text){

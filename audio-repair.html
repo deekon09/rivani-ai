@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Repair noisy voice recordings in your browser with RIVANI AI Audio Repair Beta.">
   <title>AI Audio Repair Beta — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -88,32 +88,171 @@
 
             <div class="repair-panel hidden" id="repairPanel">
               <div class="repair-head">
-                <div><span class="section-kicker">REPAIR STYLE</span><h2>Choose how strong the repair should feel.</h2></div>
-                <span class="local-badge">Runs on this device</span>
+                <div>
+                  <span class="section-kicker">FREE REPAIR CONTROLS</span>
+                  <h2>Repair your recording, your way.</h2>
+                  <p class="repair-subcopy">Start simple with Auto Repair, then choose how much cleanup you want while keeping the voice natural.</p>
+                </div>
+                <div class="repair-plan-badges">
+                  <span class="local-badge">Runs on this device</span>
+                  <span class="free-badge">FREE BETA</span>
+                </div>
               </div>
 
               <div class="preset-grid" id="presetGrid">
-                <button class="preset-card active" data-preset="natural" type="button"><span>Natural</span><small>Light cleanup, keeps room tone</small></button>
-                <button class="preset-card" data-preset="clean" type="button"><span>Clean</span><small>Stronger noise control + clearer voice</small></button>
-                <button class="preset-card" data-preset="studio" type="button"><span>Studio</span><small>Tighter dynamics + brighter presence</small></button>
+                <button class="preset-card active" data-preset="natural" type="button">
+                  <span>Natural</span><small>Light cleanup, keeps room tone</small>
+                </button>
+                <button class="preset-card" data-preset="clean" type="button">
+                  <span>Clean</span><small>Stronger cleanup + clearer voice</small>
+                </button>
+                <button class="preset-card" data-preset="studio" type="button">
+                  <span>Studio</span><small>Tighter dynamics + brighter presence</small>
+                </button>
               </div>
 
-              <div class="strength-row">
-                <label for="repairStrength"><span>Repair strength</span><b id="repairStrengthValue">55%</b></label>
-                <input id="repairStrength" type="range" min="20" max="100" value="55">
+              <div class="free-control-grid">
+                <div class="strength-card">
+                  <label for="repairStrength">
+                    <span>
+                      <b>Overall Noise Removal</b>
+                      <small>Controls the total cleanup strength</small>
+                    </span>
+                    <strong id="repairStrengthValue">55%</strong>
+                  </label>
+                  <input id="repairStrength" type="range" min="20" max="100" value="55">
+                  <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
+                </div>
+
+                <div class="voice-lock-card">
+                  <div>
+                    <span class="control-title">Voice Lock</span>
+                    <small>Protect the natural character of the speaker.</small>
+                  </div>
+                  <button class="toggle-control active" id="voiceLockToggle" type="button" aria-pressed="true">
+                    <span></span><b>ON</b>
+                  </button>
+                </div>
+
+                <div class="environment-card">
+                  <div>
+                    <span class="control-title">Keep the vibe</span>
+                    <small>Choose whether the result feels studio-clean or keeps more natural room tone.</small>
+                  </div>
+                  <div class="environment-options" id="environmentOptions">
+                    <button type="button" data-env="studio">Studio</button>
+                    <button type="button" data-env="balanced" class="active">Balanced</button>
+                    <button type="button" data-env="natural">Natural room</button>
+                  </div>
+                </div>
               </div>
 
               <div class="repair-feature-row">
-                <span><i>✓</i> Rumble reduction</span><span><i>✓</i> Hum control</span><span><i>✓</i> Soft noise gate</span><span><i>✓</i> Voice presence</span><span><i>✓</i> Level normalization</span>
+                <span><i>✓</i> Rumble reduction</span>
+                <span><i>✓</i> Hum control</span>
+                <span><i>✓</i> Soft noise gate</span>
+                <span><i>✓</i> Voice presence</span>
+                <span><i>✓</i> Level normalization</span>
               </div>
 
-              <button class="btn btn-primary audio-main-action" id="repairAudioBtn" type="button">Repair My Audio →</button>
+              <button class="btn btn-primary audio-main-action" id="repairAudioBtn" type="button">
+                <span class="repair-btn-spark">✦</span> Repair My Audio →
+              </button>
+
+              <section class="pro-noise-mixer" aria-label="Pro Noise Mixer preview">
+                <div class="pro-mixer-head">
+                  <div>
+                    <div class="pro-title-row">
+                      <span class="pro-chip">PRO</span>
+                      <h3>Noise Mixer</h3>
+                    </div>
+                    <p>Don’t just remove noise. Choose exactly what stays.</p>
+                  </div>
+                  <button class="pro-unlock-btn" type="button" data-pro-preview>
+                    <span>🔒</span> Unlock with Pro
+                  </button>
+                </div>
+
+                <div class="noise-mixer-grid">
+                  <div class="noise-slider locked-control">
+                    <div><span>Fan / AC / Cooler</span><b>85%</b></div>
+                    <input type="range" min="0" max="100" value="85" disabled>
+                    <small>Remove steady mechanical noise</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Traffic / Road</span><b>70%</b></div>
+                    <input type="range" min="0" max="100" value="70" disabled>
+                    <small>Reduce road and low outdoor noise</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Wind</span><b>65%</b></div>
+                    <input type="range" min="0" max="100" value="65" disabled>
+                    <small>Tame gusts and microphone wind noise</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Background voices</span><b>60%</b></div>
+                    <input type="range" min="0" max="100" value="60" disabled>
+                    <small>Reduce distracting nearby chatter</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Hiss / Hum</span><b>90%</b></div>
+                    <input type="range" min="0" max="100" value="90" disabled>
+                    <small>Target electrical and broadband floor noise</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Room Echo</span><b>75%</b></div>
+                    <input type="range" min="0" max="100" value="75" disabled>
+                    <small>Planned de-reverb control</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Background Music</span><b>40%</b></div>
+                    <input type="range" min="0" max="100" value="40" disabled>
+                    <small>Planned music-preserve / music-remove control</small>
+                  </div>
+                  <div class="noise-slider locked-control">
+                    <div><span>Keyboard / Clicks</span><b>80%</b></div>
+                    <input type="range" min="0" max="100" value="80" disabled>
+                    <small>Planned transient noise cleanup</small>
+                  </div>
+                </div>
+
+                <div class="pro-feature-strip">
+                  <span>🔒 Noise Map Timeline</span>
+                  <span>🔒 Segment Repair</span>
+                  <span>🔒 Music Preserve</span>
+                  <span>🔒 De-Reverb</span>
+                  <span>🔒 Mouth Click Repair</span>
+                  <span>🔒 Batch Processing</span>
+                </div>
+
+                <div class="pro-roadmap-note">
+                  <strong>Pro preview</strong>
+                  <p>These controls are shown now so users can see the planned Pro workflow. They stay locked until each noise-specific engine is actually connected.</p>
+                </div>
+              </section>
             </div>
 
             <div class="audio-processing hidden" id="audioProcessing">
-              <div class="processing-orb"><span>R</span></div>
+              <div class="processing-visual">
+                <div class="processing-orbit orbit-one"></div>
+                <div class="processing-orbit orbit-two"></div>
+                <div class="processing-orb"><span>R</span></div>
+                <div class="processing-wave" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+              </div>
+              <span class="processing-kicker">RIVANI AUDIO ENGINE</span>
               <h3 id="processingTitle">Repairing your recording…</h3>
               <p id="processingText">Preparing local audio engine.</p>
+
+              <div class="processing-stages" id="processingStages">
+                <span class="active" data-stage="scan">Scan</span>
+                <span data-stage="noise">Noise</span>
+                <span data-stage="voice">Voice</span>
+                <span data-stage="level">Level</span>
+                <span data-stage="export">Export</span>
+              </div>
+
               <div class="processing-bar"><i id="processingBar"></i></div>
               <span id="processingPercent">0%</span>
             </div>
@@ -130,8 +269,8 @@
               </div>
 
               <div class="result-actions">
-                <button class="btn btn-primary" id="downloadAudioBtn" type="button">Download repaired WAV ↓</button>
-                <button class="btn btn-secondary" id="tryAgainBtn" type="button">Change repair style</button>
+                <button class="btn btn-primary result-gradient-btn" id="downloadAudioBtn" type="button">Download repaired WAV ↓</button>
+                <button class="btn btn-primary result-gradient-btn" id="tryAgainBtn" type="button">Change repair style ↻</button>
               </div>
 
               <div class="repair-disclosure">
@@ -151,6 +290,24 @@
     </section>
   </main>
 
+
+  <div class="pro-preview-modal hidden" id="proPreviewModal" role="dialog" aria-modal="true" aria-labelledby="proPreviewTitle">
+    <div class="pro-preview-backdrop" data-close-pro></div>
+    <div class="pro-preview-card">
+      <button class="pro-modal-close" type="button" data-close-pro aria-label="Close">×</button>
+      <span class="pro-chip">PRO PREVIEW</span>
+      <h2 id="proPreviewTitle">Advanced Noise Mixer</h2>
+      <p>Granular controls for fan noise, traffic, music, echo, background voices and more are planned for Pro. We’ll unlock each control only when its dedicated processing engine is ready.</p>
+      <div class="pro-modal-points">
+        <span>✓ Individual noise sliders</span>
+        <span>✓ Noise Map Timeline</span>
+        <span>✓ Segment-by-segment repair</span>
+        <span>✓ Music preserve / remove</span>
+      </div>
+      <button class="btn btn-primary" type="button" data-close-pro>Got it</button>
+    </div>
+  </div>
+
   <footer class="site-footer">
     <div class="container footer-grid">
       <div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div>
@@ -161,8 +318,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=9"></script>
-  <script type="module" src="auth-nav.js?v=9"></script>
-  <script type="module" src="audio-repair.js?v=9"></script>
+  <script src="script.js?v=10"></script>
+  <script type="module" src="auth-nav.js?v=10"></script>
+  <script type="module" src="audio-repair.js?v=10"></script>
 </body>
 </html>
