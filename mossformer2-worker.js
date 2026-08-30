@@ -11,7 +11,7 @@
 // needs to manually install/download a model file.
 
 const ORT_VERSION = "1.29.0";
-const ORT_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
+const ORT_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
 const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 
 const MODEL_PROXY_URL =
@@ -60,7 +60,7 @@ self.onmessage = async (event) => {
     self.postMessage({
       type:"phase",
       phase:"model",
-      text:`MossFormer2 48K running with ${provider === "webgpu" ? "WebGPU" : "WASM"}…`
+      text:"MossFormer2 48K running with full WebAssembly compatibility mode…"
     });
 
     const started = performance.now();
@@ -96,10 +96,6 @@ async function ensureRuntime() {
           ? Math.max(1, Math.min(4, (self.navigator?.hardwareConcurrency || 4) - 1))
           : 1;
 
-      try {
-        mod.env.webgpu.powerPreference = "high-performance";
-      } catch {}
-
       ort = mod;
       return ort;
     })();
@@ -116,34 +112,35 @@ async function ensureSession() {
     const runtime = await ensureRuntime();
     const modelBytes = await loadModelBytes();
 
-    const common = {
-      graphOptimizationLevel:"all",
-      executionMode:"sequential",
-      preferredOutputLocation:"cpu"
-    };
-
-    if (self.navigator?.gpu) {
-      try {
-        self.postMessage({type:"phase", phase:"model", text:"Starting MossFormer2 on WebGPU…"});
-        session = await runtime.InferenceSession.create(modelBytes, {
-          ...common,
-          executionProviders:["webgpu"]
-        });
-        provider = "webgpu";
-        return session;
-      } catch (error) {
-        console.warn("MossFormer2 WebGPU session failed; retrying WASM.", error);
-      }
-    }
-
-    self.postMessage({type:"phase", phase:"model", text:"Starting MossFormer2 with WebAssembly fallback…"});
-    const wasmBytes = modelBytes.byteLength ? modelBytes : await loadModelBytes();
-    session = await runtime.InferenceSession.create(wasmBytes, {
-      ...common,
-      executionProviders:["wasm"]
+    self.postMessage({
+      type:"phase",
+      phase:"model",
+      text:"Starting MossFormer2 with full ONNX Runtime WebAssembly…"
     });
-    provider = "wasm";
-    return session;
+
+    try {
+      session = await runtime.InferenceSession.create(modelBytes, {
+        executionProviders:["wasm"],
+        graphOptimizationLevel:"all",
+        executionMode:"sequential",
+        preferredOutputLocation:"cpu"
+      });
+      provider = "wasm-full";
+      return session;
+    } catch (error) {
+      // Do not silently swap to another denoiser. Surface a diagnostic that
+      // distinguishes browser-runtime incompatibility from model download.
+      const msg = String(error?.message || error || "");
+      if (/Cast\(13\)|Could not find an implementation/i.test(msg)) {
+        throw new Error(
+          "MossFormer2 model loaded correctly, but this browser ONNX runtime " +
+          "cannot execute one Cast(13) node in the exported graph. " +
+          "This requires a browser-safe MossFormer2 ONNX export, not another noise filter. " +
+          "Runtime detail: " + msg
+        );
+      }
+      throw error;
+    }
   })();
 
   try {

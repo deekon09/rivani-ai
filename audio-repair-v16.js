@@ -177,7 +177,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("mossformer2-worker.js?v=16.1",{type:"module"});
+  worker=new Worker("mossformer2-worker.js?v=16.2",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -204,7 +204,7 @@ function getWorker(){
       modelReady=true;
       activeProvider=d.provider||"";
       if(status){
-        status.textContent=`MossFormer2 48K · ${activeProvider==="webgpu"?"WebGPU":"WASM"} ready`;
+        status.textContent="MossFormer2 48K · Full WASM ready";
         status.classList.remove("engine-error");
       }
     }
@@ -302,11 +302,11 @@ async function repairLocally(){
 
     $("afterPlayer").src=repairedUrl;
     $("afterPresetLabel").textContent=
-      `Clear Voice X · ${strength.value}% · ${activeProvider==="webgpu"?"WebGPU":"Local AI"}`;
+      `Clear Voice X · ${strength.value}% · Full WASM`;
 
     const status=$("clearEngineStatus");
     if(status){
-      status.textContent=`MossFormer2 48K · ${activeProvider==="webgpu"?"WebGPU":"WASM"} · ready`;
+      status.textContent="MossFormer2 48K · Full WASM · ready";
       status.classList.remove("engine-error");
     }
 
