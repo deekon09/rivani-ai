@@ -147,6 +147,9 @@ lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')
     root.querySelectorAll?.('img[src*="assets/rivani-ai-logo.png"]').forEach(img=>{
       if(img.closest(".rivani-logo-shine-shell"))return;
 
+      // Cropped ribbon-R icons need the PNG to stay as a direct child.
+      if(img.closest(".rivani-r-crop"))return;
+
       const shell=document.createElement("span");
       shell.className="rivani-logo-shine-shell";
       shell.setAttribute("aria-hidden","true");

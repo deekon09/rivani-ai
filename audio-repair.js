@@ -48,10 +48,12 @@ let mp3BlobCache=null;
 
 let currentAudioPlan="free";
 
-const dereverbLabMode=
-  new URLSearchParams(window.location.search).get("lab")==="1";
+// Temporary engineering mode while specialist features are being tested.
+// Pro gating returns after A/B validation.
+const audioTestingMode=true;
+const dereverbLabMode=audioTestingMode;
 
-let dereverbEnabled=false;
+let dereverbEnabled=true;
 let dereverbStrength=.58;
 let dereverbWorker=null;
 
@@ -154,6 +156,11 @@ document.querySelectorAll("[data-pro-preview]").forEach(btn=>{
 
 document.querySelectorAll("[data-pro-lock]").forEach(btn=>{
   btn.addEventListener("click",()=>{
+    if(audioTestingMode && btn.dataset.proControl){
+      toggleBuiltProControl(btn);
+      return;
+    }
+
     if(isProPlan() && btn.dataset.proControl){
       toggleBuiltProControl(btn);
       return;
@@ -170,7 +177,7 @@ document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const feature=btn.dataset.specialistEngine||"Specialist AI";
 
-    if(feature==="De-Reverb" && dereverbLabMode){
+    if(feature==="De-Reverb" && audioTestingMode){
       dereverbEnabled=!dereverbEnabled;
 
       btn.classList.toggle("lab-active",dereverbEnabled);
@@ -183,8 +190,8 @@ document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
     }
 
     openProMessage(
-      `${feature} · Pro AI`,
-      `${feature} uses a separate specialist AI engine. It is listed in Pro, but this stable build will not route your approved Clear Voice through an unvalidated model.`
+      `${feature} · Next Specialist Test`,
+      `${feature} is intentionally disconnected right now. We are testing De-Reverb first; after it passes, this engine will be connected and tested separately.`
     );
   });
 });
@@ -272,18 +279,52 @@ function renderPlanAccess(){
   const dereverbBtn=$("dereverbSpecialistBtn");
   const dereverbState=$("dereverbSpecialistState");
 
-  if(labBanner)labBanner.classList.toggle("hidden",!dereverbLabMode);
+  if(labBanner)labBanner.classList.toggle("hidden",!audioTestingMode);
 
   if(dereverbBtn){
-    dereverbBtn.classList.toggle("lab-ready",dereverbLabMode);
-    dereverbBtn.classList.toggle("lab-active",dereverbLabMode && dereverbEnabled);
+    dereverbBtn.classList.toggle("lab-ready",audioTestingMode);
+    dereverbBtn.classList.toggle("lab-active",audioTestingMode && dereverbEnabled);
+    dereverbBtn.setAttribute("aria-pressed",String(dereverbEnabled));
   }
 
-  if(dereverbState && dereverbLabMode){
+  if(dereverbState){
     dereverbState.textContent=dereverbEnabled?"BETA ON":"BETA OFF";
   }
 
   const badge=$("proAudioBadge");
+
+  if(audioTestingMode){
+    if(badge)badge.textContent="● TESTING";
+
+    document.querySelectorAll("[data-pro-control]").forEach(btn=>{
+      btn.classList.add("pro-entitled","test-ready");
+
+      const key=btn.dataset.proControl;
+      const active=
+        key==="fan" ? fanAssist :
+        key==="traffic" ? trafficAssist :
+        key==="click" ? clickRepair :
+        false;
+
+      btn.classList.toggle("enabled",active);
+      btn.setAttribute("aria-pressed",String(active));
+
+      const em=btn.querySelector("em");
+      if(em)em.textContent=active?"ON":"OFF";
+    });
+
+    const usage=$("proDailyUsage");
+    if(usage)usage.classList.add("hidden");
+
+    // WAV entitlement stays as product-plan behavior.
+    if(!pro && selectedExportFormat==="wav"){
+      selectedExportFormat="mp3";
+    }
+
+    updateExportFormatUI();
+    return;
+  }
+
   if(badge)badge.textContent=pro?"✓ PRO ACTIVE":"🔒 PRO";
 
   document.querySelectorAll("[data-pro-control]").forEach(btn=>{
@@ -458,7 +499,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=21");
+    const worker=new Worker("mp3-export-worker.js?v=21.3");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -626,7 +667,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=21",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=21.3",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -852,7 +893,7 @@ async function repairLocally(){
 function getDereverbWorker(){
   if(dereverbWorker)return dereverbWorker;
 
-  dereverbWorker=new Worker("dereverb-worker.js?v=21");
+  dereverbWorker=new Worker("dereverb-worker.js?v=21.3");
   return dereverbWorker;
 }
 

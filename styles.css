@@ -1437,3 +1437,174 @@ body{
   .hero-visual::after{opacity:.08}
   .rivani-bg-pulse-layer{opacity:.12}
 }
+
+
+/* ==========================================================
+   RIVANI V21.3 · Ribbon-R fix + colorful motion
+   ========================================================== */
+
+/* Direct PNG crop: this is the original RIVANI ribbon-R. */
+.rivani-r-crop>img{
+  position:absolute!important;
+  left:0!important;
+  top:50%!important;
+  width:360%!important;
+  max-width:none!important;
+  height:auto!important;
+  transform:translate3d(-.6%,-50%,0)!important;
+  transform-origin:left center!important;
+  opacity:1!important;
+  visibility:visible!important;
+  z-index:2!important;
+  pointer-events:none!important
+}
+
+/* Defensive fallback for stale DOM from previous cached version. */
+.rivani-r-crop>.rivani-logo-shine-shell{
+  display:contents!important
+}
+.rivani-r-crop>.rivani-logo-shine-shell::before,
+.rivani-r-crop>.rivani-logo-shine-shell::after{
+  display:none!important
+}
+.rivani-r-crop>.rivani-logo-shine-shell>img{
+  position:absolute!important;
+  left:0!important;
+  top:50%!important;
+  width:360%!important;
+  max-width:none!important;
+  height:auto!important;
+  transform:translate3d(-.6%,-50%,0)!important;
+  z-index:2!important
+}
+
+/* Text-like cyan → blue → violet color movement over the real cropped R. */
+.clear-engine-orb.clear-r-logo::after,
+.processing-orb.processing-r-logo::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:4;
+  pointer-events:none;
+
+  background:
+    linear-gradient(
+      112deg,
+      transparent 3%,
+      rgba(48,230,255,.08) 20%,
+      rgba(60,226,255,.95) 38%,
+      rgba(44,130,255,.96) 50%,
+      rgba(137,66,255,.96) 62%,
+      rgba(217,57,255,.58) 71%,
+      transparent 89%
+    );
+  background-size:255% 100%;
+  background-position:185% 0;
+
+  -webkit-mask-image:url("assets/rivani-ai-logo.png");
+  mask-image:url("assets/rivani-ai-logo.png");
+  -webkit-mask-repeat:no-repeat;
+  mask-repeat:no-repeat;
+  -webkit-mask-position:left center;
+  mask-position:left center;
+  -webkit-mask-size:360% auto;
+  mask-size:360% auto;
+
+  mix-blend-mode:screen;
+  filter:
+    brightness(1.25)
+    drop-shadow(0 0 5px rgba(62,209,255,.42))
+    drop-shadow(0 0 11px rgba(116,71,255,.28));
+
+  animation:rivaniRCroppedColorSweep 3.8s ease-in-out infinite
+}
+
+@keyframes rivaniRCroppedColorSweep{
+  0%,14%{
+    opacity:.10;
+    background-position:185% 0
+  }
+  42%{
+    opacity:.96;
+    background-position:55% 0
+  }
+  72%{
+    opacity:.60;
+    background-position:-85% 0
+  }
+  100%{
+    opacity:.10;
+    background-position:-85% 0
+  }
+}
+
+.clear-engine-orb.clear-r-logo>img,
+.processing-orb.processing-r-logo>img{
+  filter:
+    brightness(1.08)
+    saturate(1.15)
+    drop-shadow(0 0 5px rgba(47,191,255,.24))!important
+}
+
+.processing-orb.processing-r-logo{
+  isolation:isolate
+}
+.processing-orb.processing-r-logo::before{
+  content:"";
+  position:absolute;
+  inset:7%;
+  z-index:1;
+  border-radius:24px;
+  background:
+    radial-gradient(circle at 37% 24%,rgba(51,213,255,.18),transparent 43%),
+    linear-gradient(145deg,rgba(5,30,83,.80),rgba(29,9,76,.74));
+  box-shadow:inset 0 0 23px rgba(45,162,255,.09)
+}
+
+/* Temporary unlocked audio testing controls. */
+.audio-test-chip,
+.audio-test-badge{
+  color:#7fe9d0!important;
+  border-color:rgba(57,218,181,.25)!important;
+  background:rgba(25,143,117,.10)!important
+}
+.audio-test-controls .test-feature-control{
+  cursor:pointer!important;
+  opacity:1!important
+}
+.audio-test-controls .test-feature-control em{
+  color:#79dfff
+}
+.audio-test-controls .test-feature-control.enabled{
+  border-color:rgba(56,220,177,.35)!important;
+  background:linear-gradient(130deg,rgba(10,66,66,.52),rgba(20,15,57,.60))!important
+}
+.audio-test-controls .test-feature-control.enabled em{
+  color:#87f0cf!important
+}
+
+.specialist-waiting{
+  opacity:.62!important
+}
+.pro-specialist-card.lab-ready{
+  opacity:1!important
+}
+
+/* Homepage dashboard mockup stays static as previously requested. */
+.dashboard-shell .rivani-logo-shine-shell::before,
+.dashboard-shell .rivani-logo-shine-shell::after{
+  display:none!important
+}
+.dashboard-shell .rivani-ai-textfx,
+.dashboard-shell .rivani-ai-textfx::after{
+  animation:none!important
+}
+
+@media(prefers-reduced-motion:reduce){
+  .clear-engine-orb.clear-r-logo::after,
+  .processing-orb.processing-r-logo::after{
+    animation:none!important;
+    opacity:.28;
+    background-position:50% 0
+  }
+}

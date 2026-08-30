@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=21.2">
+  <link rel="stylesheet" href="styles.css?v=21.3">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -153,33 +153,26 @@
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
 
-              <section class="pro-noise-mixer pro-locked-controls" aria-label="RIVANI Pro audio controls">
+              <section class="pro-noise-mixer audio-test-controls" aria-label="RIVANI audio testing controls">
                 <div class="pro-mixer-head">
                   <div>
                     <div class="pro-title-row">
-                      <span class="pro-chip">PRO</span>
-                      <h3>Advanced Audio Controls</h3>
+                      <span class="pro-chip audio-test-chip">TEST MODE</span>
+                      <h3>Advanced Audio Lab</h3>
                     </div>
-                    <p>Fine control for difficult recordings. Free keeps the core Clear Voice + Studio Finish path.</p>
+                    <p>Testing controls are temporarily unlocked. After quality testing, selected controls will move back to Pro.</p>
                   </div>
-                  <span class="pro-lock-badge" id="proAudioBadge">🔒 PRO</span>
+                  <span class="pro-lock-badge audio-test-badge" id="proAudioBadge">● TESTING</span>
                 </div>
-
-                <div class="pro-plan-limit-strip">
-                  <span><b>1 GB</b><small>max file</small></span>
-                  <span><b>5 HOURS</b><small>processing / day</small></span>
-                  <span><b>WAV</b><small>lossless export</small></span>
-                </div>
-
-                <div class="pro-locked-grid" id="proBuiltControls">
-                  <button class="pro-feature-lock" type="button" data-pro-control="fan" data-pro-lock="Fan / AC Assist">
-                    <span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>PRO 🔒</em>
+<div class="pro-locked-grid" id="proBuiltControls">
+                  <button class="pro-feature-lock test-feature-control" type="button" data-pro-control="fan" data-pro-lock="Fan / AC Assist" aria-pressed="false">
+                    <span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>OFF</em>
                   </button>
-                  <button class="pro-feature-lock" type="button" data-pro-control="traffic" data-pro-lock="Traffic Assist">
-                    <span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>PRO 🔒</em>
+                  <button class="pro-feature-lock test-feature-control" type="button" data-pro-control="traffic" data-pro-lock="Traffic Assist" aria-pressed="false">
+                    <span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>OFF</em>
                   </button>
-                  <button class="pro-feature-lock" type="button" data-pro-control="click" data-pro-lock="Click Repair">
-                    <span><b>Click Repair</b><small>Keyboard, mouth-click and impulse repair</small></span><em>PRO 🔒</em>
+                  <button class="pro-feature-lock test-feature-control" type="button" data-pro-control="click" data-pro-lock="Click Repair" aria-pressed="false">
+                    <span><b>Click Repair</b><small>Keyboard, mouth-click and impulse repair</small></span><em>OFF</em>
                   </button>
                 </div>
 
@@ -189,32 +182,32 @@
                 </div>
 
                 <div class="pro-specialist-grid">
-                  <button class="pro-specialist-card" type="button" data-specialist-engine="Background Voices">
+                  <button class="pro-specialist-card specialist-waiting" type="button" data-specialist-engine="Background Voices">
                     <span class="pro-specialist-icon">◉</span>
                     <span><b>Background Voices</b><small>Separate overlapping speakers from the main voice.</small></span>
-                    <em>PRO AI</em>
+                    <em>NEXT TEST</em>
                   </button>
-                  <button class="pro-specialist-card" type="button" data-specialist-engine="Music Control">
+                  <button class="pro-specialist-card specialist-waiting" type="button" data-specialist-engine="Music Control">
                     <span class="pro-specialist-icon">♫</span>
                     <span><b>Music Control</b><small>Separate speech from background music before cleanup.</small></span>
-                    <em>PRO AI</em>
+                    <em>NEXT TEST</em>
                   </button>
                   <button class="pro-specialist-card" id="dereverbSpecialistBtn" type="button" data-specialist-engine="De-Reverb">
                     <span class="pro-specialist-icon">⌁</span>
                     <span><b>De-Reverb</b><small>Dedicated room-echo and late-reflection reduction.</small></span>
-                    <em id="dereverbSpecialistState">PRO AI</em>
+                    <em id="dereverbSpecialistState">BETA ON</em>
                   </button>
                 </div>
 
                 
-                <div class="dereverb-lab-banner hidden" id="dereverbLabBanner">
-                  <span>OWNER LAB</span>
-                  <p>De-Reverb Beta testing is enabled for this page and starts ON automatically. Click the De-Reverb card anytime to switch the separate room-reflection engine OFF/ON. This lab switch will be removed or Pro-locked after A/B validation.</p>
+                <div class="dereverb-lab-banner" id="dereverbLabBanner">
+                  <span>DE-REVERB BETA TEST</span>
+                  <p>De-Reverb starts ON in this test build. Tap its card to compare BETA ON vs BETA OFF. Pro locking will be added only after the audio quality is approved.</p>
                 </div>
 
                 <div class="pro-validation-note">
-                  <span>ENGINE VALIDATION</span>
-                  <p>These specialist engines are kept separate from the approved Clear Voice path until their dedicated models pass browser, mobile and audio-quality validation.</p>
+                  <span>ONE-BY-ONE TESTING</span>
+                  <p>De-Reverb is the active specialist test. Background Voices and Music Control stay disconnected until De-Reverb passes A/B testing.</p>
                 </div>
 
                 <div class="pro-daily-usage hidden" id="proDailyUsage">
@@ -318,8 +311,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=21.1"></script>
-  <script type="module" src="auth-nav.js?v=21.1"></script>
-  <script type="module" src="audio-repair.js?v=21.1"></script>
+  <script src="script.js?v=21.3"></script>
+  <script type="module" src="auth-nav.js?v=21.3"></script>
+  <script type="module" src="audio-repair.js?v=21.3"></script>
 </body>
 </html>
