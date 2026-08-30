@@ -212,3 +212,36 @@
 .processing-orbit{will-change:transform}
 .processing-wave i{will-change:height}
 @media(max-width:780px){.engine-path-grid{grid-template-columns:1fr}}
+
+
+/* ===== RIVANI Audio Repair V14 · GPU Clear Voice ===== */
+.gpu-badge{font-size:10px;padding:8px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(14,165,255,.18),rgba(126,53,255,.18));border:1px solid rgba(80,156,255,.32);color:#aee8ff;font-weight:900;letter-spacing:.8px}
+.clear-engine-card{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:15px;padding:18px;border-radius:17px;border:1px solid rgba(52,176,255,.25);background:radial-gradient(circle at 6% 20%,rgba(21,169,255,.12),transparent 26%),linear-gradient(115deg,rgba(7,21,55,.85),rgba(15,10,42,.8));margin:20px 0 12px}
+.clear-engine-orb{width:58px;height:58px;border-radius:18px;display:grid;place-items:center;position:relative;background:linear-gradient(145deg,#116ad4,#7734df);box-shadow:0 0 35px rgba(57,108,255,.22);overflow:hidden}
+.clear-engine-orb span{position:relative;z-index:2;font-weight:900;font-size:20px}.clear-engine-orb i{position:absolute;width:46px;height:1px;background:linear-gradient(90deg,transparent,#65e1ff,transparent);animation:clearScan 1.8s linear infinite}.clear-engine-orb i:last-child{transform:rotate(90deg);animation-delay:.4s}@keyframes clearScan{50%{opacity:1;filter:drop-shadow(0 0 7px #76e6ff)}0%,100%{opacity:.25}}
+.clear-control-card{padding:18px;border-radius:16px;border:1px solid rgba(79,118,204,.17);background:rgba(4,9,27,.62);margin-top:12px}.clear-control-card label{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.clear-control-card label span b{display:block;font-size:14px}.clear-control-card label span small{display:block;color:#7887a3;font-size:10px;margin-top:4px}.clear-control-card label strong{font-size:18px;color:#70d9ff}.clear-control-card input{width:100%;margin:24px 0 8px;accent-color:#5a7cff}
+.voice-finish-block{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 17px;margin-top:10px;border:1px solid rgba(74,110,191,.15);border-radius:15px;background:rgba(5,10,28,.55)}.control-title em{font-style:normal;font-size:8px;color:#71829f;border:1px solid rgba(101,125,170,.18);border-radius:999px;padding:3px 5px;margin-left:5px}.voice-finish-block small{display:block;color:#71809b;font-size:9px;margin-top:4px}
+.gpu-login-note{margin:16px 0;padding:16px;border-radius:15px;border:1px solid rgba(255,184,80,.2);background:rgba(115,75,14,.09)}.gpu-login-note strong{display:block;font-size:12px;color:#ffd49b}.gpu-login-note span{display:block;font-size:10px;color:#8d94a3;line-height:1.5;margin:5px 0 12px}.gpu-login-note .btn{display:inline-flex}
+.gpu-repair-button{background:linear-gradient(90deg,#087cff,#5562ff 48%,#9b36ff)!important;box-shadow:0 16px 44px rgba(50,90,255,.26)!important}
+.gpu-processing-visual .processing-orb{background:linear-gradient(145deg,#087cff,#8f38ff)}
+.gpu-result-mark{font-size:25px!important;letter-spacing:.5px!important;color:#72dfff!important}
+.engine-live.engine-error{color:#ffb575;background:rgba(184,93,21,.09);border-color:rgba(237,149,72,.18)}
+@media(max-width:700px){.voice-finish-block{align-items:flex-start;flex-direction:column}.clear-engine-card{grid-template-columns:1fr}.clear-engine-orb{width:52px;height:52px}}
+
+
+/* ===== RIVANI V14F · Zero-server-cost Local Clear Voice ===== */
+.audio-repair-page .gpu-badge{
+  background:linear-gradient(90deg,rgba(19,183,153,.17),rgba(35,126,255,.16));
+  border-color:rgba(73,218,185,.28);color:#8df0d7
+}
+.audio-repair-page .clear-engine-card{
+  border-color:rgba(58,201,176,.22);
+  background:radial-gradient(circle at 6% 20%,rgba(30,190,164,.10),transparent 26%),linear-gradient(115deg,rgba(7,25,50,.85),rgba(13,11,40,.8))
+}
+.audio-repair-page .clear-engine-orb{
+  background:linear-gradient(145deg,#0aa8a0,#356cff 58%,#8238e6)
+}
+.audio-repair-page .gpu-repair-button{
+  background:linear-gradient(90deg,#0aa6bb,#2d73ff 52%,#8f3dff)!important
+}
+.audio-repair-page .gpu-result-mark{font-size:18px!important;letter-spacing:.8px!important;color:#75e4d1!important}

@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#030616">
-  <meta name="description" content="Repair noisy voice recordings in your browser with RIVANI AI Audio Repair Beta.">
-  <title>AI Audio Repair Beta — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=13">
+  <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a LOCAL speech-enhancement engine.">
+  <title>AI Audio Repair — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css?v=14ff">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,22 +26,26 @@
     <section class="audio-tool-hero section">
       <div class="container audio-tool-hero-grid">
         <div class="reveal">
-          <span class="status-pill live-beta">Smooth Voice Beta · Hybrid Neural</span>
+          <span class="status-pill live-beta">Free Local Clear Voice</span>
           <span class="section-kicker">RIVANI AUDIO</span>
-          <h1>Repair bad voice recordings.</h1>
-          <p>Upload a recording, scan common quality problems, choose a repair style, compare before and after, and export the repaired audio.</p>
+          <h1>Make the voice the focus.</h1>
+          <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated DeepFilterNet3 speech enhancement running directly on your device, with no RIVANI GPU server charge.</p>
           <div class="audio-hero-points">
-            <span>✓ RNNoise + DeepFilterNet3</span>
-            <span>✓ No audio upload to RIVANI servers</span>
-            <span>✓ Smooth Before / After preview</span>
+            <span>✓ One clear repair workflow</span>
+            <span>✓ DeepFilterNet3 WebAssembly</span>
+            <span>✓ Before / after preview</span>
             <span>✓ WAV export</span>
           </div>
         </div>
         <div class="audio-health-demo reveal delay-1">
-          <span class="audio-health-label">Audio Health</span>
-          <strong>43<span>/100</span></strong>
-          <div class="health-demo-bar"><i></i></div>
-          <ul><li><b>Fan / room noise</b><span>High</span></li><li><b>Voice level</b><span>Low</span></li><li><b>Rumble</b><span>Detected</span></li></ul>
+          <span class="audio-health-label">LOCAL AI PATH</span>
+          <strong>AI<span> LOCAL</span></strong>
+          <div class="health-demo-bar"><i style="width:82%"></i></div>
+          <ul>
+            <li><b>Noise suppression</b><span>DeepFilterNet3</span></li>
+            <li><b>Processing cost</b><span>Your device</span></li>
+            <li><b>Server GPU bill</b><span>None</span></li>
+          </ul>
         </div>
       </div>
     </section>
@@ -52,10 +56,10 @@
           <div class="audio-upload-zone" id="audioDropZone">
             <input type="file" id="audioFileInput" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac">
             <div class="upload-orb">≋</div>
-            <h2>Drop your audio here</h2>
+            <h2>Drop your voice recording here</h2>
             <p>or choose a file from your device</p>
             <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
-            <small>Best in Chrome / Edge / Safari · Browser must be able to decode the selected file.</small>
+            <small>No account is required for processing. The audio stays on your device. First use downloads the DeepFilterNet3 browser model.</small>
           </div>
 
           <div class="audio-editor hidden" id="audioEditor">
@@ -75,7 +79,7 @@
             <div class="audio-analysis-grid">
               <article class="audio-score-card">
                 <div class="score-ring" id="scoreRing"><strong id="healthScore">--</strong><span>/100</span></div>
-                <div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">We’ll inspect level, clipping, low-frequency rumble, hum and background-floor indicators.</p></div>
+                <div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">RIVANI will inspect clipping, recording level, low-frequency rumble and background-floor indicators before GPU repair.</p></div>
               </article>
               <div class="audio-issues-card">
                 <div class="audio-card-title"><strong>Detected issues</strong><span id="issueCount">0 found</span></div>
@@ -90,180 +94,76 @@
             <div class="repair-panel hidden" id="repairPanel">
               <div class="repair-head">
                 <div>
-                  <span class="section-kicker">FREE REPAIR CONTROLS</span>
-                  <h2>Repair your recording, your way.</h2>
-                  <p class="repair-subcopy">Start simple with Auto Repair, then choose how much cleanup you want while keeping the voice natural.</p>
+                  <span class="section-kicker">FREE LOCAL ENGINE</span>
+                  <h2>One repair. You control how much noise goes.</h2>
+                  <p class="repair-subcopy">Natural / Clean / Studio are no longer separate denoise engines. DeepFilterNet3 always follows one repair path. The slider only controls how strongly noise is reduced.</p>
                 </div>
                 <div class="repair-plan-badges">
-                  <span class="local-badge">Runs on this device</span>
+                  <span class="gpu-badge">LOCAL AI</span>
                   <span class="free-badge">FREE BETA</span>
                 </div>
               </div>
 
-              <div class="neural-engine-card" id="neuralEngineCard">
-                <div class="neural-engine-icon">
-                  <span class="neural-core">N</span>
-                  <i></i><i></i><i></i>
-                </div>
-                <div class="neural-engine-copy">
+              <div class="clear-engine-card">
+                <div class="clear-engine-orb"><span>R</span><i></i><i></i></div>
+                <div>
                   <div class="neural-title-row">
-                    <strong>Neural Noise Removal</strong>
-                    <span class="engine-live" id="neuralEngineStatus">Hybrid Neural · Ready</span>
+                    <strong>RIVANI Local Clear Voice</strong>
+                    <span class="engine-live" id="clearEngineStatus">DeepFilterNet3 · waiting to load</span>
                   </div>
-                  <p><b>Natural</b> uses light RNNoise. <b>Clean</b> switches to DeepFilterNet3 hybrid cleanup. <b>Studio</b> adds restoration, artifact protection and voice finishing. Silero VAD is used when available to protect speech boundaries.</p>
-                </div>
-                <button class="toggle-control active neural-toggle" id="neuralToggle" type="button" aria-pressed="true">
-                  <span></span><b>ON</b>
-                </button>
-              </div>
-
-              <div class="preset-grid" id="presetGrid">
-                <button class="preset-card active" data-preset="natural" type="button">
-                  <span>Natural</span><small>RNNoise Light · original voice first, gentle cleanup</small>
-                </button>
-                <button class="preset-card" data-preset="clean" type="button">
-                  <span>Clean</span><small>DeepFilter Hybrid · strong cleanup without studio coloration</small>
-                </button>
-                <button class="preset-card" data-preset="studio" type="button">
-                  <span>Studio</span><small>DeepFilter + Restore · de-reverb, de-esser & smooth finishing</small>
-                </button>
-              </div>
-
-              <div class="engine-path-grid" id="enginePathGrid">
-                <div class="engine-path active" data-engine-mode="natural">
-                  <span>01</span><div><b>Natural</b><small>RNNoise → Artifact Guard → Gentle Level</small></div>
-                </div>
-                <div class="engine-path" data-engine-mode="clean">
-                  <span>02</span><div><b>Clean</b><small>Silero VAD → DeepFilterNet3 → De-esser → LUFS</small></div>
-                </div>
-                <div class="engine-path" data-engine-mode="studio">
-                  <span>03</span><div><b>Studio</b><small>Silero VAD → DFN3 → Restore → Artifact Guard → LUFS</small></div>
+                  <p>DeepFilterNet3 full-band denoising runs in WebAssembly. RIVANI then uses Artifact Guard, restrained voice finishing and loudness control.</p>
                 </div>
               </div>
 
-              <div class="free-control-grid">
-                <div class="strength-card">
-                  <label for="repairStrength">
-                    <span>
-                      <b>AI Noise Removal</b>
-                      <small>Controls RNNoise + local cleanup strength</small>
-                    </span>
-                    <strong id="repairStrengthValue">55%</strong>
-                  </label>
-                  <input id="repairStrength" type="range" min="20" max="100" value="45">
-                  <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
-                </div>
+              <div class="clear-control-card">
+                <label for="repairStrength">
+                  <span><b>Noise Removal</b><small>Lower keeps more ambience. Higher pushes background noise down harder.</small></span>
+                  <strong id="repairStrengthValue">80%</strong>
+                </label>
+                <input id="repairStrength" type="range" min="25" max="100" value="80">
+                <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
+              </div>
 
-                <div class="voice-lock-card">
-                  <div>
-                    <span class="control-title">Voice Lock</span>
-                    <small>Protect the natural character of the speaker.</small>
-                  </div>
-                  <button class="toggle-control active" id="voiceLockToggle" type="button" aria-pressed="true">
-                    <span></span><b>ON</b>
-                  </button>
+              <div class="voice-finish-block">
+                <div>
+                  <span class="control-title">Voice Finish <em>optional</em></span>
+                  <small>This changes final loudness/presentation—not the denoise engine.</small>
                 </div>
-
-                <div class="environment-card">
-                  <div>
-                    <span class="control-title">Keep the vibe</span>
-                    <small>Choose whether the result feels studio-clean or keeps more natural room tone.</small>
-                  </div>
-                  <div class="environment-options" id="environmentOptions">
-                    <button type="button" data-env="studio">Studio</button>
-                    <button type="button" data-env="balanced" class="active">Balanced</button>
-                    <button type="button" data-env="natural">Natural room</button>
-                  </div>
+                <div class="environment-options" id="voiceFinishOptions">
+                  <button type="button" data-finish="natural">Natural</button>
+                  <button type="button" data-finish="broadcast" class="active">Broadcast</button>
+                  <button type="button" data-finish="studio">Studio</button>
                 </div>
               </div>
 
               <div class="repair-feature-row">
-                <span><i>✓</i> Rumble reduction</span>
-                <span><i>✓</i> Hum control</span>
-                <span><i>✓</i> Soft noise gate</span>
-                <span><i>✓</i> Voice presence</span>
-                <span><i>✓</i> Level normalization</span>
+                <span><i>✓</i> Neural denoise</span>
+                <span><i>✓</i> Speech restoration</span>
+                <span><i>✓</i> 30s overlap processing</span>
+                <span><i>✓</i> LUFS-style finish</span>
+                <span><i>✓</i> Peak guard</span>
               </div>
-
-              <button class="btn btn-primary audio-main-action" id="repairAudioBtn" type="button">
+<button class="btn btn-primary audio-main-action gpu-repair-button" id="repairAudioBtn" type="button">
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
 
-              <section class="pro-noise-mixer" aria-label="Pro Noise Mixer preview">
+              <section class="pro-noise-mixer" aria-label="Future Pro Noise Mixer preview">
                 <div class="pro-mixer-head">
                   <div>
-                    <div class="pro-title-row">
-                      <span class="pro-chip">PRO</span>
-                      <h3>Noise Mixer</h3>
-                    </div>
-                    <p>Don’t just remove noise. Choose exactly what stays.</p>
+                    <div class="pro-title-row"><span class="pro-chip">PRO</span><h3>Noise Mixer</h3></div>
+                    <p>Future granular controls stay locked until their dedicated separation engines are actually ready.</p>
                   </div>
-                  <button class="pro-unlock-btn" type="button" data-pro-preview>
-                    <span>🔒</span> Unlock with Pro
-                  </button>
+                  <button class="pro-unlock-btn" type="button" data-pro-preview><span>🔒</span> Pro preview</button>
                 </div>
-
-                <div class="noise-mixer-grid">
-                  <div class="noise-slider locked-control">
-                    <div><span>Fan / AC / Cooler</span><b>85%</b></div>
-                    <input type="range" min="0" max="100" value="85" disabled>
-                    <small>Remove steady mechanical noise</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Traffic / Road</span><b>70%</b></div>
-                    <input type="range" min="0" max="100" value="70" disabled>
-                    <small>Reduce road and low outdoor noise</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Wind</span><b>65%</b></div>
-                    <input type="range" min="0" max="100" value="65" disabled>
-                    <small>Tame gusts and microphone wind noise</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Background voices</span><b>60%</b></div>
-                    <input type="range" min="0" max="100" value="60" disabled>
-                    <small>Reduce distracting nearby chatter</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Hiss / Hum</span><b>90%</b></div>
-                    <input type="range" min="0" max="100" value="90" disabled>
-                    <small>Target electrical and broadband floor noise</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Room Echo</span><b>75%</b></div>
-                    <input type="range" min="0" max="100" value="75" disabled>
-                    <small>Planned de-reverb control</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Background Music</span><b>40%</b></div>
-                    <input type="range" min="0" max="100" value="40" disabled>
-                    <small>Planned music-preserve / music-remove control</small>
-                  </div>
-                  <div class="noise-slider locked-control">
-                    <div><span>Keyboard / Clicks</span><b>80%</b></div>
-                    <input type="range" min="0" max="100" value="80" disabled>
-                    <small>Planned transient noise cleanup</small>
-                  </div>
-                </div>
-
                 <div class="pro-feature-strip">
-                  <span>🔒 Noise Map Timeline</span>
-                  <span>🔒 Segment Repair</span>
-                  <span>🔒 Music Preserve</span>
-                  <span>🔒 De-Reverb</span>
-                  <span>🔒 Mouth Click Repair</span>
-                  <span>🔒 Batch Processing</span>
-                </div>
-
-                <div class="pro-roadmap-note">
-                  <strong>Pro preview</strong>
-                  <p>These controls are shown now so users can see the planned Pro workflow. They stay locked until each noise-specific engine is actually connected.</p>
+                  <span>🔒 Fan / AC</span><span>🔒 Traffic</span><span>🔒 Background Voices</span>
+                  <span>🔒 Music Remove</span><span>🔒 De-Reverb</span><span>🔒 Noise Map</span>
                 </div>
               </section>
             </div>
 
             <div class="audio-processing hidden" id="audioProcessing">
-              <div class="processing-visual">
+              <div class="processing-visual gpu-processing-visual">
                 <div class="processing-orbit orbit-one"></div>
                 <div class="processing-orbit orbit-two"></div>
                 <div class="processing-orb"><span>R</span></div>
@@ -271,55 +171,52 @@
                   <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
                 </div>
               </div>
-              <span class="processing-kicker">RIVANI AUDIO ENGINE</span>
-              <h3 id="processingTitle">Repairing your recording…</h3>
-              <p id="processingText">Preparing local audio engine.</p>
-
+              <span class="processing-kicker">RIVANI LOCAL CLEAR VOICE</span>
+              <h3 id="processingTitle">Preparing your repair…</h3>
+              <p id="processingText">Preparing the local AI model.</p>
               <div class="processing-stages" id="processingStages">
-                <span class="active" data-stage="scan">Speech Map</span>
-                <span data-stage="noise">Neural</span>
-                <span data-stage="voice">Restore</span>
-                <span data-stage="level">Loudness</span>
-                <span data-stage="export">Export</span>
+                <span class="active" data-stage="upload">Upload</span>
+                <span data-stage="model">DeepFilter</span>
+                <span data-stage="restore">Smooth</span>
+                <span data-stage="level">Finish</span>
+                <span data-stage="export">Result</span>
               </div>
-
               <div class="processing-bar"><i id="processingBar"></i></div>
               <span id="processingPercent">0%</span>
             </div>
 
             <div class="audio-result hidden" id="audioResult">
               <div class="result-head">
-                <div><span class="status-pill live-beta">Repair complete</span><h2>Compare the result.</h2><p>V13 chooses a different engine path for each preset. It can use Silero VAD, RNNoise, DeepFilterNet3, artifact-protected restoration, de-essing, moderate de-reverb and LUFS-style final leveling.</p></div>
-                <div class="result-score"><span>New health</span><strong id="newHealthScore">--</strong></div>
+                <div>
+                  <span class="status-pill live-beta">Clear Voice complete</span>
+                  <h2>Listen before you download.</h2>
+                  <p>The repaired file was created on this device with DeepFilterNet3 and RIVANI’s local finishing. Compare at a similar listening volume and listen for background reduction, consonant clarity and any unnatural artifacts.</p>
+                </div>
+                <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">LOCAL</strong></div>
               </div>
-
               <div class="compare-grid">
                 <article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio id="beforePlayer" controls></audio></article>
-                <article class="compare-card after"><span>AFTER</span><strong id="afterPresetLabel">Natural repair</strong><audio id="afterPlayer" controls></audio></article>
+                <article class="compare-card after"><span>AFTER</span><strong id="afterPresetLabel">Clear Voice</strong><audio id="afterPlayer" controls></audio></article>
               </div>
-
               <div class="result-actions">
                 <button class="btn btn-primary result-gradient-btn" id="downloadAudioBtn" type="button">Download repaired WAV ↓</button>
-                <button class="btn btn-primary result-gradient-btn" id="tryAgainBtn" type="button">Change repair style ↻</button>
+                <button class="btn btn-primary result-gradient-btn" id="tryAgainBtn" type="button">Adjust noise removal ↻</button>
               </div>
-
               <div class="repair-disclosure">
-                <strong>Privacy note</strong>
-                <p>This Beta processes the audio in your browser. RNNoise runs locally through WebAssembly; the audio file is not sent to RIVANI’s account API or LUKI AI backend.</p>
+                <strong>Processing disclosure</strong>
+                <p>Your selected audio is processed locally in this browser. RIVANI does not upload the audio to a GPU processing server in this Free Local build.</p>
               </div>
             </div>
           </div>
         </div>
 
         <div class="audio-beta-note">
-          <span>Beta engine</span>
-          <p>This Smooth Voice Beta is tuned to reduce the metallic “jhil-jhil” effect by avoiding stacked maximum denoise, protecting speech frames and keeping restoration conservative. Background music and overlapping speakers still require a future source-separation engine.</p>
-          <a href="article-audio-repair.html">Read the detailed Audio Repair guide →</a>
+          <span>Free Local Beta</span>
+          <p>DeepFilterNet3 is for speech noise suppression. Background music and another person speaking over the target voice remain separate-source problems for a future engine.</p>
         </div>
       </div>
     </section>
   </main>
-
 
   <div class="pro-preview-modal hidden" id="proPreviewModal" role="dialog" aria-modal="true" aria-labelledby="proPreviewTitle">
     <div class="pro-preview-backdrop" data-close-pro></div>
@@ -327,13 +224,7 @@
       <button class="pro-modal-close" type="button" data-close-pro aria-label="Close">×</button>
       <span class="pro-chip">PRO PREVIEW</span>
       <h2 id="proPreviewTitle">Advanced Noise Mixer</h2>
-      <p>Granular controls for fan noise, traffic, music, echo, background voices and more are planned for Pro. We’ll unlock each control only when its dedicated processing engine is ready.</p>
-      <div class="pro-modal-points">
-        <span>✓ Individual noise sliders</span>
-        <span>✓ Noise Map Timeline</span>
-        <span>✓ Segment-by-segment repair</span>
-        <span>✓ Music preserve / remove</span>
-      </div>
+      <p>Noise-specific controls will be enabled only after dedicated separation models are connected.</p>
       <button class="btn btn-primary" type="button" data-close-pro>Got it</button>
     </div>
   </div>
@@ -348,8 +239,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=13"></script>
-  <script type="module" src="auth-nav.js?v=13"></script>
-  <script type="module" src="audio-repair.js?v=13"></script>
+  <script src="script.js?v=14ff"></script>
+  <script type="module" src="auth-nav.js?v=14ff"></script>
+  <script type="module" src="audio-repair-local.js?v=14f"></script>
 </body>
 </html>

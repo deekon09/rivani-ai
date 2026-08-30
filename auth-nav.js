@@ -6,6 +6,10 @@ if (configured) {
     const authMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js');
     const app = appMod.getApps().length ? appMod.getApps()[0] : appMod.initializeApp(firebaseConfig);
     const auth = authMod.getAuth(app);
+    window.RIVANI_GET_ID_TOKEN = async () => {
+      const user = auth.currentUser;
+      return user ? await user.getIdToken() : null;
+    };
     authMod.onAuthStateChanged(auth, user => {
       window.RIVANI_LUKI_CONTEXT = user ? {
         signedIn: true,
@@ -28,5 +32,8 @@ if (configured) {
         if (signup) { signup.textContent='Sign up'; signup.href='auth.html?mode=signup'; }
       }
     });
-  } catch(e) { console.warn('RIVANI auth nav unavailable', e); }
+  } catch(e) {
+    window.RIVANI_GET_ID_TOKEN = async () => null;
+    console.warn('RIVANI auth nav unavailable', e);
+  }
 }
