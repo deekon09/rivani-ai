@@ -526,3 +526,283 @@
   .pro-locked-grid{grid-template-columns:1fr}
   .export-format-options{grid-template-columns:1fr}
 }
+
+
+/* ==========================================================
+   RIVANI V20 · smooth visual motion
+   ========================================================== */
+.grid-overlay{
+  will-change:background-position,opacity;
+  animation:rivaniGridDrift 28s linear infinite,rivaniGridBreath 10s ease-in-out infinite
+}
+.ambient{
+  will-change:transform,opacity;
+  transform:translate3d(0,0,0)
+}
+.ambient-one{animation:rivaniAmbientOne 19s ease-in-out infinite alternate}
+.ambient-two{animation:rivaniAmbientTwo 23s ease-in-out infinite alternate}
+
+@keyframes rivaniGridDrift{to{background-position:58px 58px}}
+@keyframes rivaniGridBreath{
+  0%,100%{opacity:.085}
+  50%{opacity:.155}
+}
+@keyframes rivaniAmbientOne{
+  0%{transform:translate3d(-4%,0,0) scale(.94);opacity:.09}
+  48%{transform:translate3d(11%,-8%,0) scale(1.08);opacity:.15}
+  100%{transform:translate3d(2%,12%,0) scale(.98);opacity:.11}
+}
+@keyframes rivaniAmbientTwo{
+  0%{transform:translate3d(4%,0,0) scale(1);opacity:.09}
+  52%{transform:translate3d(-13%,9%,0) scale(1.10);opacity:.145}
+  100%{transform:translate3d(-2%,-7%,0) scale(.95);opacity:.10}
+}
+
+.brand{position:relative;isolation:isolate}
+.brand img{
+  transform:translateZ(0);
+  transform-origin:left center;
+  will-change:filter,transform;
+  animation:rivaniBrandAura 5.8s ease-in-out infinite
+}
+.brand::after{
+  content:"";
+  position:absolute;
+  pointer-events:none;
+  left:-2%;top:18%;
+  width:24%;height:64%;
+  border-radius:50%;
+  background:rgba(33,190,255,.20);
+  filter:blur(18px);
+  z-index:-1;
+  opacity:.22;
+  animation:rivaniBrandGlow 5.8s ease-in-out infinite
+}
+@keyframes rivaniBrandAura{
+  0%,100%{filter:drop-shadow(0 0 3px rgba(42,171,255,.08));transform:translate3d(0,0,0)}
+  50%{filter:drop-shadow(0 0 10px rgba(47,193,255,.22)) drop-shadow(0 0 18px rgba(124,68,255,.12));transform:translate3d(0,-.5px,0)}
+}
+@keyframes rivaniBrandGlow{
+  0%,100%{opacity:.12;transform:scale(.88)}
+  50%{opacity:.32;transform:scale(1.08)}
+}
+
+/* Crop the original left-side ribbon R from the existing full wordmark. */
+.rivani-r-crop{position:relative;overflow:hidden;isolation:isolate}
+.rivani-r-crop>img{
+  position:absolute;
+  left:0;top:50%;
+  width:360%;
+  max-width:none!important;
+  height:auto;
+  transform:translate3d(-.6%,-50%,0);
+  transform-origin:left center;
+  pointer-events:none;
+  user-select:none
+}
+
+/* LUKI brand/chat orb */
+.luki-launcher-orb.luki-r-logo,
+.luki-avatar.luki-r-logo{
+  position:relative;
+  background:
+    radial-gradient(circle at 34% 24%,rgba(51,218,255,.18),transparent 38%),
+    linear-gradient(145deg,rgba(5,39,97,.96),rgba(24,8,70,.96));
+  border:1px solid rgba(74,198,255,.40);
+  box-shadow:
+    inset 0 0 18px rgba(28,174,255,.12),
+    0 0 24px rgba(34,130,255,.22),
+    0 0 36px rgba(129,47,255,.10);
+  animation:lukiBrandFloat 3.6s ease-in-out infinite
+}
+.luki-launcher-orb.luki-r-logo::before,
+.luki-avatar.luki-r-logo::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  border-radius:inherit;
+  border:1px solid rgba(74,204,255,.18);
+  box-shadow:0 0 15px rgba(64,186,255,.16);
+  opacity:.65;
+  animation:lukiRingBreath 2.8s ease-in-out infinite
+}
+.luki-launcher-orb.luki-r-logo::after{
+  content:"";
+  position:absolute;
+  right:4px;bottom:4px;
+  width:7px;height:7px;
+  border-radius:50%;
+  background:#66f1c2;
+  border:2px solid #07102b;
+  box-shadow:0 0 9px rgba(80,236,187,.60)
+}
+@keyframes lukiBrandFloat{
+  0%,100%{transform:translate3d(0,0,0) rotate(0)}
+  50%{transform:translate3d(0,-2px,0) rotate(.8deg)}
+}
+@keyframes lukiRingBreath{
+  0%,100%{opacity:.35;transform:scale(.94)}
+  50%{opacity:.9;transform:scale(1.06)}
+}
+
+/* Repair/processing logo animation */
+.clear-engine-orb.clear-r-logo{
+  background:linear-gradient(145deg,rgba(6,51,118,.92),rgba(31,10,80,.94));
+  border-color:rgba(72,192,255,.34);
+  box-shadow:0 0 31px rgba(45,123,255,.22)
+}
+.clear-engine-orb.clear-r-logo>img{
+  animation:rivaniRSoftPulse 4.3s ease-in-out infinite
+}
+.processing-orb.processing-r-logo{
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 35% 20%,rgba(41,214,255,.18),transparent 42%),
+    linear-gradient(145deg,#071f56,#25104e);
+  border:1px solid rgba(77,204,255,.38);
+  box-shadow:
+    0 0 0 1px rgba(108,76,255,.10),
+    0 0 42px rgba(41,131,255,.30),
+    0 0 66px rgba(133,48,255,.13);
+  animation:rivaniProcessingOrb 2.1s ease-in-out infinite
+}
+.processing-orb.processing-r-logo>img{animation:rivaniRProcess 2.1s ease-in-out infinite}
+.gpu-processing-visual::after{
+  content:"";
+  position:absolute;
+  left:50%;top:43px;
+  width:132px;height:132px;
+  border-radius:50%;
+  border:1px solid rgba(58,202,255,.08);
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 42px rgba(48,118,255,.11);
+  pointer-events:none;
+  animation:processingHalo 2.1s ease-out infinite
+}
+@keyframes rivaniRSoftPulse{
+  0%,100%{opacity:.92;filter:drop-shadow(0 0 4px rgba(44,195,255,.12))}
+  50%{opacity:1;filter:drop-shadow(0 0 9px rgba(54,202,255,.30))}
+}
+@keyframes rivaniProcessingOrb{
+  0%,100%{transform:scale(.98);box-shadow:0 0 42px rgba(41,131,255,.24),0 0 60px rgba(133,48,255,.10)}
+  50%{transform:scale(1.045);box-shadow:0 0 56px rgba(41,166,255,.36),0 0 78px rgba(133,48,255,.18)}
+}
+@keyframes rivaniRProcess{
+  0%,100%{opacity:.90;filter:brightness(.96) saturate(1.02)}
+  50%{opacity:1;filter:brightness(1.13) saturate(1.12)}
+}
+@keyframes processingHalo{
+  0%{opacity:.05;transform:translate(-50%,-50%) scale(.70)}
+  55%{opacity:.28}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.18)}
+}
+
+/* ==========================================================
+   V20 · Pro limits + entitlement-ready states
+   ========================================================== */
+.pro-plan-limit-strip{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:13px
+}
+.pro-plan-limit-strip span{
+  padding:10px 11px;
+  border:1px solid rgba(111,86,182,.16);
+  border-radius:12px;
+  background:rgba(14,9,31,.54)
+}
+.pro-plan-limit-strip b,.pro-plan-limit-strip small{display:block}
+.pro-plan-limit-strip b{color:#caa9ff;font-size:10px;letter-spacing:.06em}
+.pro-plan-limit-strip small{
+  margin-top:3px;color:#677088;font-size:7.5px;
+  text-transform:uppercase;letter-spacing:.08em
+}
+.pro-feature-lock.pro-entitled{
+  cursor:pointer;
+  border-color:rgba(55,170,255,.24);
+  background:linear-gradient(130deg,rgba(8,34,68,.58),rgba(22,12,48,.56))
+}
+.pro-feature-lock.pro-entitled em{color:#7edbff}
+.pro-feature-lock.pro-entitled.enabled{
+  border-color:rgba(49,220,180,.30);
+  box-shadow:inset 0 0 28px rgba(35,183,149,.06)
+}
+.pro-feature-lock.pro-entitled.enabled em{color:#83edc8}
+
+.pro-specialist-title{
+  display:flex;justify-content:space-between;align-items:end;
+  gap:16px;margin:18px 1px 9px
+}
+.pro-specialist-title strong{color:#e2e8f7;font-size:10px}
+.pro-specialist-title small{color:#606b82;font-size:8px;text-align:right}
+.pro-specialist-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px
+}
+.pro-specialist-card{
+  min-height:82px;
+  display:grid;grid-template-columns:34px 1fr auto;
+  align-items:center;gap:9px;padding:12px;text-align:left;
+  border:1px solid rgba(117,86,181,.17);
+  border-radius:14px;
+  background:
+    radial-gradient(circle at 10% 0,rgba(54,111,255,.08),transparent 42%),
+    linear-gradient(135deg,rgba(13,13,35,.72),rgba(27,10,50,.54));
+  color:#9aa4b8;cursor:pointer;transition:.18s ease
+}
+.pro-specialist-card:hover{transform:translateY(-1px);border-color:rgba(139,94,225,.31)}
+.pro-specialist-icon{
+  width:34px;height:34px;display:grid;place-items:center;
+  border-radius:11px;border:1px solid rgba(78,164,255,.18);
+  background:rgba(15,43,84,.48);color:#70cfff;font-size:14px
+}
+.pro-specialist-card b,.pro-specialist-card small{display:block}
+.pro-specialist-card b{font-size:9.5px;color:#c9d1e3}
+.pro-specialist-card small{margin-top:4px;font-size:7.8px;line-height:1.35;color:#657086}
+.pro-specialist-card em{
+  font-style:normal;white-space:nowrap;font-size:7px;font-weight:900;color:#ae83f2
+}
+.pro-validation-note{
+  margin-top:11px;padding:11px 12px;
+  border:1px solid rgba(255,179,76,.12);
+  border-radius:12px;background:rgba(86,53,11,.07)
+}
+.pro-validation-note span{
+  color:#b89564;font-size:7.5px;font-weight:900;letter-spacing:.10em
+}
+.pro-validation-note p{
+  margin:4px 0 0;color:#706a66;font-size:8px;line-height:1.45
+}
+.pro-daily-usage{
+  margin-top:11px;padding:11px 12px;
+  border:1px solid rgba(67,185,255,.16);
+  border-radius:12px;background:rgba(8,34,70,.25)
+}
+.pro-daily-usage>div:first-child{
+  display:flex;justify-content:space-between;color:#8194b4;font-size:8px
+}
+.pro-daily-usage b{color:#bee7ff}
+.pro-usage-bar{
+  height:5px;margin-top:8px;border-radius:999px;
+  overflow:hidden;background:#101a35
+}
+.pro-usage-bar i{
+  display:block;width:0;height:100%;border-radius:inherit;
+  background:var(--grad);transition:width .35s ease
+}
+
+@media(prefers-reduced-motion:reduce){
+  .grid-overlay,.ambient,.brand img,.brand::after,
+  .luki-launcher-orb.luki-r-logo,.luki-avatar.luki-r-logo,
+  .luki-launcher-orb.luki-r-logo::before,.luki-avatar.luki-r-logo::before,
+  .clear-engine-orb.clear-r-logo>img,
+  .processing-orb.processing-r-logo,.processing-orb.processing-r-logo>img,
+  .gpu-processing-visual::after{
+    animation:none!important
+  }
+}
+@media(max-width:760px){
+  .pro-plan-limit-strip,.pro-specialist-grid{grid-template-columns:1fr}
+  .pro-specialist-title{display:block}
+  .pro-specialist-title small{display:block;text-align:left;margin-top:4px}
+}

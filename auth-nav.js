@@ -15,8 +15,14 @@ if (configured) {
         signedIn: true,
         username: user.displayName?.trim() || '',
         email: user.email || '',
+        // Public accounts are Free today. Replace this with a trusted backend
+        // entitlement when paid plans launch.
         plan: 'Free'
       } : { signedIn: false, plan: null };
+
+      window.dispatchEvent(new CustomEvent('rivani:auth-context',{
+        detail: window.RIVANI_LUKI_CONTEXT
+      }));
       const login = document.querySelector('[data-auth-login]');
       const signup = document.querySelector('[data-auth-signup]');
       if (user) {

@@ -16,8 +16,13 @@ const result = $("audioResult");
 const strength = $("repairStrength");
 const strengthValue = $("repairStrengthValue");
 
-const FREE_MAX_FILE_BYTES = 200 * 1024 * 1024;
-const FREE_MAX_DURATION_SECONDS = 45 * 60;
+const FREE_MAX_FILE_BYTES = 500 * 1024 * 1024;
+const FREE_MAX_DURATION_SECONDS = 30 * 60;
+
+const PRO_MAX_FILE_BYTES = 1024 * 1024 * 1024;
+const PRO_DAILY_SECONDS = 5 * 60 * 60;
+const PRO_USAGE_KEY = "rivani_pro_audio_usage_v1";
+
 const SUPPORTED_AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|aac|ogg|flac)$/i;
 const FREE_MP3_BITRATE = 192;
 
@@ -40,6 +45,64 @@ let clickRepair=false;
 let finalEnhancedBuffer=null;
 let selectedExportFormat="mp3";
 let mp3BlobCache=null;
+
+let currentAudioPlan="free";
+
+function normalizePlan(value){
+  return String(value||"free").trim().toLowerCase();
+}
+
+function getAudioPlan(){
+  return normalizePlan(window.RIVANI_LUKI_CONTEXT?.plan)==="pro" ? "pro" : "free";
+}
+
+function isProPlan(){
+  return currentAudioPlan==="pro";
+}
+
+function todayKey(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function readProUsage(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(PRO_USAGE_KEY)||"{}");
+    if(parsed.date!==todayKey())return {date:todayKey(),seconds:0};
+    return {date:parsed.date,seconds:Math.max(0,Number(parsed.seconds)||0)};
+  }catch{
+    return {date:todayKey(),seconds:0};
+  }
+}
+
+function writeProUsage(seconds){
+  try{
+    localStorage.setItem(PRO_USAGE_KEY,JSON.stringify({
+      date:todayKey(),
+      seconds:Math.max(0,Number(seconds)||0)
+    }));
+  }catch{}
+  renderPlanAccess();
+}
+
+function recordProUsage(seconds){
+  if(!isProPlan())return;
+  const usage=readProUsage();
+  writeProUsage(usage.seconds+Math.max(0,Number(seconds)||0));
+}
+
+function remainingProSeconds(){
+  return Math.max(0,PRO_DAILY_SECONDS-readProUsage().seconds);
+}
+
+function formatPlanMinutes(seconds){
+  const mins=Math.max(0,Math.round(seconds/60));
+  if(mins<60)return `${mins} min`;
+  const hours=Math.floor(mins/60);
+  const rest=mins%60;
+  return rest?`${hours} h ${rest} min`:`${hours} h`;
+}
+
 
 chooseBtn?.addEventListener("click",()=>input?.click());
 replaceBtn?.addEventListener("click",()=>input?.click());
@@ -84,17 +147,57 @@ document.querySelectorAll("[data-pro-preview]").forEach(btn=>{
 
 document.querySelectorAll("[data-pro-lock]").forEach(btn=>{
   btn.addEventListener("click",()=>{
-    const feature=btn.dataset.proLock || "This feature";
-    const title=$("proPreviewTitle");
-    const copy=$("proPreviewCopy");
+    if(isProPlan() && btn.dataset.proControl){
+      toggleBuiltProControl(btn);
+      return;
+    }
 
-    if(title)title.textContent=`${feature} · Pro`;
-    if(copy)copy.textContent=
-      `${feature} is reserved for RIVANI Pro. Pro entitlement/upgrade access will be connected before launch.`;
-
-    $("proPreviewModal")?.classList.remove("hidden");
+    openProMessage(
+      `${btn.dataset.proLock || "This feature"} · Pro`,
+      `${btn.dataset.proLock || "This feature"} is reserved for RIVANI Pro.`
+    );
   });
 });
+
+document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const feature=btn.dataset.specialistEngine||"Specialist AI";
+    openProMessage(
+      `${feature} · Pro AI`,
+      `${feature} uses a separate specialist AI engine. It is listed in Pro, but this stable build will not route your approved Clear Voice through an unvalidated model.`
+    );
+  });
+});
+
+function openProMessage(titleText,copyText){
+  const title=$("proPreviewTitle");
+  const copy=$("proPreviewCopy");
+  if(title)title.textContent=titleText;
+  if(copy)copy.textContent=copyText;
+  $("proPreviewModal")?.classList.remove("hidden");
+}
+
+function toggleBuiltProControl(btn){
+  const key=btn.dataset.proControl;
+  let active=false;
+
+  if(key==="fan"){
+    fanAssist=!fanAssist;
+    active=fanAssist;
+  }else if(key==="traffic"){
+    trafficAssist=!trafficAssist;
+    active=trafficAssist;
+  }else if(key==="click"){
+    clickRepair=!clickRepair;
+    active=clickRepair;
+  }
+
+  btn.classList.toggle("enabled",active);
+  btn.setAttribute("aria-pressed",String(active));
+  const em=btn.querySelector("em");
+  if(em)em.textContent=active?"ON":"OFF";
+}
+
 document.querySelectorAll("[data-close-pro]").forEach(btn=>{
   btn.addEventListener("click",()=>$("proPreviewModal")?.classList.add("hidden"));
 });
@@ -105,21 +208,87 @@ $("exportMp3Btn")?.addEventListener("click",()=>{
 });
 
 $("exportWavBtn")?.addEventListener("click",()=>{
-  const title=$("proPreviewTitle");
-  const copy=$("proPreviewCopy");
+  if(isProPlan()){
+    selectedExportFormat="wav";
+    updateExportFormatUI();
+    return;
+  }
 
-  if(title)title.textContent="Lossless WAV Export · Pro";
-  if(copy)copy.textContent=
-    "Lossless WAV export is reserved for RIVANI Pro. Free Beta includes high-quality 192 kbps MP3 export.";
-
-  $("proPreviewModal")?.classList.remove("hidden");
+  openProMessage(
+    "Lossless WAV Export · Pro",
+    "Lossless WAV export is reserved for RIVANI Pro. Free includes high-quality 192 kbps MP3 export."
+  );
 });
 
 function updateExportFormatUI(){
-  $("exportMp3Btn")?.classList.toggle("active",selectedExportFormat==="mp3");
+  const mp3=$("exportMp3Btn");
+  const wav=$("exportWavBtn");
+
+  mp3?.classList.toggle("active",selectedExportFormat==="mp3");
+  wav?.classList.toggle("active",selectedExportFormat==="wav" && isProPlan());
+
+  if(wav){
+    wav.classList.toggle("locked",!isProPlan());
+    const em=wav.querySelector("em");
+    if(em)em.textContent=isProPlan()
+      ? (selectedExportFormat==="wav"?"SELECTED":"PRO")
+      : "PRO 🔒";
+  }
+
   const label=$("downloadAudioBtn");
-  if(label)label.textContent="Download MP3 ↓";
+  if(label){
+    label.textContent=
+      selectedExportFormat==="wav" && isProPlan()
+        ? "Download WAV ↓"
+        : "Download MP3 ↓";
+  }
 }
+
+function renderPlanAccess(){
+  currentAudioPlan=getAudioPlan();
+  const pro=isProPlan();
+
+  const badge=$("proAudioBadge");
+  if(badge)badge.textContent=pro?"✓ PRO ACTIVE":"🔒 PRO";
+
+  document.querySelectorAll("[data-pro-control]").forEach(btn=>{
+    btn.classList.toggle("pro-entitled",pro);
+    const em=btn.querySelector("em");
+
+    if(!pro){
+      btn.classList.remove("enabled");
+      btn.setAttribute("aria-pressed","false");
+      if(em)em.textContent="PRO 🔒";
+    }else if(em && !btn.classList.contains("enabled")){
+      em.textContent="OFF";
+    }
+  });
+
+  const usage=$("proDailyUsage");
+  if(usage)usage.classList.toggle("hidden",!pro);
+
+  if(pro){
+    const state=readProUsage();
+    const used=Math.min(PRO_DAILY_SECONDS,state.seconds);
+    const pct=Math.min(100,(used/PRO_DAILY_SECONDS)*100);
+
+    const text=$("proUsageText");
+    if(text)text.textContent=`${formatPlanMinutes(used)} / 5 h`;
+
+    const bar=$("proUsageBar");
+    if(bar)bar.style.width=`${pct}%`;
+  }
+
+  if(!pro && selectedExportFormat==="wav"){
+    selectedExportFormat="mp3";
+  }
+
+  updateExportFormatUI();
+}
+
+window.addEventListener("rivani:auth-context",renderPlanAccess);
+setTimeout(renderPlanAccess,0);
+setTimeout(renderPlanAccess,900);
 
 scanBtn?.addEventListener("click",runScan);
 repairBtn?.addEventListener("click",repairLocally);
@@ -165,6 +334,7 @@ function startAnotherAudio(){
   $("healthLabel").textContent="Ready to scan";
   $("issueCount").textContent="0 found";
 
+  renderPlanAccess();
   dropZone.scrollIntoView({behavior:"smooth",block:"center"});
 }
 
@@ -175,25 +345,44 @@ $("downloadAudioBtn")?.addEventListener("click",async()=>{
   const originalText=btn?.textContent||"Download MP3 ↓";
 
   try{
-    if(selectedExportFormat!=="mp3"){
-      throw new Error("Lossless WAV export is available with Pro.");
-    }
-
-    if(btn){
-      btn.disabled=true;
-      btn.textContent="Encoding MP3…";
-    }
-
-    if(!mp3BlobCache){
-      mp3BlobCache=await encodeMp3(finalEnhancedBuffer,FREE_MP3_BITRATE);
-    }
-
-    const url=URL.createObjectURL(mp3BlobCache);
-    const a=document.createElement("a");
     const base=(sourceFile?.name||"rivani-audio").replace(/\.[^.]+$/,"");
+    let downloadBlob;
+    let downloadName;
+
+    if(selectedExportFormat==="wav"){
+      if(!isProPlan()){
+        throw new Error("Lossless WAV export is available with Pro.");
+      }
+      if(!repairedBlob){
+        throw new Error("The lossless result is not ready yet.");
+      }
+
+      if(btn){
+        btn.disabled=true;
+        btn.textContent="Preparing WAV…";
+      }
+
+      downloadBlob=repairedBlob;
+      downloadName=`${base}-rivani-enhanced.wav`;
+    }else{
+      if(btn){
+        btn.disabled=true;
+        btn.textContent="Encoding MP3…";
+      }
+
+      if(!mp3BlobCache){
+        mp3BlobCache=await encodeMp3(finalEnhancedBuffer,FREE_MP3_BITRATE);
+      }
+
+      downloadBlob=mp3BlobCache;
+      downloadName=`${base}-rivani-enhanced.mp3`;
+    }
+
+    const url=URL.createObjectURL(downloadBlob);
+    const a=document.createElement("a");
 
     a.href=url;
-    a.download=`${base}-rivani-enhanced.mp3`;
+    a.download=downloadName;
 
     document.body.appendChild(a);
     a.click();
@@ -206,6 +395,7 @@ $("downloadAudioBtn")?.addEventListener("click",async()=>{
     if(btn){
       btn.disabled=false;
       btn.textContent=originalText;
+      updateExportFormatUI();
     }
   }
 });
@@ -233,7 +423,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=19");
+    const worker=new Worker("mp3-export-worker.js?v=20");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -286,9 +476,13 @@ async function loadAudioFile(file){
       throw new Error("Unsupported file type. Use WAV, MP3, M4A, AAC, OGG or FLAC.");
     }
 
-    if(file.size>FREE_MAX_FILE_BYTES){
+    const maxBytes=isProPlan()?PRO_MAX_FILE_BYTES:FREE_MAX_FILE_BYTES;
+
+    if(file.size>maxBytes){
       throw new Error(
-        "Free Beta supports files up to 200 MB. Larger-file support is reserved for Pro."
+        isProPlan()
+          ? "RIVANI Pro supports files up to 1 GB."
+          : "RIVANI Free supports files up to 500 MB. Pro supports up to 1 GB per file."
       );
     }
 
@@ -298,10 +492,19 @@ async function loadAudioFile(file){
     sourceBuffer=await ctx.decodeAudioData(arr.slice(0));
     await ctx.close();
 
-    if(sourceBuffer.duration>FREE_MAX_DURATION_SECONDS){
+    if(!isProPlan() && sourceBuffer.duration>FREE_MAX_DURATION_SECONDS){
       throw new Error(
-        "Free Beta supports audio up to 45 minutes per file. Longer-file support is reserved for Pro."
+        "RIVANI Free supports audio up to 30 minutes per file. Pro uses a 5-hour daily processing allowance."
       );
+    }
+
+    if(isProPlan()){
+      const remaining=remainingProSeconds();
+      if(sourceBuffer.duration>remaining){
+        throw new Error(
+          `Your remaining Pro audio allowance today is ${formatPlanMinutes(remaining)}.`
+        );
+      }
     }
 
     if(sourceUrl)URL.revokeObjectURL(sourceUrl);
@@ -388,7 +591,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=19",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=20",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -460,6 +663,17 @@ async function warmupEngine(){
 
 async function repairLocally(){
   if(!sourceBuffer)return;
+
+  if(isProPlan()){
+    const remaining=remainingProSeconds();
+    if(sourceBuffer.duration>remaining){
+      openProMessage(
+        "Daily Pro audio limit reached",
+        `You have ${formatPlanMinutes(remaining)} of your 5-hour Pro processing allowance remaining today.`
+      );
+      return;
+    }
+  }
 
   repairBtn.disabled=true;
   repairPanel.classList.add("hidden");
@@ -551,6 +765,10 @@ async function repairLocally(){
 
     processing.classList.add("hidden");
     result.classList.remove("hidden");
+
+    recordProUsage(sourceBuffer.duration);
+    renderPlanAccess();
+
     result.scrollIntoView({behavior:"smooth",block:"start"});
   }catch(error){
     console.error(error);

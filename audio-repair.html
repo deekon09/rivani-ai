@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=19.1.1f">
+  <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -61,8 +61,9 @@
             <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
             <div class="upload-support-info">
               <div class="support-line"><b>Supported:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
-              <div class="support-line"><b>Free Beta:</b> up to 45 min · 200 MB per file</div>
-              <div class="support-line"><b>Export:</b> MP3 included · Lossless WAV with Pro</div>
+              <div class="support-line"><b>Free:</b> up to 30 min · 500 MB per file</div>
+              <div class="support-line"><b>Pro:</b> up to 1 GB per file · 5 h processing/day</div>
+              <div class="support-line"><b>Export:</b> MP3 Free · Lossless WAV Pro</div>
               <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
             </div>
           </div>
@@ -110,7 +111,7 @@
               </div>
 
               <div class="clear-engine-card">
-                <div class="clear-engine-orb"><span>R</span><i></i><i></i></div>
+                <div class="clear-engine-orb rivani-r-crop clear-r-logo" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""><i></i><i></i></div>
                 <div>
                   <div class="neural-title-row">
                     <strong>RIVANI AI Clear Voice</strong>
@@ -152,34 +153,67 @@
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
 
-              <section class="pro-noise-mixer pro-locked-controls" aria-label="RIVANI Pro noise controls">
+              <section class="pro-noise-mixer pro-locked-controls" aria-label="RIVANI Pro audio controls">
                 <div class="pro-mixer-head">
                   <div>
                     <div class="pro-title-row">
                       <span class="pro-chip">PRO</span>
-                      <h3>Advanced Noise Controls</h3>
+                      <h3>Advanced Audio Controls</h3>
                     </div>
-                    <p>Extra control for difficult recordings. Core AI enhancement remains available in Free.</p>
+                    <p>Fine control for difficult recordings. Free keeps the core Clear Voice + Studio Finish path.</p>
                   </div>
-                  <span class="pro-lock-badge">🔒 PRO</span>
+                  <span class="pro-lock-badge" id="proAudioBadge">🔒 PRO</span>
                 </div>
 
-                <div class="pro-locked-grid">
-                  <button class="pro-feature-lock" type="button" data-pro-lock="Fan / AC Assist">
+                <div class="pro-plan-limit-strip">
+                  <span><b>1 GB</b><small>max file</small></span>
+                  <span><b>5 HOURS</b><small>processing / day</small></span>
+                  <span><b>WAV</b><small>lossless export</small></span>
+                </div>
+
+                <div class="pro-locked-grid" id="proBuiltControls">
+                  <button class="pro-feature-lock" type="button" data-pro-control="fan" data-pro-lock="Fan / AC Assist">
                     <span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>PRO 🔒</em>
                   </button>
-                  <button class="pro-feature-lock" type="button" data-pro-lock="Traffic Assist">
+                  <button class="pro-feature-lock" type="button" data-pro-control="traffic" data-pro-lock="Traffic Assist">
                     <span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>PRO 🔒</em>
                   </button>
-                  <button class="pro-feature-lock" type="button" data-pro-lock="Click Repair">
-                    <span><b>Click Repair</b><small>Keyboard and isolated impulse repair</small></span><em>PRO 🔒</em>
+                  <button class="pro-feature-lock" type="button" data-pro-control="click" data-pro-lock="Click Repair">
+                    <span><b>Click Repair</b><small>Keyboard, mouth-click and impulse repair</small></span><em>PRO 🔒</em>
                   </button>
                 </div>
 
-                <div class="pro-coming-row">
-                  <span>🔒 Background Voices <i>Coming</i></span>
-                  <span>🔒 Music Control <i>Coming</i></span>
-                  <span>🔒 De-Reverb <i>Coming</i></span>
+                <div class="pro-specialist-title">
+                  <strong>Specialist AI Engines</strong>
+                  <small>Separate AI jobs — kept isolated from the stable Clear Voice engine.</small>
+                </div>
+
+                <div class="pro-specialist-grid">
+                  <button class="pro-specialist-card" type="button" data-specialist-engine="Background Voices">
+                    <span class="pro-specialist-icon">◉</span>
+                    <span><b>Background Voices</b><small>Separate overlapping speakers from the main voice.</small></span>
+                    <em>PRO AI</em>
+                  </button>
+                  <button class="pro-specialist-card" type="button" data-specialist-engine="Music Control">
+                    <span class="pro-specialist-icon">♫</span>
+                    <span><b>Music Control</b><small>Separate speech from background music before cleanup.</small></span>
+                    <em>PRO AI</em>
+                  </button>
+                  <button class="pro-specialist-card" type="button" data-specialist-engine="De-Reverb">
+                    <span class="pro-specialist-icon">⌁</span>
+                    <span><b>De-Reverb</b><small>Dedicated room-echo and reverberation restoration.</small></span>
+                    <em>PRO AI</em>
+                  </button>
+                </div>
+
+                <div class="pro-validation-note">
+                  <span>ENGINE VALIDATION</span>
+                  <p>These specialist engines are kept separate from the approved Clear Voice path until their dedicated models pass browser, mobile and audio-quality validation.</p>
+                </div>
+
+                <div class="pro-daily-usage hidden" id="proDailyUsage">
+                  <div><span>Today</span><b id="proUsageText">0 min / 5 h</b></div>
+                  <div class="pro-usage-bar"><i id="proUsageBar"></i></div>
                 </div>
               </section>
             </div>
@@ -188,7 +222,7 @@
               <div class="processing-visual gpu-processing-visual">
                 <div class="processing-orbit orbit-one"></div>
                 <div class="processing-orbit orbit-two"></div>
-                <div class="processing-orb"><span>R</span></div>
+                <div class="processing-orb rivani-r-crop processing-r-logo" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""></div>
                 <div class="processing-wave" aria-hidden="true">
                   <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
                 </div>
@@ -251,7 +285,7 @@
 
         <div class="audio-beta-note">
           <span>FREE BETA LIMITS</span>
-          <p>WAV, MP3, M4A, AAC, OGG and FLAC · up to 45 minutes · up to 200 MB per file · MP3 export included. Pro adds lossless WAV export and advanced noise controls.</p>
+          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: up to 30 minutes and 500 MB per file · MP3 export included. Pro target: up to 1 GB per file, 5 hours processing per day, lossless WAV and advanced audio controls.</p>
         </div>
       </div>
     </section>
@@ -261,7 +295,7 @@
     <div class="pro-preview-backdrop" data-close-pro></div>
     <div class="pro-preview-card">
       <button class="pro-modal-close" type="button" data-close-pro aria-label="Close">×</button>
-      <span class="pro-chip">PRO PREVIEW</span>
+      <span class="pro-chip">RIVANI PRO</span>
       <h2 id="proPreviewTitle">Advanced Noise Mixer</h2>
       <p id="proPreviewCopy">Advanced audio controls and lossless WAV export are reserved for RIVANI Pro.</p>
       <button class="btn btn-primary" type="button" data-close-pro>Got it</button>
@@ -278,8 +312,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=19.1.1f"></script>
-  <script type="module" src="auth-nav.js?v=19.1.1f"></script>
-  <script type="module" src="audio-repair.js?v=19"></script>
+  <script src="script.js?v=20"></script>
+  <script type="module" src="auth-nav.js?v=20"></script>
+  <script type="module" src="audio-repair.js?v=20"></script>
 </body>
 </html>
