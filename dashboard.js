@@ -1,9 +1,11 @@
 import { firebaseConfig } from './assets/firebase-config.js';
+import { runtimeConfig } from './assets/runtime-config.js';
 
 const appMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
 const authMod = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js');
 const app = appMod.getApps().length ? appMod.getApps()[0] : appMod.initializeApp(firebaseConfig);
 const auth = authMod.getAuth(app);
+const DELETION_API = String(runtimeConfig.deletionApiBase || '').replace(/\/$/, '');
 
 const $ = (id) => document.getElementById(id);
 const loading = $('dashboardLoading');
@@ -19,12 +21,13 @@ const cancelDeleteRequest = $('cancelDeleteRequest');
 const deleteStatus = $('deleteStatus');
 const deletionBanner = $('deletionBanner');
 let currentUser = null;
+let currentDeletionRequest = null;
 
 function formatDate(value){
   if (!value) return '—';
-  const date = new Date(value);
+  const date = new Date(Number(value) || value);
   if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric'}).format(date);
+  return new Intl.DateTimeFormat('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
 }
 function providerLabel(user){
   const ids = user?.providerData?.map(p=>p.providerId) || [];
@@ -32,27 +35,54 @@ function providerLabel(user){
   if (ids.includes('password')) return 'Email & password';
   return 'Firebase';
 }
-function pendingKey(user){ return `rivaniDeletionRequest:${user.uid}`; }
-function readDeletionRequest(){
-  if (!currentUser) return null;
-  try { return JSON.parse(localStorage.getItem(pendingKey(currentUser)) || 'null'); } catch { return null; }
-}
 function setDeleteStatus(text,type='info'){
   if (!deleteStatus) return;
   deleteStatus.textContent=text;
   deleteStatus.dataset.type=type;
 }
+async function accountApi(path, options={}){
+  if (!currentUser) throw new Error('Please sign in again.');
+  if (!DELETION_API) throw new Error('Account deletion service is not configured.');
+  const idToken = await currentUser.getIdToken();
+  const response = await fetch(`${DELETION_API}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type':'application/json',
+      'Authorization':`Bearer ${idToken}`,
+      ...(options.headers || {})
+    }
+  });
+  const data = await response.json().catch(()=>({}));
+  if (!response.ok) {
+    const error = new Error(data.message || 'Account service request failed.');
+    error.code = data.error || `HTTP_${response.status}`;
+    throw error;
+  }
+  return data;
+}
+async function loadDeletionState(){
+  if (!deletionBanner || !currentUser) return;
+  try {
+    const data = await accountApi('/api/account-deletion/status');
+    currentDeletionRequest = data.pending ? data.request : null;
+    renderDeletionState();
+  } catch (error) {
+    deletionBanner.hidden = false;
+    deletionBanner.innerHTML = `<b>Deletion service unavailable</b><span>${escapeHtml(error.message)} Your account has not been scheduled from this screen.</span>`;
+    if (cancelDeleteRequest) cancelDeleteRequest.hidden = true;
+    if (scheduleDeleteBtn) scheduleDeleteBtn.hidden = false;
+  }
+}
 function renderDeletionState(){
   if (!deletionBanner) return;
-  const request = readDeletionRequest();
-  if (!request) {
+  if (!currentDeletionRequest) {
     deletionBanner.hidden = true;
     if (cancelDeleteRequest) cancelDeleteRequest.hidden = true;
     if (scheduleDeleteBtn) scheduleDeleteBtn.hidden = false;
     return;
   }
   deletionBanner.hidden = false;
-  deletionBanner.innerHTML = `<b>Deletion request saved</b><span>Grace period ends ${formatDate(request.deleteAt)}. Permanent server-side deletion is not active yet in this build.</span>`;
+  deletionBanner.innerHTML = `<b>Account deletion scheduled</b><span>Your 7-day grace period ends ${formatDate(currentDeletionRequest.deleteAt)}. You can cancel before the deletion job runs.</span>`;
   if (cancelDeleteRequest) cancelDeleteRequest.hidden = false;
   if (scheduleDeleteBtn) scheduleDeleteBtn.hidden = true;
 }
@@ -61,7 +91,7 @@ function openModal(){
   deleteModal.classList.add('open');
   deleteModal.setAttribute('aria-hidden','false');
   setTimeout(()=>deleteUsername?.focus(),80);
-  renderDeletionState();
+  loadDeletionState();
 }
 function closeModal(){
   if (!deleteModal) return;
@@ -69,7 +99,6 @@ function closeModal(){
   deleteModal.setAttribute('aria-hidden','true');
   setDeleteStatus('');
 }
-
 function switchPanel(targetId){
   document.querySelectorAll('.dashboard-panel').forEach(panel=>{
     const active = panel.id === targetId;
@@ -80,36 +109,56 @@ function switchPanel(targetId){
   const target = document.getElementById(targetId);
   if (target && window.innerWidth < 950) target.scrollIntoView({behavior:'smooth',block:'start'});
 }
-
-document.querySelectorAll('[data-target]').forEach(control=>{
-  control.addEventListener('click',()=>switchPanel(control.dataset.target));
-});
-
+document.querySelectorAll('[data-target]').forEach(control=>control.addEventListener('click',()=>switchPanel(control.dataset.target)));
 openDeleteModal?.addEventListener('click',openModal);
 closeDeleteModal?.addEventListener('click',closeModal);
 deleteModal?.addEventListener('click',e=>{if(e.target===deleteModal)closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-scheduleDeleteBtn?.addEventListener('click',()=>{
+scheduleDeleteBtn?.addEventListener('click', async()=>{
   if (!currentUser) return;
   const expected = (currentUser.displayName || '').trim();
   if (!expected) return setDeleteStatus('This account does not have a username yet.','error');
   if ((deleteUsername?.value || '').trim() !== expected) return setDeleteStatus('Username does not match your account. Type it exactly as shown.','error');
   if (!deleteAcknowledge?.checked) return setDeleteStatus('Please confirm that you understand the 7-day deletion notice.','error');
-  const requestedAt = Date.now();
-  const deleteAt = requestedAt + (7*24*60*60*1000);
-  localStorage.setItem(pendingKey(currentUser), JSON.stringify({requestedAt,deleteAt,username:expected}));
-  setDeleteStatus('7-day request saved on this browser. Server-side permanent deletion is intentionally not active yet.','warning');
-  renderDeletionState();
+
+  scheduleDeleteBtn.disabled = true;
+  setDeleteStatus('Scheduling your deletion request…','info');
+  try {
+    const data = await accountApi('/api/account-deletion/request', {
+      method:'POST',
+      body:JSON.stringify({ username: expected, acknowledged: true })
+    });
+    currentDeletionRequest = { requestedAt:data.requestedAt, deleteAt:data.deleteAt, status:'pending' };
+    setDeleteStatus('Deletion scheduled. You have 7 days to cancel.','success');
+    renderDeletionState();
+  } catch (error) {
+    if (error.code === 'RECENT_LOGIN_REQUIRED') {
+      setDeleteStatus('For security, log out and sign in again, then return here to request deletion.','error');
+    } else {
+      setDeleteStatus(error.message,'error');
+    }
+  } finally {
+    scheduleDeleteBtn.disabled = false;
+  }
 });
 
-cancelDeleteRequest?.addEventListener('click',()=>{
+cancelDeleteRequest?.addEventListener('click', async()=>{
   if (!currentUser) return;
-  localStorage.removeItem(pendingKey(currentUser));
-  if (deleteUsername) deleteUsername.value='';
-  if (deleteAcknowledge) deleteAcknowledge.checked=false;
-  setDeleteStatus('Deletion request cancelled.','success');
-  renderDeletionState();
+  cancelDeleteRequest.disabled = true;
+  setDeleteStatus('Cancelling deletion request…','info');
+  try {
+    await accountApi('/api/account-deletion/cancel', { method:'POST', body:'{}' });
+    currentDeletionRequest = null;
+    if (deleteUsername) deleteUsername.value='';
+    if (deleteAcknowledge) deleteAcknowledge.checked=false;
+    setDeleteStatus('Deletion request cancelled. Your account will remain active.','success');
+    renderDeletionState();
+  } catch (error) {
+    setDeleteStatus(error.message,'error');
+  } finally {
+    cancelDeleteRequest.disabled = false;
+  }
 });
 
 logoutBtn?.addEventListener('click',async()=>{
@@ -121,11 +170,13 @@ logoutBtn?.addEventListener('click',async()=>{
 function setText(id,value){ const el=$(id); if(el) el.textContent=value; }
 function setAvatar(el,user,name){
   if (!el) return;
-  if (user.photoURL) el.innerHTML = `<img src="${user.photoURL}" alt="${name} profile photo" referrerpolicy="no-referrer">`;
+  if (user.photoURL) el.innerHTML = `<img src="${escapeAttr(user.photoURL)}" alt="${escapeAttr(name)} profile photo" referrerpolicy="no-referrer">`;
   else el.textContent = name.charAt(0).toUpperCase();
 }
+function escapeHtml(value){ return String(value).replace(/[&<>"']/g, ch=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[ch])); }
+function escapeAttr(value){ return escapeHtml(value); }
 
-authMod.onAuthStateChanged(auth,user=>{
+authMod.onAuthStateChanged(auth,async user=>{
   if (!user) { location.replace('auth.html?mode=login'); return; }
   currentUser = user;
   const name = user.displayName?.trim() || user.email?.split('@')[0] || 'RIVANI user';
@@ -150,5 +201,5 @@ authMod.onAuthStateChanged(auth,user=>{
 
   loading.hidden = true;
   content.hidden = false;
-  renderDeletionState();
+  await loadDeletionState();
 });
