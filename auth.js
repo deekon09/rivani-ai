@@ -114,6 +114,7 @@ if (!configured) {
         const friendly = err?.code === 'auth/email-already-in-use' ? 'An account already exists with this email. Try logging in.' :
           err?.code === 'auth/weak-password' ? 'Please choose a stronger password.' :
           err?.code === 'auth/invalid-email' ? 'Please enter a valid email address.' :
+          err?.code === 'auth/operation-not-allowed' ? 'This sign-in method is not enabled in Firebase yet.' :
           (err?.message || 'Account could not be created.');
         message(friendly, 'error');
       } finally { emailSubmit.disabled = false; }
@@ -136,7 +137,12 @@ if (!configured) {
       const result = await authMod.signInWithPopup(auth, provider);
       message(`Signed in as ${result.user.displayName || result.user.email || 'RIVANI user'}.`, 'success');
     } catch (err) {
-      message(err?.message || 'Sign-in could not be completed.', 'error');
+      const friendly = err?.code === 'auth/operation-not-allowed' ? 'This social sign-in provider is not enabled in Firebase yet.' :
+        err?.code === 'auth/popup-closed-by-user' ? 'Sign-in popup was closed before login finished.' :
+        err?.code === 'auth/popup-blocked' ? 'Your browser blocked the sign-in popup. Allow popups and try again.' :
+        err?.code === 'auth/unauthorized-domain' ? 'This website domain is not authorized in Firebase Authentication.' :
+        (err?.message || 'Sign-in could not be completed.');
+      message(friendly, 'error');
     }
   };
   googleBtn?.addEventListener('click',()=>doSocialLogin(new authMod.GoogleAuthProvider()));

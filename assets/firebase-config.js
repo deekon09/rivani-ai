@@ -1,11 +1,12 @@
-// Fill these values from Firebase Console → Project settings → Your apps → Web app.
-// The file is safe to commit only if you are comfortable exposing Firebase web config (it is not a server secret),
-// but your Firebase Security Rules and authorized domains must still be configured correctly.
+// RIVANI AI Firebase Web configuration.
+// Firebase Web API keys are client configuration, not server secrets.
+// Keep server/admin credentials and provider secrets out of this file.
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyCBh1Cp_iV0ux5YtOkgsbNKQY0CmPUFiHQ",
+  authDomain: "rivani-ai.firebaseapp.com",
+  projectId: "rivani-ai",
+  storageBucket: "rivani-ai.firebasestorage.app",
+  messagingSenderId: "987297762780",
+  appId: "1:987297762780:web:21fcddb6eb658b535e1319",
+  measurementId: "G-D1KPHJ5C07"
 };

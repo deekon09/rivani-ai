@@ -29,7 +29,7 @@
       <div class="auth-tabs"><button id="loginTab" type="button">Log in</button><button id="signupTab" type="button">Sign up</button></div>
       <div class="auth-card-head"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><h2 id="authTitle">Welcome back</h2><p id="authSubtitle">Sign in to continue to RIVANI AI.</p></div>
 
-      <div id="authNotice" class="auth-notice">Account authentication needs one-time Firebase setup before real accounts can be created.</div>
+      <div id="authNotice" class="auth-notice">Firebase Authentication is connected. Email/password and enabled social providers can now create real accounts.</div>
 
       <form id="emailAuthForm" class="auth-form" novalidate>
         <div class="signup-only auth-field">
@@ -70,13 +70,13 @@
       <button class="signout-btn" id="signOutBtn" type="button" hidden>Sign out</button>
       <p class="auth-legal">Social sign-in also means you agree to our <a href="terms.html">Terms</a> and acknowledge our <a href="privacy.html">Privacy Policy</a>.</p>
 
-      <details class="setup-details"><summary>Developer setup note</summary><ol>
-        <li>Create a Firebase project on the Spark plan and add a Web app.</li>
-        <li>Enable Authentication → Sign-in method → <b>Email/Password</b>.</li>
-        <li>Enable the <b>Google</b> provider.</li>
+      <details class="setup-details"><summary>Authentication setup status</summary><ol>
+        <li>Firebase Web app: <b>Connected</b>.</li>
+        <li>Email/Password provider: enable it in Firebase Authentication.</li>
+        <li>Google provider: enable it in Firebase Authentication.</li>
         <li>For Facebook, create a Meta app and add its App ID and secret to Firebase’s Facebook provider.</li>
-        <li>Add your <code>rivani-ai.rivani.workers.dev</code> domain to Authentication → Settings → Authorized domains.</li>
-        <li>Copy the Firebase web configuration into <code>assets/firebase-config.js</code>.</li>
+        <li><code>rivani-ai.rivani.workers.dev</code>: authorized domain added.</li>
+        <li>Firebase web configuration: <b>Connected</b>.</li>
       </ol></details>
     </div>
   </div></section></main>
