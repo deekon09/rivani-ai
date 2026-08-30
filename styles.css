@@ -424,3 +424,105 @@
 @media(max-width:720px){
   .advanced-control-grid{grid-template-columns:1fr}
 }
+
+
+/* ===== RIVANI V19 · Product Polish ===== */
+.upload-support-info{
+  width:min(650px,100%);
+  display:flex;flex-wrap:wrap;justify-content:center;
+  gap:6px 9px;margin-top:12px
+}
+.support-line{
+  padding:6px 9px;border:1px solid rgba(91,117,177,.16);
+  border-radius:999px;background:rgba(7,12,31,.58);
+  color:#8491aa;font-size:8.5px
+}
+.support-line b{color:#cfeaff}
+.upload-support-info small{
+  flex-basis:100%;margin-top:4px;color:#66748e!important;text-align:center
+}
+
+.scan-complete-state{
+  cursor:default!important;pointer-events:none!important;opacity:1!important;
+  background:linear-gradient(90deg,#0c998e,#2378e8)!important;
+  box-shadow:0 0 0 1px rgba(74,224,197,.15),0 12px 36px rgba(30,141,199,.18)!important
+}
+.scan-complete-check{
+  display:inline-grid;place-items:center;width:21px;height:21px;margin-right:5px;
+  border-radius:50%;background:rgba(255,255,255,.14);
+  animation:scanDonePop .48s cubic-bezier(.2,.8,.2,1)
+}
+@keyframes scanDonePop{
+  0%{transform:scale(.25) rotate(-30deg);opacity:0}
+  70%{transform:scale(1.16) rotate(4deg);opacity:1}
+  100%{transform:scale(1) rotate(0)}
+}
+
+.pro-lock-badge{
+  padding:7px 10px;border-radius:999px;
+  border:1px solid rgba(150,93,255,.26);
+  background:rgba(107,52,187,.12);
+  color:#c9a9ff;font-size:8px;font-weight:900;letter-spacing:.8px
+}
+.pro-locked-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;margin-top:14px
+}
+.pro-feature-lock{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-height:68px;padding:12px;text-align:left;
+  border:1px solid rgba(101,86,151,.17);border-radius:13px;
+  background:linear-gradient(130deg,rgba(12,13,30,.72),rgba(22,10,40,.55));
+  color:#8d96aa;cursor:pointer;transition:.18s ease
+}
+.pro-feature-lock:hover{
+  transform:translateY(-1px);border-color:rgba(139,96,232,.31);
+  background:linear-gradient(130deg,rgba(16,17,39,.84),rgba(30,12,54,.68))
+}
+.pro-feature-lock b{display:block;color:#c6cadd;font-size:10px}
+.pro-feature-lock small{display:block;margin-top:4px;color:#606b81;font-size:8px;line-height:1.4}
+.pro-feature-lock em{
+  font-style:normal;white-space:nowrap;color:#aa82ee;font-size:7.5px;font-weight:900
+}
+.pro-coming-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.pro-coming-row span{
+  padding:7px 9px;border-radius:999px;border:1px solid rgba(91,96,126,.14);
+  background:rgba(10,12,23,.58);color:#596174;font-size:8px;font-weight:800
+}
+.pro-coming-row i{margin-left:4px;color:#756b8d;font-style:normal;font-size:7px}
+
+.export-format-card{
+  margin-top:18px;padding:15px;border:1px solid rgba(81,113,181,.18);
+  border-radius:16px;background:rgba(5,10,27,.58)
+}
+.export-format-head strong{display:block;color:#eef4ff;font-size:12px}
+.export-format-head small{display:block;margin-top:3px;color:#71809a;font-size:8.5px}
+.export-format-options{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;margin-top:12px
+}
+.export-format-option{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:12px 13px;border-radius:12px;border:1px solid rgba(85,109,161,.18);
+  background:rgba(7,12,29,.72);color:#9aa6bc;cursor:pointer
+}
+.export-format-option b{display:block;color:#e9f2ff;font-size:11px}
+.export-format-option small{display:block;margin-top:3px;color:#6e7b92;font-size:8px}
+.export-format-option em{font-style:normal;font-size:7px;font-weight:900;color:#77839b}
+.export-format-option.active{
+  border-color:rgba(54,177,255,.34);
+  background:linear-gradient(120deg,rgba(7,133,201,.12),rgba(83,57,197,.11))
+}
+.export-format-option.active em{color:#7fdcff}
+.export-format-option.locked{
+  border-color:rgba(135,87,207,.18);
+  background:linear-gradient(120deg,rgba(35,20,54,.44),rgba(12,12,26,.72))
+}
+.export-format-option.locked em{color:#af81f3}
+.result-actions{flex-wrap:wrap}
+.result-adjust-btn{min-height:42px;padding:0 16px}
+
+@media(max-width:760px){
+  .pro-locked-grid{grid-template-columns:1fr}
+  .export-format-options{grid-template-columns:1fr}
+}

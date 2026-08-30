@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=18.1.1f">
+  <link rel="stylesheet" href="styles.css?v=19.1.1f">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -54,12 +54,17 @@
       <div class="container">
         <div class="audio-workspace">
           <div class="audio-upload-zone" id="audioDropZone">
-            <input type="file" id="audioFileInput" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac">
+            <input type="file" id="audioFileInput" accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,audio/wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/flac">
             <div class="upload-orb">≋</div>
             <h2>Drop your voice recording here</h2>
             <p>or choose a file from your device</p>
             <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
-            <small>No manual setup. RIVANI AI prepares itself automatically; your recording stays on your device during enhancement.</small>
+            <div class="upload-support-info">
+              <div class="support-line"><b>Supported:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
+              <div class="support-line"><b>Free Beta:</b> up to 45 min · 200 MB per file</div>
+              <div class="support-line"><b>Export:</b> MP3 included · Lossless WAV with Pro</div>
+              <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
+            </div>
           </div>
 
           <div class="audio-editor hidden" id="audioEditor">
@@ -79,7 +84,7 @@
             <div class="audio-analysis-grid">
               <article class="audio-score-card">
                 <div class="score-ring" id="scoreRing"><strong id="healthScore">--</strong><span>/100</span></div>
-                <div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">RIVANI will inspect clipping, recording level, low-frequency rumble and background-floor indicators before GPU repair.</p></div>
+                <div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">RIVANI will inspect clipping, recording level and background-noise indicators before AI enhancement.</p></div>
               </article>
               <div class="audio-issues-card">
                 <div class="audio-card-title"><strong>Detected issues</strong><span id="issueCount">0 found</span></div>
@@ -94,9 +99,9 @@
             <div class="repair-panel hidden" id="repairPanel">
               <div class="repair-head">
                 <div>
-                  <span class="section-kicker">AI CLEAR VOICE ENGINE</span>
+                  <span class="section-kicker">AI POWERED CLEAR VOICE</span>
                   <h2>One repair. You control how much noise goes.</h2>
-                  <p class="repair-subcopy">Natural / Clean / Studio are no longer separate denoise engines. One focused AI enhancement path designed to keep the voice natural while reducing unwanted background sound.</p>
+                  <p class="repair-subcopy">One focused AI enhancement path designed to reduce unwanted background sound while keeping speech clear and natural.</p>
                 </div>
                 <div class="repair-plan-badges">
                   <span class="gpu-badge">AI POWERED</span>
@@ -111,7 +116,7 @@
                     <strong>RIVANI AI Clear Voice</strong>
                     <span class="engine-live" id="clearEngineStatus">RIVANI AI Engine · Preparing</span>
                   </div>
-                  <p>RIVANI AI separates useful speech detail from unwanted background sound, then protects the voice with a restrained finishing stage.</p>
+                  <p>RIVANI AI enhances speech clarity, reduces unwanted background sound and applies a restrained final polish.</p>
                 </div>
               </div>
 
@@ -147,67 +152,35 @@
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
 
-              <section class="pro-noise-mixer advanced-controls-panel" aria-label="Advanced audio controls">
+              <section class="pro-noise-mixer pro-locked-controls" aria-label="RIVANI Pro noise controls">
                 <div class="pro-mixer-head">
                   <div>
                     <div class="pro-title-row">
-                      <span class="pro-chip">ADVANCED</span>
-                      <h3>Noise Controls</h3>
+                      <span class="pro-chip">PRO</span>
+                      <h3>Advanced Noise Controls</h3>
                     </div>
-                    <p>Use an extra control only when that sound is actually present.</p>
+                    <p>Extra control for difficult recordings. Core AI enhancement remains available in Free.</p>
                   </div>
-                  <span class="advanced-live-badge">REAL PROCESSING</span>
+                  <span class="pro-lock-badge">🔒 PRO</span>
                 </div>
 
-                <div class="advanced-control-grid">
-                  <div class="advanced-control active-static">
-                    <div>
-                      <strong>Overall Noise</strong>
-                      <small>Controlled by the AI Enhancement slider above.</small>
-                    </div>
-                    <span class="working-chip">ON</span>
-                  </div>
-
-                  <div class="advanced-control">
-                    <div>
-                      <strong>Fan / AC Assist</strong>
-                      <small>Steady low/mid cleanup plus automatic hum-frequency control.</small>
-                    </div>
-                    <button id="fanAssistToggle" class="mini-toggle" type="button" aria-pressed="false">
-                      <i></i><span data-toggle-state>OFF</span>
-                    </button>
-                  </div>
-
-                  <div class="advanced-control">
-                    <div>
-                      <strong>Traffic Assist</strong>
-                      <small>Extra road/engine-band cleanup. Keep OFF if traffic is not present.</small>
-                    </div>
-                    <button id="trafficAssistToggle" class="mini-toggle" type="button" aria-pressed="false">
-                      <i></i><span data-toggle-state>OFF</span>
-                    </button>
-                  </div>
-
-                  <div class="advanced-control">
-                    <div>
-                      <strong>Click Repair</strong>
-                      <small>Repairs isolated keyboard/mouth-style impulse spikes.</small>
-                    </div>
-                    <button id="clickRepairToggle" class="mini-toggle active" type="button" aria-pressed="true">
-                      <i></i><span data-toggle-state>ON</span>
-                    </button>
-                  </div>
+                <div class="pro-locked-grid">
+                  <button class="pro-feature-lock" type="button" data-pro-lock="Fan / AC Assist">
+                    <span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>PRO 🔒</em>
+                  </button>
+                  <button class="pro-feature-lock" type="button" data-pro-lock="Traffic Assist">
+                    <span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>PRO 🔒</em>
+                  </button>
+                  <button class="pro-feature-lock" type="button" data-pro-lock="Click Repair">
+                    <span><b>Click Repair</b><small>Keyboard and isolated impulse repair</small></span><em>PRO 🔒</em>
+                  </button>
                 </div>
 
-                <div class="locked-specialist-row">
-                  <span>🔒 Background Voices</span>
-                  <span>🔒 Music Control</span>
-                  <span>🔒 De-Reverb</span>
+                <div class="pro-coming-row">
+                  <span>🔒 Background Voices <i>Coming</i></span>
+                  <span>🔒 Music Control <i>Coming</i></span>
+                  <span>🔒 De-Reverb <i>Coming</i></span>
                 </div>
-
-                <p class="advanced-honesty-note">
-                  Locked controls need their own specialist AI engine and will not be faked.
-                </p>
               </section>
             </div>
 
@@ -222,9 +195,9 @@
               </div>
               <span class="processing-kicker">RIVANI AI CLEAR VOICE</span>
               <h3 id="processingTitle">Preparing your repair…</h3>
-              <p id="processingText">Preparing AI Voice Engine.</p>
+              <p id="processingText">Preparing RIVANI AI…</p>
               <div class="processing-stages" id="processingStages">
-                <span class="active" data-stage="upload">Upload</span>
+                <span class="active" data-stage="upload">Prepare</span>
                 <span data-stage="model">AI Enhance</span>
                 <span data-stage="restore">Smooth</span>
                 <span data-stage="level">Finish</span>
@@ -239,7 +212,7 @@
                 <div>
                   <span class="status-pill live-beta">Clear Voice complete</span>
                   <h2>Listen before you download.</h2>
-                  <p>The repaired file was created on this device with AI EnhanceNet3 and RIVANI’s local finishing. Compare at a similar listening volume and listen for background reduction, consonant clarity and any unnatural artifacts.</p>
+                  <p>Your repaired audio is ready. Compare it with the original at a similar listening volume, then choose your export format.</p>
                 </div>
                 <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">AI</strong></div>
               </div>
@@ -247,21 +220,38 @@
                 <article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio id="beforePlayer" controls></audio></article>
                 <article class="compare-card after"><span>AFTER</span><strong id="afterPresetLabel">Clear Voice</strong><audio id="afterPlayer" controls></audio></article>
               </div>
+              <div class="export-format-card">
+                <div class="export-format-head">
+                  <div><strong>Export format</strong><small>Choose how you want to save the enhanced audio.</small></div>
+                </div>
+                <div class="export-format-options">
+                  <button id="exportMp3Btn" class="export-format-option active" type="button">
+                    <span><b>MP3</b><small>192 kbps · Free</small></span>
+                    <em>SELECTED</em>
+                  </button>
+                  <button id="exportWavBtn" class="export-format-option locked" type="button">
+                    <span><b>WAV</b><small>Lossless quality</small></span>
+                    <em>PRO 🔒</em>
+                  </button>
+                </div>
+              </div>
+
               <div class="result-actions">
-                <button class="btn btn-primary result-gradient-btn" id="downloadAudioBtn" type="button">Download repaired WAV ↓</button>
-                <button class="btn btn-primary result-gradient-btn" id="tryAgainBtn" type="button">Adjust noise removal ↻</button>
+                <button class="btn btn-primary result-gradient-btn" id="downloadAudioBtn" type="button">Download MP3 ↓</button>
+                <button class="btn btn-primary result-gradient-btn" id="anotherAudioBtn" type="button">Enhance Another Audio ＋</button>
+                <button class="small-ghost-btn result-adjust-btn" id="tryAgainBtn" type="button">Adjust Settings ↻</button>
               </div>
               <div class="repair-disclosure">
                 <strong>Processing disclosure</strong>
-                <p>Your selected recording is processed locally in this browser. The AI model loads automatically from the web and is cached, but the recording is not sent to a RIVANI GPU processing server.</p>
+                <p>Your selected recording is processed by RIVANI AI in this Beta. Keep this tab open until enhancement and export are complete.</p>
               </div>
             </div>
           </div>
         </div>
 
         <div class="audio-beta-note">
-          <span>AI Clear Voice Beta</span>
-          <p>AI EnhanceNet3 is for speech noise suppression. Background music and another person speaking over the target voice remain separate-source problems for a future engine.</p>
+          <span>FREE BETA LIMITS</span>
+          <p>WAV, MP3, M4A, AAC, OGG and FLAC · up to 45 minutes · up to 200 MB per file · MP3 export included. Pro adds lossless WAV export and advanced noise controls.</p>
         </div>
       </div>
     </section>
@@ -273,7 +263,7 @@
       <button class="pro-modal-close" type="button" data-close-pro aria-label="Close">×</button>
       <span class="pro-chip">PRO PREVIEW</span>
       <h2 id="proPreviewTitle">Advanced Noise Mixer</h2>
-      <p>Noise-specific controls will be enabled only after dedicated separation models are connected.</p>
+      <p id="proPreviewCopy">Advanced audio controls and lossless WAV export are reserved for RIVANI Pro.</p>
       <button class="btn btn-primary" type="button" data-close-pro>Got it</button>
     </div>
   </div>
@@ -288,8 +278,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=18.1.1f"></script>
-  <script type="module" src="auth-nav.js?v=18.1.1f"></script>
-  <script type="module" src="audio-repair-v16.js?v=18"></script>
+  <script src="script.js?v=19.1.1f"></script>
+  <script type="module" src="auth-nav.js?v=19.1.1f"></script>
+  <script type="module" src="audio-repair.js?v=19"></script>
 </body>
 </html>

@@ -1,1216 +1,1222 @@
-// RIVANI AI Audio Repair Beta v1
-const $ = (id) => document.getElementById(id);
+// RIVANI AI Audio Repair frontend
+// One-click AI-powered speech enhancement.
 
-const input = $('audioFileInput');
-const dropZone = $('audioDropZone');
-const editor = $('audioEditor');
-const chooseBtn = $('chooseAudioBtn');
-const replaceBtn = $('replaceAudioBtn');
-const scanBtn = $('scanAudioBtn');
-const repairPanel = $('repairPanel');
-const repairBtn = $('repairAudioBtn');
-const processing = $('audioProcessing');
-const result = $('audioResult');
-const strength = $('repairStrength');
-const strengthValue = $('repairStrengthValue');
-const presets = [...document.querySelectorAll('.preset-card')];
+const $ = id => document.getElementById(id);
 
-let sourceFile = null;
-let sourceBuffer = null;
-let sourceUrl = null;
-let repairedBlob = null;
-let repairedUrl = null;
-let analysis = null;
-let selectedPreset = 'natural';
-let voiceLockEnabled = true;
-let environmentMode = 'balanced';
-let neuralEnabled = true;
-let neuralWorker = null;
-let hybridWorker = null;
-let lastEngineReport = [];
+const input = $("audioFileInput");
+const dropZone = $("audioDropZone");
+const editor = $("audioEditor");
+const chooseBtn = $("chooseAudioBtn");
+const replaceBtn = $("replaceAudioBtn");
+const scanBtn = $("scanAudioBtn");
+const repairPanel = $("repairPanel");
+const repairBtn = $("repairAudioBtn");
+const processing = $("audioProcessing");
+const result = $("audioResult");
+const strength = $("repairStrength");
+const strengthValue = $("repairStrengthValue");
 
-chooseBtn?.addEventListener('click', () => input?.click());
-replaceBtn?.addEventListener('click', () => input?.click());
-input?.addEventListener('change', e => {
-  const file = e.target.files?.[0];
-  if (file) loadAudioFile(file);
+const FREE_MAX_FILE_BYTES = 200 * 1024 * 1024;
+const FREE_MAX_DURATION_SECONDS = 45 * 60;
+const SUPPORTED_AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|aac|ogg|flac)$/i;
+const FREE_MP3_BITRATE = 192;
+
+let sourceFile=null;
+let sourceBuffer=null;
+let sourceUrl=null;
+let repairedBlob=null;
+let repairedUrl=null;
+let analysis=null;
+let worker=null;
+let warmupStarted=false;
+let modelReady=false;
+let activeProvider="";
+let studioFinish=true;
+// Advanced noise assists are implemented but reserved for Pro in the UI.
+let fanAssist=false;
+let trafficAssist=false;
+let clickRepair=false;
+
+let finalEnhancedBuffer=null;
+let selectedExportFormat="mp3";
+let mp3BlobCache=null;
+
+chooseBtn?.addEventListener("click",()=>input?.click());
+replaceBtn?.addEventListener("click",()=>input?.click());
+
+input?.addEventListener("change",e=>{
+  const file=e.target.files?.[0];
+  if(file)loadAudioFile(file);
 });
 
-['dragenter','dragover'].forEach(type => dropZone?.addEventListener(type, e => {
+["dragenter","dragover"].forEach(type=>dropZone?.addEventListener(type,e=>{
   e.preventDefault();
-  dropZone.classList.add('dragging');
+  dropZone.classList.add("dragging");
 }));
-['dragleave','drop'].forEach(type => dropZone?.addEventListener(type, e => {
+["dragleave","drop"].forEach(type=>dropZone?.addEventListener(type,e=>{
   e.preventDefault();
-  dropZone.classList.remove('dragging');
+  dropZone.classList.remove("dragging");
 }));
-dropZone?.addEventListener('drop', e => {
-  const file = [...(e.dataTransfer?.files || [])].find(f => f.type.startsWith('audio/') || /\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(f.name));
-  if (file) loadAudioFile(file);
+dropZone?.addEventListener("drop",e=>{
+  const file=[...(e.dataTransfer?.files||[])].find(f=>
+    f.type.startsWith("audio/")||/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(f.name)
+  );
+  if(file)loadAudioFile(file);
 });
 
-presets.forEach(btn => btn.addEventListener('click', () => {
-  selectedPreset = btn.dataset.preset || 'natural';
-  presets.forEach(p => p.classList.toggle('active', p === btn));
-  document.querySelectorAll('[data-engine-mode]').forEach(card => {
-    card.classList.toggle('active', card.dataset.engineMode === selectedPreset);
+strength?.addEventListener("input",()=>{
+  strengthValue.textContent=`${strength.value}%`;
+});
+
+const studioFinishBtn = $("studioFinishToggle");
+studioFinishBtn?.addEventListener("click",()=>{
+  studioFinish=!studioFinish;
+  studioFinishBtn.classList.toggle("active",studioFinish);
+  studioFinishBtn.setAttribute("aria-pressed",String(studioFinish));
+  const state=$("studioFinishState");
+  if(state)state.textContent=studioFinish?"ON":"OFF";
+});
+
+
+document.querySelectorAll("[data-pro-preview]").forEach(btn=>{
+  btn.addEventListener("click",()=>$("proPreviewModal")?.classList.remove("hidden"));
+});
+
+document.querySelectorAll("[data-pro-lock]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    const feature=btn.dataset.proLock || "This feature";
+    const title=$("proPreviewTitle");
+    const copy=$("proPreviewCopy");
+
+    if(title)title.textContent=`${feature} · Pro`;
+    if(copy)copy.textContent=
+      `${feature} is reserved for RIVANI Pro. Pro entitlement/upgrade access will be connected before launch.`;
+
+    $("proPreviewModal")?.classList.remove("hidden");
   });
-  const defaults = { natural:42, clean:72, studio:86 };
-  strength.value = defaults[selectedPreset];
-  strengthValue.textContent = `${strength.value}%`;
-}));
-strength?.addEventListener('input', () => strengthValue.textContent = `${strength.value}%`);
+});
+document.querySelectorAll("[data-close-pro]").forEach(btn=>{
+  btn.addEventListener("click",()=>$("proPreviewModal")?.classList.add("hidden"));
+});
 
+$("exportMp3Btn")?.addEventListener("click",()=>{
+  selectedExportFormat="mp3";
+  updateExportFormatUI();
+});
 
-$('neuralToggle')?.addEventListener('click', () => {
-  neuralEnabled = !neuralEnabled;
-  const btn = $('neuralToggle');
-  btn.classList.toggle('active', neuralEnabled);
-  btn.setAttribute('aria-pressed', String(neuralEnabled));
-  const label = btn.querySelector('b');
-  if (label) label.textContent = neuralEnabled ? 'ON' : 'OFF';
-  const status = $('neuralEngineStatus');
-  if (status) {
-    status.textContent = neuralEnabled ? 'RNNoise · Ready' : 'RNNoise · Bypassed';
-    status.classList.toggle('muted', !neuralEnabled);
+$("exportWavBtn")?.addEventListener("click",()=>{
+  const title=$("proPreviewTitle");
+  const copy=$("proPreviewCopy");
+
+  if(title)title.textContent="Lossless WAV Export · Pro";
+  if(copy)copy.textContent=
+    "Lossless WAV export is reserved for RIVANI Pro. Free Beta includes high-quality 192 kbps MP3 export.";
+
+  $("proPreviewModal")?.classList.remove("hidden");
+});
+
+function updateExportFormatUI(){
+  $("exportMp3Btn")?.classList.toggle("active",selectedExportFormat==="mp3");
+  const label=$("downloadAudioBtn");
+  if(label)label.textContent="Download MP3 ↓";
+}
+
+scanBtn?.addEventListener("click",runScan);
+repairBtn?.addEventListener("click",repairLocally);
+
+$("tryAgainBtn")?.addEventListener("click",()=>{
+  result.classList.add("hidden");
+  repairPanel.classList.remove("hidden");
+  repairPanel.scrollIntoView({behavior:"smooth",block:"center"});
+});
+
+$("anotherAudioBtn")?.addEventListener("click",startAnotherAudio);
+
+function startAnotherAudio(){
+  if(sourceUrl){
+    try{URL.revokeObjectURL(sourceUrl);}catch{}
+  }
+  if(repairedUrl){
+    try{URL.revokeObjectURL(repairedUrl);}catch{}
+  }
+
+  sourceFile=null;
+  sourceBuffer=null;
+  sourceUrl=null;
+  repairedBlob=null;
+  repairedUrl=null;
+  finalEnhancedBuffer=null;
+  mp3BlobCache=null;
+  analysis=null;
+
+  if(input)input.value="";
+
+  editor.classList.add("hidden");
+  repairPanel.classList.add("hidden");
+  processing.classList.add("hidden");
+  result.classList.add("hidden");
+  dropZone.classList.remove("hidden");
+
+  scanBtn.disabled=false;
+  scanBtn.classList.remove("scan-complete-state");
+  scanBtn.textContent="✦ Scan Audio";
+
+  $("healthScore").textContent="--";
+  $("healthLabel").textContent="Ready to scan";
+  $("issueCount").textContent="0 found";
+
+  dropZone.scrollIntoView({behavior:"smooth",block:"center"});
+}
+
+$("downloadAudioBtn")?.addEventListener("click",async()=>{
+  if(!finalEnhancedBuffer)return;
+
+  const btn=$("downloadAudioBtn");
+  const originalText=btn?.textContent||"Download MP3 ↓";
+
+  try{
+    if(selectedExportFormat!=="mp3"){
+      throw new Error("Lossless WAV export is available with Pro.");
+    }
+
+    if(btn){
+      btn.disabled=true;
+      btn.textContent="Encoding MP3…";
+    }
+
+    if(!mp3BlobCache){
+      mp3BlobCache=await encodeMp3(finalEnhancedBuffer,FREE_MP3_BITRATE);
+    }
+
+    const url=URL.createObjectURL(mp3BlobCache);
+    const a=document.createElement("a");
+    const base=(sourceFile?.name||"rivani-audio").replace(/\.[^.]+$/,"");
+
+    a.href=url;
+    a.download=`${base}-rivani-enhanced.mp3`;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }catch(error){
+    alert(String(error?.message||error||"MP3 export could not finish."));
+  }finally{
+    if(btn){
+      btn.disabled=false;
+      btn.textContent=originalText;
+    }
   }
 });
 
-$('voiceLockToggle')?.addEventListener('click', () => {
-  voiceLockEnabled = !voiceLockEnabled;
-  const btn = $('voiceLockToggle');
-  btn.classList.toggle('active', voiceLockEnabled);
-  btn.setAttribute('aria-pressed', String(voiceLockEnabled));
-  const label = btn.querySelector('b');
-  if (label) label.textContent = voiceLockEnabled ? 'ON' : 'OFF';
-});
+function encodeMp3(buffer,bitrate=192){
+  return new Promise((resolve,reject)=>{
+    const channelCount=Math.min(2,Math.max(1,buffer.numberOfChannels));
+    const channels=[];
 
-document.querySelectorAll('#environmentOptions button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    environmentMode = btn.dataset.env || 'balanced';
-    document.querySelectorAll('#environmentOptions button').forEach(x => x.classList.toggle('active', x === btn));
+    if(channelCount===1){
+      const mono=new Float32Array(buffer.length);
+
+      if(buffer.numberOfChannels===1){
+        mono.set(buffer.getChannelData(0));
+      }else{
+        for(let c=0;c<buffer.numberOfChannels;c++){
+          const d=buffer.getChannelData(c);
+          for(let i=0;i<d.length;i++)mono[i]+=d[i]/buffer.numberOfChannels;
+        }
+      }
+
+      channels.push(mono);
+    }else{
+      channels.push(new Float32Array(buffer.getChannelData(0)));
+      channels.push(new Float32Array(buffer.getChannelData(1)));
+    }
+
+    const worker=new Worker("mp3-export-worker.js?v=19");
+    const transfer=channels.map(ch=>ch.buffer);
+
+    const timeout=setTimeout(()=>{
+      worker.terminate();
+      reject(new Error("MP3 export timed out."));
+    },180000);
+
+    worker.onmessage=event=>{
+      const data=event.data||{};
+
+      if(data.type==="error"){
+        clearTimeout(timeout);
+        worker.terminate();
+        reject(new Error(data.message||"MP3 export failed."));
+      }
+
+      if(data.type==="done"){
+        clearTimeout(timeout);
+        worker.terminate();
+        resolve(new Blob([data.buffer],{type:"audio/mpeg"}));
+      }
+    };
+
+    worker.onerror=()=>{
+      clearTimeout(timeout);
+      worker.terminate();
+      reject(new Error("MP3 encoder could not start."));
+    };
+
+    worker.postMessage({
+      type:"encode",
+      sampleRate:buffer.sampleRate,
+      bitrate,
+      channels:channelCount,
+      channelBuffers:transfer
+    },transfer);
   });
-});
+}
 
-document.querySelectorAll('[data-pro-preview]').forEach(btn => {
-  btn.addEventListener('click', () => $('proPreviewModal')?.classList.remove('hidden'));
-});
-document.querySelectorAll('[data-close-pro]').forEach(btn => {
-  btn.addEventListener('click', () => $('proPreviewModal')?.classList.add('hidden'));
-});
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') $('proPreviewModal')?.classList.add('hidden');
-});
+function isSupportedAudioFile(file){
+  const name=String(file?.name||"");
+  return SUPPORTED_AUDIO_EXTENSIONS.test(name);
+}
 
-scanBtn?.addEventListener('click', runScan);
-repairBtn?.addEventListener('click', repairAudio);
-$('tryAgainBtn')?.addEventListener('click', () => {
-  result.classList.add('hidden');
-  repairPanel.classList.remove('hidden');
-  repairPanel.scrollIntoView({behavior:'smooth', block:'center'});
-});
-$('downloadAudioBtn')?.addEventListener('click', () => {
-  if (!repairedBlob) return;
-  const a = document.createElement('a');
-  a.href = repairedUrl;
-  const base = (sourceFile?.name || 'rivani-audio').replace(/\.[^.]+$/, '');
-  a.download = `${base}-rivani-repaired.wav`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-});
+async function loadAudioFile(file){
+  try{
+    chooseBtn.disabled=true;
 
-async function loadAudioFile(file) {
-  try {
-    setEditorLoading(true);
-    sourceFile = file;
-    const arrayBuffer = await file.arrayBuffer();
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    sourceBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+    if(!isSupportedAudioFile(file)){
+      throw new Error("Unsupported file type. Use WAV, MP3, M4A, AAC, OGG or FLAC.");
+    }
+
+    if(file.size>FREE_MAX_FILE_BYTES){
+      throw new Error(
+        "Free Beta supports files up to 200 MB. Larger-file support is reserved for Pro."
+      );
+    }
+
+    sourceFile=file;
+    const arr=await file.arrayBuffer();
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    sourceBuffer=await ctx.decodeAudioData(arr.slice(0));
     await ctx.close();
 
-    // Free Beta target: more generous than many hosted enhancers, while keeping
-    // browser memory/CPU safe enough for local neural processing.
-    if (sourceBuffer.duration > 45 * 60) {
-      sourceBuffer = null;
-      throw new Error('FREE_FILE_LIMIT');
+    if(sourceBuffer.duration>FREE_MAX_DURATION_SECONDS){
+      throw new Error(
+        "Free Beta supports audio up to 45 minutes per file. Longer-file support is reserved for Pro."
+      );
     }
 
-    if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-    sourceUrl = URL.createObjectURL(file);
+    if(sourceUrl)URL.revokeObjectURL(sourceUrl);
+    sourceUrl=URL.createObjectURL(file);
 
-    $('audioFileName').textContent = file.name;
-    $('audioFileDetails').textContent = `${formatBytes(file.size)} · ${sourceBuffer.numberOfChannels === 1 ? 'Mono' : `${sourceBuffer.numberOfChannels} channels`} · ${(sourceBuffer.sampleRate/1000).toFixed(1)} kHz`;
-    $('audioDuration').textContent = formatTime(sourceBuffer.duration);
-    $('beforePlayer').src = sourceUrl;
+    $("audioFileName").textContent=file.name;
+    $("audioFileDetails").textContent=
+      `${formatBytes(file.size)} · ${sourceBuffer.numberOfChannels===1?"Mono":`${sourceBuffer.numberOfChannels} channels`} · ${(sourceBuffer.sampleRate/1000).toFixed(1)} kHz`;
+    $("audioDuration").textContent=formatTime(sourceBuffer.duration);
+    $("beforePlayer").src=sourceUrl;
 
-    drawWaveform(sourceBuffer, $('waveCanvas'));
+    drawWaveform(sourceBuffer,$("waveCanvas"));
     resetAnalysis();
-    dropZone.classList.add('hidden');
-    editor.classList.remove('hidden');
-    editor.scrollIntoView({behavior:'smooth', block:'start'});
-  } catch (err) {
-    if (String(err?.message || err) === 'FREE_FILE_LIMIT') {
-      alert('Free Beta supports files up to 45 minutes. Try a shorter file for now.');
-    } else {
-      alert('This browser could not decode that audio file. Try WAV, MP3, M4A or OGG in a modern browser.');
-    }
-    console.error(err);
-  } finally {
-    setEditorLoading(false);
+
+    dropZone.classList.add("hidden");
+    editor.classList.remove("hidden");
+    editor.scrollIntoView({behavior:"smooth",block:"start"});
+
+    // Automatic: no manual model download or installation for the user.
+    warmupEngine();
+  }catch(error){
+    console.error(error);
+    alert(String(error?.message||"This browser could not decode that audio file."));
+  }finally{
+    chooseBtn.disabled=false;
   }
 }
 
-function resetAnalysis() {
-  analysis = null;
-  $('healthScore').textContent = '--';
-  $('healthLabel').textContent = 'Ready to scan';
-  $('healthSummary').textContent = 'We’ll inspect level, clipping, low-frequency rumble, hum and background-floor indicators.';
-  $('issueCount').textContent = '0 found';
-  $('issueList').innerHTML = '<div class="issue-empty">Run the audio scan to see findings.</div>';
-  repairPanel.classList.add('hidden');
-  result.classList.add('hidden');
+function resetAnalysis(){
+  analysis=null;
+  $("healthScore").textContent="--";
+  $("healthLabel").textContent="Ready to scan";
+  $("healthSummary").textContent=
+    "RIVANI will inspect clipping, recording level and background-noise indicators before AI enhancement.";
+  $("issueCount").textContent="0 found";
+  $("issueList").innerHTML='<div class="issue-empty">Run the audio scan to see findings.</div>';
+
+  scanBtn.disabled=false;
+  scanBtn.classList.remove("scan-complete-state");
+  scanBtn.textContent="✦ Scan Audio";
+
+  repairPanel.classList.add("hidden");
+  result.classList.add("hidden");
 }
 
-async function runScan() {
-  if (!sourceBuffer) return;
-  scanBtn.disabled = true;
-  scanBtn.textContent = 'Scanning…';
-  await tick(120);
+async function runScan(){
+  if(!sourceBuffer)return;
 
-  analysis = analyzeBuffer(sourceBuffer);
-  $('healthScore').textContent = analysis.score;
-  $('healthLabel').textContent = analysis.score >= 82 ? 'Healthy recording' : analysis.score >= 65 ? 'Needs light repair' : analysis.score >= 45 ? 'Repair recommended' : 'Heavy repair recommended';
-  $('healthSummary').textContent = analysis.summary;
-  $('issueCount').textContent = `${analysis.issues.length} found`;
+  scanBtn.disabled=true;
+  scanBtn.textContent="Scanning…";
+  await tick(70);
 
-  const list = $('issueList');
-  list.innerHTML = '';
-  if (!analysis.issues.length) {
-    list.innerHTML = '<div class="issue-empty good">No major technical issue detected. A light Natural pass may still improve consistency.</div>';
-  } else {
-    analysis.issues.forEach(issue => {
-      const el = document.createElement('div');
-      el.className = `issue-row severity-${issue.severity}`;
-      el.innerHTML = `<span class="issue-dot"></span><div><strong>${issue.name}</strong><small>${issue.detail}</small></div><b>${issue.label}</b>`;
+  analysis=analyzeBuffer(sourceBuffer);
+  $("healthScore").textContent=analysis.score;
+  $("healthLabel").textContent=
+    analysis.score>=82?"Healthy recording":
+    analysis.score>=65?"Light enhancement recommended":
+    analysis.score>=45?"AI enhancement recommended":
+    "Strong enhancement recommended";
+
+  $("healthSummary").textContent=analysis.summary;
+  $("issueCount").textContent=`${analysis.issues.length} found`;
+
+  const list=$("issueList");
+  list.innerHTML="";
+
+  if(!analysis.issues.length){
+    list.innerHTML='<div class="issue-empty good">No major technical fault detected. Clear Voice X can still improve speech focus.</div>';
+  }else{
+    for(const issue of analysis.issues){
+      const el=document.createElement("div");
+      el.className=`issue-row severity-${issue.severity}`;
+      el.innerHTML=`<span class="issue-dot"></span><div><strong>${issue.name}</strong><small>${issue.detail}</small></div><b>${issue.label}</b>`;
       list.appendChild(el);
-    });
+    }
   }
 
-  repairPanel.classList.remove('hidden');
-  repairPanel.scrollIntoView({behavior:'smooth', block:'center'});
-  scanBtn.textContent = '✓ Scan Complete';
-  scanBtn.disabled = false;
+  repairPanel.classList.remove("hidden");
+  scanBtn.innerHTML='<span class="scan-complete-check">✓</span> Scan Complete';
+  scanBtn.disabled=true;
+  scanBtn.classList.add("scan-complete-state");
+  repairPanel.scrollIntoView({behavior:"smooth",block:"center"});
 }
 
-function analyzeBuffer(buffer) {
-  const mono = mixToMono(buffer);
-  const sr = buffer.sampleRate;
-  const maxSamples = Math.min(mono.length, sr * 120);
-  const stride = Math.max(1, Math.floor(maxSamples / 500000));
-  let peak = 0, sumSq = 0, count = 0, clipped = 0, diffSq = 0, lowDrift = 0;
-  let prev = 0;
+function getWorker(){
+  if(worker)return worker;
+  worker=new Worker("rivani-ai-worker.js?v=19",{type:"module"});
 
-  const frameSize = Math.max(128, Math.floor(sr * 0.02));
-  const frameRms = [];
+  worker.addEventListener("message",event=>{
+    const d=event.data||{};
+    const status=$("clearEngineStatus");
 
-  for (let start = 0; start < maxSamples; start += frameSize) {
-    let fsq = 0, fn = 0;
-    for (let i = start; i < Math.min(start + frameSize, maxSamples); i += stride) {
-      const x = mono[i];
-      const ax = Math.abs(x);
-      peak = Math.max(peak, ax);
-      sumSq += x*x;
-      diffSq += (x-prev)*(x-prev);
-      prev = x;
-      if (ax >= 0.985) clipped++;
-      fsq += x*x;
-      fn++; count++;
-    }
-    if (fn) frameRms.push(Math.sqrt(fsq/fn));
-  }
-
-  const rms = Math.sqrt(sumSq / Math.max(1,count));
-  const rmsDb = toDb(rms);
-  const peakDb = toDb(peak);
-  const clipPct = clipped / Math.max(1,count) * 100;
-  const sorted = [...frameRms].sort((a,b)=>a-b);
-  const noiseFloor = sorted[Math.floor(sorted.length * 0.2)] || 0;
-  const noiseDb = toDb(noiseFloor);
-  const crestDb = peakDb - rmsDb;
-
-  const hum50 = goertzelPower(mono, sr, 50, maxSamples);
-  const hum60 = goertzelPower(mono, sr, 60, maxSamples);
-  const hum100 = goertzelPower(mono, sr, 100, maxSamples);
-  const hum120 = goertzelPower(mono, sr, 120, maxSamples);
-  const humPower = Math.max(hum50+hum100, hum60+hum120);
-  const broadPower = Math.max(1e-12, sumSq/count);
-  const humRatio = humPower / broadPower;
-
-  const lowEnergy = bandProxy(mono, sr, 25, 120, maxSamples);
-  const midEnergy = bandProxy(mono, sr, 300, 3400, maxSamples);
-  const rumbleRatio = lowEnergy / Math.max(1e-12, midEnergy);
-
-  const issues = [];
-  let penalty = 0;
-
-  if (clipPct > 0.08) {
-    const sev = clipPct > 1 ? 'high' : 'medium';
-    issues.push({name:'Clipping / overload', detail:`About ${clipPct.toFixed(2)}% of sampled peaks are near digital maximum.`, severity:sev, label:sev==='high'?'High':'Medium'});
-    penalty += sev==='high'?22:12;
-  }
-
-  if (rmsDb < -28) {
-    const sev = rmsDb < -36 ? 'high' : 'medium';
-    issues.push({name:'Voice level is low', detail:`Average level is approximately ${rmsDb.toFixed(1)} dBFS.`, severity:sev, label:sev==='high'?'High':'Medium'});
-    penalty += sev==='high'?17:10;
-  } else if (rmsDb > -10) {
-    issues.push({name:'Recording is very loud', detail:`Average level is approximately ${rmsDb.toFixed(1)} dBFS, leaving limited headroom.`, severity:'medium', label:'Medium'});
-    penalty += 10;
-  }
-
-  if (noiseDb > -38 && crestDb < 18) {
-    const sev = noiseDb > -30 ? 'high' : 'medium';
-    issues.push({name:'Background floor / room noise', detail:`Quiet sections remain around ${noiseDb.toFixed(1)} dBFS, suggesting audible room or device noise.`, severity:sev, label:sev==='high'?'High':'Medium'});
-    penalty += sev==='high'?18:11;
-  }
-
-  if (rumbleRatio > 0.5) {
-    const sev = rumbleRatio > 1.2 ? 'high' : 'medium';
-    issues.push({name:'Low-frequency rumble', detail:'Extra low-frequency energy may come from handling noise, traffic, fans or mic proximity.', severity:sev, label:sev==='high'?'High':'Medium'});
-    penalty += sev==='high'?14:8;
-  }
-
-  if (humRatio > 0.018) {
-    issues.push({name:'Possible electrical hum', detail:'A narrow 50/60 Hz pattern was detected. The repair pass will apply hum notches.', severity:'medium', label:'Detected'});
-    penalty += 8;
-  }
-
-  if (crestDb < 7 && rmsDb > -28) {
-    issues.push({name:'Limited dynamics', detail:'The recording has a small peak-to-average range and may already be heavily compressed.', severity:'low', label:'Low'});
-    penalty += 5;
-  }
-
-  const score = Math.max(20, Math.min(98, Math.round(94 - penalty)));
-  const summary = issues.length
-    ? `${issues.length} issue${issues.length===1?'':'s'} detected. The strongest repair opportunities are ${issues.slice(0,2).map(i=>i.name.toLowerCase()).join(' and ')}.`
-    : 'No major technical fault was detected in the sampled signal. Use Natural mode for a gentle consistency pass.';
-
-  return { score, issues, rmsDb, peakDb, noiseDb, clipPct, humRatio, rumbleRatio };
-}
-
-async function repairAudio() {
-  if (!sourceBuffer) return;
-
-  repairBtn.disabled = true;
-  repairPanel.classList.add('hidden');
-  result.classList.add('hidden');
-  processing.classList.remove('hidden');
-  processing.scrollIntoView({behavior:'smooth', block:'center'});
-
-  try {
-    const s = Number(strength.value) / 100;
-    const preset = selectedPreset;
-    lastEngineReport = [];
-
-    const cfg = {
-      natural: {
-        highpass:66, presence:0.45, bright:-0.10, comp:-13.5, ratio:1.35,
-        humQ:7, gateDb:1.8, targetLufs:-18.0, peakDb:-1.2,
-        speechWet:0.58, silenceWet:0.88, residualCutoff:9300
-      },
-      clean: {
-        highpass:80, presence:0.85, bright:0.05, comp:-16.0, ratio:1.75,
-        humQ:9, gateDb:3.2, targetLufs:-16.8, peakDb:-1.1,
-        speechWet:0.80, silenceWet:0.97, residualCutoff:8200
-      },
-      studio: {
-        highpass:92, presence:1.15, bright:0.12, comp:-18.0, ratio:2.15,
-        humQ:10, gateDb:4.0, targetLufs:-16.0, peakDb:-1.0,
-        speechWet:0.87, silenceWet:0.985, residualCutoff:7400
-      }
-    }[preset];
-
-    if (voiceLockEnabled) {
-      cfg.presence *= 0.82;
-      cfg.bright *= 0.70;
-      cfg.speechWet *= preset === 'natural' ? 0.90 : 0.94;
-    }
-
-    setProcessingStage('scan');
-    updateProgress(3, 'Building a speech map to protect words and consonants…');
-
-    const dry48 = await resampleAudioBuffer(sourceBuffer, 48000);
-    const dryMono = mixToMono(dry48);
-
-    let speechSegments = [];
-    let vadName = 'Energy VAD';
-
-    if (neuralEnabled) {
-      try {
-        speechSegments = await detectSpeechSilero(dryMono, 48000, p => {
-          updateProgress(4 + p * 8, 'Silero VAD is marking speech boundaries…');
-        });
-        if (speechSegments.length) {
-          vadName = 'Silero VAD';
-          lastEngineReport.push('Silero VAD');
-        }
-      } catch (vadError) {
-        console.warn('Silero VAD unavailable; using local VAD:', vadError);
+    if(d.type==="sourceFailed"){
+      console.warn(d.text);
+      if(status){
+        status.textContent="AI engine connection interrupted · retrying…";
+        status.classList.add("engine-error");
       }
     }
 
-    if (!speechSegments.length) {
-      speechSegments = detectSpeechEnergy(dryMono, 48000);
-      lastEngineReport.push('Local speech map');
-    }
-
-    const speechMask = buildSpeechMask(
-      dryMono.length,
-      48000,
-      speechSegments,
-      preset === 'natural' ? 80 : 55
-    );
-
-    let working48 = dry48;
-    let engineLabel = '';
-    let neuralStrength = getNeuralStrength(s, preset, environmentMode);
-
-    setProcessingStage('noise');
-
-    if (!neuralEnabled) {
-      updateProgress(15, 'Neural engines bypassed — using restoration DSP only…');
-      await tick(80);
-      engineLabel = 'Local DSP';
-    } else if (preset === 'natural') {
-      updateProgress(14, 'Natural mode: running a light RNNoise pass…');
-      try {
-        working48 = await runRnnoiseInWorker(
-          dry48,
-          neuralStrength,
-          voiceLockEnabled,
-          'natural',
-          p => updateProgress(
-            15 + p * 33,
-            p < .55 ? 'Removing steady noise gently…' : 'Keeping the original voice texture…'
-          )
-        );
-        lastEngineReport.push('RNNoise');
-        engineLabel = 'RNNoise Light';
-      } catch (error) {
-        console.warn('RNNoise unavailable:', error);
-        engineLabel = 'DSP fallback';
-      }
-    } else {
-      updateProgress(14, `${capitalize(preset)} mode: loading full-band DeepFilterNet3…`);
-      try {
-        const hybrid = await runHybridWorker({
-          mono: dryMono,
-          sampleRate: 48000,
-          preset,
-          strength: s,
-          doDeepFilter: true,
-          doRestoration: false,
-          clipped: (analysis?.clipPct || 0) > 0.06,
-          onPhase: ({progress, text}) => {
-            updateProgress(14 + progress * 40, text);
-          }
-        });
-
-        if (hybrid.deepFilterUsed) {
-          const wetMono = new Float32Array(hybrid.buffer);
-          working48 = rebuildVoiceStereo(dry48, wetMono, preset);
-          lastEngineReport.push(...hybrid.engines);
-          engineLabel = preset === 'clean' ? 'DeepFilter Hybrid' : 'DeepFilter Studio';
-        } else {
-          throw new Error('DeepFilterNet3 did not initialize');
-        }
-      } catch (dfError) {
-        console.warn('DeepFilterNet3 unavailable; RNNoise fallback:', dfError);
-        updateProgress(28, 'DeepFilterNet3 unavailable — switching to RNNoise fallback…');
-        working48 = await runRnnoiseInWorker(
-          dry48,
-          preset === 'studio' ? 0.82 : 0.70,
-          voiceLockEnabled,
-          preset,
-          p => updateProgress(29 + p * 27, 'Running neural fallback cleanup…')
-        );
-        lastEngineReport.push('RNNoise fallback');
-        engineLabel = 'RNNoise fallback';
+    if(d.type==="modelProgress"){
+      if(status){
+        status.textContent=d.cached
+          ?"RIVANI AI Engine · Ready"
+          :`RIVANI AI Engine · Preparing ${Math.round(d.progress||0)}%`;
+        status.classList.remove("engine-error");
       }
     }
 
-    // Artifact Guard: use the speech map + dry reference so a neural engine
-    // cannot completely overwrite voiced details. It also smooths the
-    // high-frequency residual where metallic "shimmer" is most audible.
-    setProcessingStage('voice');
-    updateProgress(58, 'Artifact Guard is smoothing metallic residue and protecting speech…');
-
-    working48 = artifactGuardBlend(
-      dry48,
-      working48,
-      speechMask,
-      cfg.speechWet,
-      cfg.silenceWet,
-      cfg.residualCutoff
-    );
-    lastEngineReport.push('Artifact Guard');
-
-    // Clean and Studio receive restoration AFTER artifact protection.
-    if (neuralEnabled && preset !== 'natural') {
-      try {
-        const restoreMono = mixToMono(working48);
-        const restored = await runHybridWorker({
-          mono: restoreMono,
-          sampleRate: 48000,
-          preset,
-          strength: s,
-          doDeepFilter: false,
-          doRestoration: true,
-          clipped: (analysis?.clipPct || 0) > 0.06,
-          onPhase: ({progress, text}) => {
-            updateProgress(60 + progress * 14, text);
-          }
-        });
-
-        if (restored.restorationUsed) {
-          working48 = rebuildVoiceStereo(
-            working48,
-            new Float32Array(restored.buffer),
-            preset,
-            0.08
-          );
-          lastEngineReport.push(...restored.engines);
-        }
-      } catch (restoreError) {
-        console.warn('Optional restoration unavailable:', restoreError);
+    if(d.type==="ready"){
+      modelReady=true;
+      activeProvider=d.provider||"";
+      if(status){
+        status.textContent="RIVANI AI Engine · Ready";
+        status.classList.remove("engine-error");
       }
     }
-
-    // Very gentle room-floor control. The strong gate from older builds was
-    // removed because it contributed to pumping / "jhil-jhil" transitions.
-    const environmentFactor =
-      environmentMode === 'studio' ? 1.10 :
-      environmentMode === 'natural' ? 0.55 : 0.82;
-    const gateReduction = cfg.gateDb * (0.65 + 0.30 * s) * environmentFactor;
-    const gated = applySoftAdaptiveGate(working48, gateReduction);
-
-    updateProgress(76, 'Applying hum control, voice tone and smooth dynamics…');
-    const polished = await processWithOfflineAudio(gated, {
-      highpass: cfg.highpass,
-      presence: cfg.presence,
-      bright: cfg.bright,
-      compressorThreshold: cfg.comp,
-      compressorRatio: cfg.ratio,
-      humQ: cfg.humQ,
-      strength: s
-    });
-
-    setProcessingStage('level');
-    updateProgress(84, `Leveling voice near ${cfg.targetLufs.toFixed(1)} LUFS without lifting the noise floor…`);
-    await levelToLufsStyle(polished, cfg.targetLufs, cfg.peakDb);
-    lastEngineReport.push('LUFS leveler', 'Peak guard');
-
-    let finalBuffer = polished;
-    if (polished.sampleRate !== sourceBuffer.sampleRate) {
-      finalBuffer = await resampleAudioBuffer(polished, sourceBuffer.sampleRate);
-    }
-
-    setProcessingStage('export');
-    updateProgress(95, 'Encoding repaired WAV…');
-    const wav = encodeWav(finalBuffer);
-
-    repairedBlob = new Blob([wav], {type:'audio/wav'});
-    if (repairedUrl) URL.revokeObjectURL(repairedUrl);
-    repairedUrl = URL.createObjectURL(repairedBlob);
-    $('afterPlayer').src = repairedUrl;
-
-    const engineSummary = unique(lastEngineReport).slice(0, 4).join(' + ');
-    $('afterPresetLabel').textContent =
-      `${capitalize(preset)} · ${engineLabel}${engineSummary ? ' · ' + engineSummary : ''}`;
-
-    const gain =
-      preset === 'natural' ? 8 :
-      preset === 'clean' ? 15 : 20;
-    $('newHealthScore').textContent = Math.min(99, (analysis?.score || 65) + gain);
-
-    const status = $('neuralEngineStatus');
-    if (status) {
-      status.textContent = `${vadName} · ${engineLabel}`;
-      status.classList.remove('engine-error', 'muted');
-    }
-
-    updateProgress(100, 'Smooth Voice repair complete.');
-    await tick(250);
-
-    processing.classList.add('hidden');
-    result.classList.remove('hidden');
-    result.scrollIntoView({behavior:'smooth', block:'start'});
-  } catch (error) {
-    console.error('Audio repair failed:', error);
-    processing.classList.add('hidden');
-    repairPanel.classList.remove('hidden');
-    const detail = String(error?.message || error || '').slice(0, 140);
-    alert(`Audio repair could not finish. ${detail ? 'Error: ' + detail : 'Try a shorter file or a modern Chrome/Edge/Safari browser.'}`);
-  } finally {
-    repairBtn.disabled = false;
-  }
-}
-
-function getNeuralStrength(baseStrength, preset, envMode) {
-  const base =
-    preset === 'natural' ? Math.min(0.58, 0.28 + baseStrength * 0.46) :
-    preset === 'clean'  ? Math.min(0.78, 0.50 + baseStrength * 0.35) :
-                          Math.min(0.86, 0.55 + baseStrength * 0.34);
-  const env =
-    envMode === 'natural' ? -0.06 :
-    envMode === 'studio' ? 0.03 : 0;
-  return Math.max(0.22, Math.min(0.88, base + env));
-}
-
-async function detectSpeechSilero(mono, sampleRate, onProgress) {
-  onProgress?.(0.04);
-  const mod = await import("https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/+esm");
-  const NonRealTimeVAD = mod.NonRealTimeVAD;
-  if (!NonRealTimeVAD) throw new Error("Silero NonRealTimeVAD export unavailable");
-
-  const vad = await NonRealTimeVAD.new({
-    model: "v5",
-    positiveSpeechThreshold: 0.56,
-    negativeSpeechThreshold: 0.34,
-    redemptionMs: 320,
-    preSpeechPadMs: 90,
-    minSpeechMs: 180
   });
 
-  const segments = [];
-  let count = 0;
-  for await (const seg of vad.run(mono, sampleRate)) {
-    const start = Number(seg.start || 0);
-    const end = Number(seg.end || start);
-    if (end > start) segments.push({startMs:start, endMs:end});
-    count++;
-    // We cannot know total iterator progress precisely; report model activity,
-    // not a fake percentage.
-    onProgress?.(Math.min(0.92, 0.12 + count * 0.05));
-  }
-  onProgress?.(1);
-  return segments;
+  return worker;
 }
 
-function detectSpeechEnergy(mono, sampleRate) {
-  const frame = Math.max(128, Math.floor(sampleRate * 0.02));
-  const hop = frame;
-  const rms = [];
+async function warmupEngine(){
+  if(warmupStarted||modelReady)return;
+  warmupStarted=true;
 
-  for (let s=0; s<mono.length; s+=hop) {
-    let sum=0, n=0;
-    for (let i=s; i<Math.min(s+frame, mono.length); i++) {
-      sum += mono[i]*mono[i];
-      n++;
-    }
-    rms.push(Math.sqrt(sum/Math.max(1,n)));
+  const status=$("clearEngineStatus");
+  if(status){
+    status.textContent="RIVANI AI Engine · Loading…";
+    status.classList.remove("engine-error");
   }
 
-  const sorted = [...rms].sort((a,b)=>a-b);
-  const floor = sorted[Math.floor(sorted.length * 0.25)] || 1e-5;
-  const threshold = Math.max(floor * 3.0, 0.0045);
+  const w=getWorker();
 
-  const raw = [];
-  let activeStart = -1;
-  for (let i=0; i<rms.length; i++) {
-    const isSpeech = rms[i] >= threshold;
-    if (isSpeech && activeStart < 0) activeStart = i;
-    if ((!isSpeech || i === rms.length-1) && activeStart >= 0) {
-      const endFrame = isSpeech && i === rms.length-1 ? i+1 : i;
-      if (endFrame - activeStart >= 5) {
-        raw.push({
-          startMs: activeStart * hop / sampleRate * 1000,
-          endMs: endFrame * hop / sampleRate * 1000
-        });
+  const listener=event=>{
+    const d=event.data||{};
+    if(d.type==="ready"){
+      modelReady=true;
+      activeProvider=d.provider||"";
+      warmupStarted=false;
+      w.removeEventListener("message",listener);
+    }
+    if(d.type==="error"){
+      warmupStarted=false;
+      w.removeEventListener("message",listener);
+      if(status){
+        status.textContent="RIVANI AI Engine · Tap Enhance to retry";
+        status.classList.add("engine-error");
       }
-      activeStart = -1;
     }
-  }
+  };
 
-  // Merge gaps shorter than 180 ms so the protection mask stays smooth.
-  const merged = [];
-  for (const seg of raw) {
-    const prev = merged[merged.length-1];
-    if (prev && seg.startMs - prev.endMs < 180) prev.endMs = seg.endMs;
-    else merged.push({...seg});
-  }
-  return merged;
+  w.addEventListener("message",listener);
+  w.postMessage({type:"warmup"});
 }
 
-function buildSpeechMask(length, sampleRate, segments, fadeMs=60) {
-  const mask = new Float32Array(length);
-  const fade = Math.max(1, Math.floor(sampleRate * fadeMs / 1000));
+async function repairLocally(){
+  if(!sourceBuffer)return;
 
-  for (const seg of segments) {
-    const start = Math.max(0, Math.floor((seg.startMs/1000)*sampleRate));
-    const end = Math.min(length, Math.ceil((seg.endMs/1000)*sampleRate));
-    const a = Math.max(0, start - fade);
-    const b = Math.min(length, end + fade);
+  repairBtn.disabled=true;
+  repairPanel.classList.add("hidden");
+  result.classList.add("hidden");
+  processing.classList.remove("hidden");
+  processing.scrollIntoView({behavior:"smooth",block:"center"});
 
-    for (let i=a; i<b; i++) {
-      let v = 1;
-      if (i < start) v = (i-a) / Math.max(1, start-a);
-      else if (i >= end) v = 1 - (i-end) / Math.max(1, b-end);
-      v = Math.max(0, Math.min(1, v));
-      if (v > mask[i]) mask[i] = v;
+  try{
+    setStage("upload");
+    updateProgress(3,"Preparing the recording locally. Your audio is not uploaded to a RIVANI GPU server…");
+
+    const buffer48=await resampleAudioBuffer(sourceBuffer,48000);
+    const mono=mixToMono(buffer48);
+
+    setStage("model");
+    updateProgress(8,"Preparing RIVANI AI Engine…");
+
+    const enhanced=await runMossFormer(
+      mono,
+      Number(strength.value)/100,
+      (p,text,providerName)=>{
+        activeProvider=providerName||activeProvider;
+        const mapped=10+Math.round(p*.70);
+        updateProgress(Math.min(80,mapped),text);
+      }
+    );
+
+    setStage("restore");
+    updateProgress(82,"Applying transparent voice finishing—no dry/wet neural blend…");
+
+    let repaired48=rebuildFromMono(buffer48,enhanced);
+
+    if(clickRepair){
+      updateProgress(82,"Repairing isolated clicks and impulse spikes…");
+      repairClicksInPlace(repaired48);
     }
+
+    if(fanAssist || trafficAssist){
+      updateProgress(83,"Applying selected advanced cleanup…");
+      repaired48=await applyAdvancedCleanup(repaired48,{
+        fanAssist,
+        trafficAssist
+      });
+    }
+
+    if(studioFinish){
+      updateProgress(84,"Applying Studio Finish for smoother, more balanced voice…");
+      repaired48=await applyStudioFinish(repaired48);
+    }else{
+      updateProgress(84,"Keeping the AI-enhanced voice natural…");
+      repaired48=await applyNaturalFinish(repaired48);
+    }
+
+    setStage("level");
+    updateProgress(91,"Balancing voice loudness and protecting peaks…");
+    levelVoiceRms(repaired48,studioFinish?-18.0:-18.5,-1.2);
+
+    let finalBuffer=repaired48;
+    if(sourceBuffer.sampleRate!==48000){
+      finalBuffer=await resampleAudioBuffer(repaired48,sourceBuffer.sampleRate);
+    }
+
+    finalEnhancedBuffer=finalBuffer;
+    mp3BlobCache=null;
+
+    setStage("export");
+    updateProgress(97,"Checking enhanced output and encoding WAV…");
+
+    validateEnhancedOutput(sourceBuffer, finalBuffer);
+
+    const wav=encodeWav(finalBuffer);
+    repairedBlob=new Blob([wav],{type:"audio/wav"});
+
+    if(repairedUrl)URL.revokeObjectURL(repairedUrl);
+    repairedUrl=URL.createObjectURL(repairedBlob);
+
+    $("afterPlayer").src=repairedUrl;
+    $("afterPresetLabel").textContent=
+      `AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish`;
+
+    const status=$("clearEngineStatus");
+    if(status){
+      status.textContent="RIVANI AI Engine · Ready";
+      status.classList.remove("engine-error");
+    }
+
+    updateProgress(100,"AI Clear Voice complete.");
+    await tick(240);
+
+    processing.classList.add("hidden");
+    result.classList.remove("hidden");
+    result.scrollIntoView({behavior:"smooth",block:"start"});
+  }catch(error){
+    console.error(error);
+    processing.classList.add("hidden");
+    repairPanel.classList.remove("hidden");
+
+    const status=$("clearEngineStatus");
+    if(status){
+      status.textContent="RIVANI AI Engine · Could not start";
+      status.classList.add("engine-error");
+    }
+
+    const detail=String(error?.message||error||"").slice(0,220);
+    alert(
+      `Clear Voice X could not finish. ${detail}\n\n`+
+      `No lower-quality fallback result was generated. Refresh and retry. If the AI engine still cannot prepare, check your internet connection.`
+    );
+  }finally{
+    repairBtn.disabled=false;
   }
-  return mask;
 }
 
-async function runHybridWorker({mono, sampleRate, preset, strength, doDeepFilter, doRestoration, clipped, onPhase}) {
-  if (hybridWorker) {
-    try { hybridWorker.terminate(); } catch {}
-  }
+async function runMossFormer(mono,strength,onProgress){
+  const w=getWorker();
+  const copy=new Float32Array(mono);
 
-  hybridWorker = new Worker('hybrid-audio-worker.js?v=13', {type:'module'});
-  const input = new Float32Array(mono);
+  return await new Promise((resolve,reject)=>{
+    const listener=event=>{
+      const d=event.data||{};
 
-  return await new Promise((resolve, reject) => {
-    const cleanup = () => {
-      if (hybridWorker) {
-        hybridWorker.terminate();
-        hybridWorker = null;
+      if(d.type==="modelProgress"){
+        onProgress?.(
+          Math.min(15,Number(d.progress||0)*.15),
+          d.text||"Preparing RIVANI AI Engine…",
+          d.provider
+        );
+        return;
+      }
+
+      if(d.type==="phase"){
+        onProgress?.(18,d.text||"Running RIVANI AI enhancement…",d.provider);
+        return;
+      }
+
+      if(d.type==="segmentProgress"){
+        const p=20+(Number(d.progress||0)*.80);
+        onProgress?.(p,d.text||"Enhancing speech…",d.provider);
+        return;
+      }
+
+      if(d.type==="error"){
+        w.removeEventListener("message",listener);
+        reject(new Error(d.message||"RIVANI AI enhancement failed."));
+        return;
+      }
+
+      if(d.type==="done"){
+        w.removeEventListener("message",listener);
+        activeProvider=d.provider||activeProvider;
+        resolve(new Float32Array(d.buffer));
       }
     };
 
-    hybridWorker.onmessage = (event) => {
-      const d = event.data || {};
-      if (d.type === 'phase') {
-        onPhase?.(d);
-        return;
-      }
-      if (d.type === 'warning') {
-        console.warn(d.code || 'Hybrid warning', d.message || '');
-        return;
-      }
-      if (d.type === 'error') {
-        cleanup();
-        reject(new Error(d.message || 'Hybrid audio worker failed'));
-        return;
-      }
-      if (d.type === 'done') {
-        cleanup();
-        resolve(d);
-      }
-    };
-
-    hybridWorker.onerror = event => {
-      cleanup();
-      reject(new Error(event.message || 'Hybrid audio worker could not load'));
-    };
-
-    hybridWorker.postMessage({
-      type:'process',
-      monoBuffer:input.buffer,
-      sampleRate,
-      preset,
+    w.addEventListener("message",listener);
+    w.postMessage({
+      type:"process",
       strength,
-      doDeepFilter,
-      doRestoration,
-      clipped
-    }, [input.buffer]);
+      fanAssist,
+      trafficAssist,
+      buffer:copy.buffer
+    },[copy.buffer]);
   });
 }
 
-function rebuildVoiceStereo(reference, processedMono, preset, sideOverride=null) {
-  const channels = reference.numberOfChannels;
-  const out = new AudioBuffer({
-    length: reference.length,
-    numberOfChannels: channels,
-    sampleRate: reference.sampleRate
-  });
-
-  if (channels === 1) {
-    out.copyToChannel(ensureFloatLength(processedMono, reference.length), 0);
-    return out;
-  }
-
-  const L = reference.getChannelData(0);
-  const R = reference.getChannelData(1);
-  const mono = ensureFloatLength(processedMono, reference.length);
-  const sideAmount = sideOverride ?? (
-    preset === 'natural' ? 0.24 :
-    preset === 'clean' ? 0.12 : 0.06
-  );
-
-  const oL = out.getChannelData(0);
-  const oR = out.getChannelData(1);
-  for (let i=0; i<reference.length; i++) {
-    const side = (L[i] - R[i]) * 0.5 * sideAmount;
-    oL[i] = mono[i] + side;
-    oR[i] = mono[i] - side;
-  }
-
-  // Additional channels (rare for this voice tool) receive the repaired center.
-  for (let c=2; c<channels; c++) out.copyToChannel(mono, c);
-  return out;
-}
-
-function artifactGuardBlend(dryBuffer, wetBuffer, speechMask, speechWet, silenceWet, residualCutoff) {
-  const length = Math.min(dryBuffer.length, wetBuffer.length);
-  const channels = Math.min(dryBuffer.numberOfChannels, wetBuffer.numberOfChannels);
-  const out = new AudioBuffer({
-    length,
-    numberOfChannels: dryBuffer.numberOfChannels,
-    sampleRate: dryBuffer.sampleRate
-  });
-
-  const sr = dryBuffer.sampleRate;
-  const rc = 1 / (2 * Math.PI * Math.max(3500, residualCutoff));
-  const dt = 1 / sr;
-  const alpha = dt / (rc + dt);
-  const frame = Math.max(128, Math.floor(sr * 0.025));
-
-  for (let c=0; c<dryBuffer.numberOfChannels; c++) {
-    const dry = dryBuffer.getChannelData(Math.min(c, dryBuffer.numberOfChannels-1));
-    const wet = wetBuffer.getChannelData(Math.min(c, channels-1));
-    const dst = out.getChannelData(c);
-
-    let residualLP = 0;
-    let smoothWet = speechWet;
-
-    for (let s=0; s<length; s+=frame) {
-      const e = Math.min(length, s+frame);
-      let dryPow=1e-9, diffPow=1e-9, speech=0;
-      for (let i=s; i<e; i++) {
-        const d = dry[i];
-        const diff = wet[i] - d;
-        dryPow += d*d;
-        diffPow += diff*diff;
-        speech += speechMask[i] || 0;
-      }
-      speech /= Math.max(1, e-s);
-      const changeRatio = Math.sqrt(diffPow / dryPow);
-
-      let targetWet = speechWet * speech + silenceWet * (1-speech);
-
-      // If the neural output changes speech too radically, pull some dry voice
-      // back in automatically. This is the core anti-metallic Artifact Guard.
-      if (speech > 0.35 && changeRatio > 0.72) {
-        const penalty = Math.min(0.24, (changeRatio - 0.72) * 0.20);
-        targetWet = Math.max(0.48, targetWet - penalty);
-      }
-
-      for (let i=s; i<e; i++) {
-        smoothWet += (targetWet - smoothWet) * 0.0065;
-        const residual = wet[i] - dry[i];
-        residualLP += alpha * (residual - residualLP);
-
-        // Preserve low/mid neural correction but soften rapidly-changing HF
-        // residual that tends to be perceived as "jhil-jhil" / shimmer.
-        const smoothResidual = residualLP * 0.30 + residual * 0.70;
-        const value = dry[i] + smoothResidual * smoothWet;
-        dst[i] = Math.max(-0.999, Math.min(0.999, value));
-      }
-    }
-  }
-  return out;
-}
-
-async function levelToLufsStyle(buffer, targetLufs=-16.8, peakCeilingDb=-1.1) {
-  const weighted = await kWeightBuffer(buffer);
-  const block = Math.max(1, Math.floor(weighted.sampleRate * 0.4));
-  const hop = Math.max(1, Math.floor(weighted.sampleRate * 0.1));
-  const powers = [];
-
-  for (let start=0; start+block<=weighted.length; start+=hop) {
-    let sum=0, n=0;
-    for (let c=0; c<weighted.numberOfChannels; c++) {
-      const d=weighted.getChannelData(c);
-      for (let i=start; i<start+block; i++) {
-        sum += d[i]*d[i];
-        n++;
-      }
-    }
-    const p=sum/Math.max(1,n);
-    const l=-0.691 + 10*Math.log10(Math.max(1e-12,p));
-    if (l > -70) powers.push(p);
-  }
-
-  if (!powers.length) return;
-
-  let mean = powers.reduce((a,b)=>a+b,0)/powers.length;
-  let preliminary = -0.691 + 10*Math.log10(Math.max(1e-12,mean));
-  const relativeGate = preliminary - 10;
-  const gated = powers.filter(p => (-0.691 + 10*Math.log10(Math.max(1e-12,p))) > relativeGate);
-  if (gated.length) mean = gated.reduce((a,b)=>a+b,0)/gated.length;
-
-  const measured = -0.691 + 10*Math.log10(Math.max(1e-12,mean));
-  let gainDb = Math.max(-5.5, Math.min(5.5, targetLufs - measured));
-  let gain = Math.pow(10, gainDb/20);
-
-  const ceiling = Math.pow(10, peakCeilingDb/20);
-  const tp = estimateTruePeak4x(buffer);
-  if (tp * gain > ceiling) gain = ceiling / Math.max(1e-9,tp);
-
-  const fade = Math.min(Math.floor(buffer.sampleRate*0.012), Math.floor(buffer.length/4));
-  for (let c=0; c<buffer.numberOfChannels; c++) {
-    const d=buffer.getChannelData(c);
-    for (let i=0; i<d.length; i++) {
-      let edge=1;
-      if (fade && i<fade) edge=0.5-0.5*Math.cos(Math.PI*i/fade);
-      else if (fade && i>=d.length-fade) {
-        const j=d.length-1-i;
-        edge=0.5-0.5*Math.cos(Math.PI*Math.max(0,j)/fade);
-      }
-      d[i]=softLimit(d[i]*gain*edge);
-    }
-  }
-}
-
-async function kWeightBuffer(buffer) {
-  const offline = new OfflineAudioContext(
+async function applyAdvancedCleanup(buffer,opts){
+  const offline=new OfflineAudioContext(
     buffer.numberOfChannels,
     buffer.length,
     buffer.sampleRate
   );
+
+  const src=offline.createBufferSource();
+  src.buffer=buffer;
+  let node=src;
+
+  if(opts.fanAssist){
+    const mains=detectMainsHum(buffer);
+
+    // Auto-selected 50/60 Hz family + restrained harmonics.
+    for(const hz of [mains,mains*2,mains*3,mains*4]){
+      if(hz>=buffer.sampleRate/2-100)continue;
+
+      const notch=offline.createBiquadFilter();
+      notch.type="notch";
+      notch.frequency.value=hz;
+      notch.Q.value=18;
+
+      node.connect(notch);
+      node=notch;
+    }
+
+    // Steady fan/AC beds often occupy broad low/mid energy too.
+    const fanLow=offline.createBiquadFilter();
+    fanLow.type="peaking";
+    fanLow.frequency.value=180;
+    fanLow.Q.value=.65;
+    fanLow.gain.value=-.75;
+    node.connect(fanLow);
+    node=fanLow;
+
+    const fanMid=offline.createBiquadFilter();
+    fanMid.type="peaking";
+    fanMid.frequency.value=620;
+    fanMid.Q.value=.75;
+    fanMid.gain.value=-.35;
+    node.connect(fanMid);
+    node=fanMid;
+  }
+
+  if(opts.trafficAssist){
+    // Deliberately mild because traffic overlaps male voice fundamentals/body.
+    const hp=offline.createBiquadFilter();
+    hp.type="highpass";
+    hp.frequency.value=78;
+    hp.Q.value=.58;
+    node.connect(hp);
+    node=hp;
+
+    const road=offline.createBiquadFilter();
+    road.type="peaking";
+    road.frequency.value=310;
+    road.Q.value=.62;
+    road.gain.value=-.65;
+    node.connect(road);
+    node=road;
+  }
+
+  node.connect(offline.destination);
+  src.start();
+  return await offline.startRendering();
+}
+
+function detectMainsHum(buffer){
+  const mono=mixToMono(buffer);
+  const sr=buffer.sampleRate;
+  const max=Math.min(mono.length,Math.floor(sr*20));
+
+  const e50=
+    goertzelPower(mono,max,sr,50) +
+    .55*goertzelPower(mono,max,sr,100) +
+    .35*goertzelPower(mono,max,sr,150);
+
+  const e60=
+    goertzelPower(mono,max,sr,60) +
+    .55*goertzelPower(mono,max,sr,120) +
+    .35*goertzelPower(mono,max,sr,180);
+
+  return e60>e50?60:50;
+}
+
+function goertzelPower(data,length,sr,freq){
+  const omega=2*Math.PI*freq/sr;
+  const coeff=2*Math.cos(omega);
+  let s0=0,s1=0,s2=0;
+
+  const stride=Math.max(1,Math.floor(length/240000));
+
+  for(let i=0;i<length;i+=stride){
+    s0=data[i]+coeff*s1-s2;
+    s2=s1;
+    s1=s0;
+  }
+
+  return Math.max(0,s1*s1+s2*s2-coeff*s1*s2);
+}
+
+function repairClicksInPlace(buffer){
+  // Real impulse repair: only isolated waveform jumps far larger than the
+  // immediate neighborhood are interpolated. Normal speech attacks remain.
+  for(let c=0;c<buffer.numberOfChannels;c++){
+    const d=buffer.getChannelData(c);
+    if(d.length<16)continue;
+
+    for(let i=4;i<d.length-4;i++){
+      const prev=
+        Math.abs(d[i-1]-d[i-2])+
+        Math.abs(d[i-2]-d[i-3]);
+
+      const next=
+        Math.abs(d[i+2]-d[i+1])+
+        Math.abs(d[i+3]-d[i+2]);
+
+      const local=(prev+next)*.25+1e-6;
+
+      const jumpIn=Math.abs(d[i]-d[i-1]);
+      const jumpOut=Math.abs(d[i+1]-d[i]);
+
+      if(
+        jumpIn>.10 &&
+        jumpOut>.10 &&
+        jumpIn>local*8 &&
+        jumpOut>local*8
+      ){
+        const left=d[i-2];
+        const right=d[i+2];
+
+        d[i-1]=left+(right-left)*.25;
+        d[i]=left+(right-left)*.50;
+        d[i+1]=left+(right-left)*.75;
+
+        i+=2;
+      }
+    }
+  }
+}
+
+async function applyNaturalFinish(buffer){
+  const offline=new OfflineAudioContext(
+    buffer.numberOfChannels,
+    buffer.length,
+    buffer.sampleRate
+  );
+
   const src=offline.createBufferSource();
   src.buffer=buffer;
 
   const hp=offline.createBiquadFilter();
-  hp.type='highpass';
-  hp.frequency.value=38;
-  hp.Q.value=0.50;
+  hp.type="highpass";
+  hp.frequency.value=62;
+  hp.Q.value=.58;
 
-  const shelf=offline.createBiquadFilter();
-  shelf.type='highshelf';
-  shelf.frequency.value=1682;
-  shelf.gain.value=4.0;
+  const comp=offline.createDynamicsCompressor();
+  comp.threshold.value=-12;
+  comp.knee.value=26;
+  comp.ratio.value=1.15;
+  comp.attack.value=.024;
+  comp.release.value=.36;
 
-  src.connect(hp).connect(shelf).connect(offline.destination);
+  src.connect(hp).connect(comp).connect(offline.destination);
   src.start();
   return await offline.startRendering();
 }
 
-function estimateTruePeak4x(buffer) {
-  let peak=0;
-  for (let c=0; c<buffer.numberOfChannels; c++) {
-    const d=buffer.getChannelData(c);
-    if (!d.length) continue;
-    peak=Math.max(peak,Math.abs(d[0]));
-    for (let i=1; i<d.length; i++) {
-      const a=d[i-1], b=d[i];
-      peak=Math.max(peak,Math.abs(b));
-      // 4x linear intersample guard. Not a mastering-certified true-peak
-      // meter, but catches many overshoots missed by sample peak alone.
-      peak=Math.max(
-        peak,
-        Math.abs(a+(b-a)*0.25),
-        Math.abs(a+(b-a)*0.50),
-        Math.abs(a+(b-a)*0.75)
-      );
-    }
-  }
-  return peak;
-}
+async function applyStudioFinish(buffer){
+  const profile=measureToneProfile(buffer);
 
-function ensureFloatLength(value, length) {
-  const src = value instanceof Float32Array ? value : new Float32Array(value || 0);
-  if (src.length === length) return src;
-  const out = new Float32Array(length);
-  out.set(src.subarray(0, Math.min(length, src.length)));
-  return out;
-}
-
-function unique(items) {
-  return [...new Set(items.filter(Boolean))];
-}
-
-async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, preset, onProgress) {
-  const channels = [];
-  const transfers = [];
-
-  for (let c = 0; c < buffer.numberOfChannels; c++) {
-    const copy = new Float32Array(buffer.getChannelData(c));
-    channels.push(copy.buffer);
-    transfers.push(copy.buffer);
-  }
-
-  if (neuralWorker) {
-    try { neuralWorker.terminate(); } catch {}
-  }
-
-  neuralWorker = new Worker('rnnoise-worker.js?v=13', { type: 'module' });
-
-  return await new Promise((resolve, reject) => {
-    const cleanup = () => {
-      if (neuralWorker) {
-        neuralWorker.terminate();
-        neuralWorker = null;
-      }
-    };
-
-    neuralWorker.onmessage = (event) => {
-      const data = event.data || {};
-
-      if (data.type === 'progress') {
-        onProgress?.(Math.max(0, Math.min(1, Number(data.progress || 0))));
-        return;
-      }
-
-      if (data.type === 'error') {
-        cleanup();
-        reject(new Error(data.message || 'RNNoise worker failed'));
-        return;
-      }
-
-      if (data.type === 'done') {
-        try {
-          const returned = data.channels || [];
-          const out = new AudioBuffer({
-            length: new Float32Array(returned[0]).length,
-            numberOfChannels: returned.length,
-            sampleRate: 48000
-          });
-
-          returned.forEach((buf, index) => {
-            out.copyToChannel(new Float32Array(buf), index);
-          });
-
-          cleanup();
-          resolve(out);
-        } catch (error) {
-          cleanup();
-          reject(error);
-        }
-      }
-    };
-
-    neuralWorker.onerror = (event) => {
-      cleanup();
-      reject(new Error(event.message || 'RNNoise worker could not load'));
-    };
-
-    neuralWorker.postMessage({
-      type: 'denoise',
-      channels,
-      strength: neuralStrength,
-      voiceLock,
-      preset
-    }, transfers);
-  });
-}
-
-async function resampleAudioBuffer(buffer, targetSampleRate) {
-  if (buffer.sampleRate === targetSampleRate) return buffer;
-
-  const targetLength = Math.max(
-    1,
-    Math.ceil(buffer.duration * targetSampleRate)
+  // All adjustments are deliberately small. The AI engine remains responsible
+  // for restoration; Studio Finish only presents the already-good voice.
+  const mudGain = clamp(
+    profile.lowMidRatio > .54 ? -1.05 :
+    profile.lowMidRatio > .45 ? -.65 : -.25,
+    -1.2,0
   );
 
-  const offline = new OfflineAudioContext(
+  const presenceGain = clamp(
+    profile.presenceRatio < .075 ? .70 :
+    profile.presenceRatio < .105 ? .42 :
+    profile.presenceRatio > .18 ? -.20 : .18,
+    -.3,.8
+  );
+
+  const deEssGain = clamp(
+    profile.sibilanceRatio > .115 ? -1.15 :
+    profile.sibilanceRatio > .085 ? -.70 :
+    profile.sibilanceRatio > .060 ? -.35 : -.10,
+    -1.25,0
+  );
+
+  const offline=new OfflineAudioContext(
     buffer.numberOfChannels,
-    targetLength,
-    targetSampleRate
+    buffer.length,
+    buffer.sampleRate
   );
 
-  const source = offline.createBufferSource();
-  source.buffer = buffer;
-  source.connect(offline.destination);
-  source.start();
+  const src=offline.createBufferSource();
+  src.buffer=buffer;
 
-  return await offline.startRendering();
-}
+  const hp=offline.createBiquadFilter();
+  hp.type="highpass";
+  hp.frequency.value=68;
+  hp.Q.value=.62;
 
-function applySoftAdaptiveGate(buffer, reductionDb) {
-  const out = cloneAudioBuffer(buffer);
-  const sr = buffer.sampleRate;
-  const frame = Math.max(128, Math.floor(sr * 0.01));
-  const reduction = Math.pow(10, -reductionDb/20);
+  const mud=offline.createBiquadFilter();
+  mud.type="peaking";
+  mud.frequency.value=245;
+  mud.Q.value=.82;
+  mud.gain.value=mudGain;
 
-  for (let c=0; c<buffer.numberOfChannels; c++) {
-    const src = buffer.getChannelData(c);
-    const dst = out.getChannelData(c);
-    const rmsFrames = [];
-    for (let s=0; s<src.length; s+=frame) {
-      let sq=0, n=0;
-      for (let i=s; i<Math.min(s+frame,src.length); i++) { sq += src[i]*src[i]; n++; }
-      rmsFrames.push(Math.sqrt(sq/Math.max(1,n)));
-    }
-    const sorted=[...rmsFrames].sort((a,b)=>a-b);
-    const floor=sorted[Math.floor(sorted.length*.22)] || 0.001;
-    const openThreshold = floor * 2.15;
-    const fullThreshold = floor * 5.1;
-    let smoothGain = 1;
+  const body=offline.createBiquadFilter();
+  body.type="peaking";
+  body.frequency.value=145;
+  body.Q.value=.72;
+  body.gain.value=profile.bodyRatio<.18?.45:.12;
 
-    for (let fi=0; fi<rmsFrames.length; fi++) {
-      const r=rmsFrames[fi];
-      let target;
-      if (r <= openThreshold) target = reduction;
-      else if (r >= fullThreshold) target = 1;
-      else {
-        const t=(r-openThreshold)/(fullThreshold-openThreshold);
-        target=reduction+(1-reduction)*(t*t*(3-2*t));
-      }
-      const coeff = target > smoothGain ? 0.22 : 0.045;
-      smoothGain += (target-smoothGain)*coeff;
-      const start=fi*frame, end=Math.min(start+frame,src.length);
-      for(let i=start;i<end;i++) dst[i]=src[i]*smoothGain;
-    }
-  }
-  return out;
-}
+  const presence=offline.createBiquadFilter();
+  presence.type="peaking";
+  presence.frequency.value=2900;
+  presence.Q.value=.78;
+  presence.gain.value=presenceGain;
 
-async function processWithOfflineAudio(buffer, settings) {
-  const offline = new OfflineAudioContext(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
-  const src = offline.createBufferSource();
-  src.buffer = buffer;
+  const deess=offline.createBiquadFilter();
+  deess.type="highshelf";
+  deess.frequency.value=6200;
+  // V17.1: keep a small negative ceiling so Studio Finish never boosts the
+  // high-frequency tail/noise bed after AI cleanup.
+  deess.gain.value=Math.min(-0.12,deEssGain);
 
-  const hp = offline.createBiquadFilter();
-  hp.type='highpass'; hp.frequency.value=Math.max(55, settings.highpass); hp.Q.value=.7;
+  const comp=offline.createDynamicsCompressor();
+  comp.threshold.value=-15;
+  comp.knee.value=26;
+  comp.ratio.value=1.28;
+  comp.attack.value=.022;
+  comp.release.value=.34;
 
-  const hum50=offline.createBiquadFilter(); hum50.type='notch'; hum50.frequency.value=50; hum50.Q.value=settings.humQ;
-  const hum60=offline.createBiquadFilter(); hum60.type='notch'; hum60.frequency.value=60; hum60.Q.value=settings.humQ;
-  const hum100=offline.createBiquadFilter(); hum100.type='notch'; hum100.frequency.value=100; hum100.Q.value=settings.humQ*.8;
-  const hum120=offline.createBiquadFilter(); hum120.type='notch'; hum120.frequency.value=120; hum120.Q.value=settings.humQ*.8;
+  src
+    .connect(hp)
+    .connect(mud)
+    .connect(body)
+    .connect(presence)
+    .connect(deess)
+    .connect(comp)
+    .connect(offline.destination);
 
-  const presence = offline.createBiquadFilter();
-  presence.type='peaking'; presence.frequency.value=2900; presence.Q.value=.85; presence.gain.value=settings.presence;
-
-  const air = offline.createBiquadFilter();
-  air.type='highshelf'; air.frequency.value=6500; air.gain.value=settings.bright;
-
-  const comp = offline.createDynamicsCompressor();
-  comp.threshold.value=settings.compressorThreshold;
-  comp.knee.value=18;
-  comp.ratio.value=settings.compressorRatio;
-  comp.attack.value=.008;
-  comp.release.value=.20;
-
-  src.connect(hp).connect(hum50).connect(hum60).connect(hum100).connect(hum120).connect(presence).connect(air).connect(comp).connect(offline.destination);
   src.start();
   return await offline.startRendering();
 }
 
-function levelVoiceSmoothly(buffer, targetSpeechDb = -17.5, peakCeilingDb = -1.4) {
-  const frameSize = Math.max(256, Math.floor(buffer.sampleRate * 0.02));
-  const framePowers = [];
+function measureToneProfile(buffer){
+  const mono=mixToMono(buffer);
+  const sr=buffer.sampleRate;
+  const fftSize=2048;
+  const hop=Math.max(fftSize,Math.floor(sr*.18));
+  const maxSamples=Math.min(mono.length,Math.floor(sr*45));
+  const win=new Float64Array(fftSize);
 
-  // Build a mono energy estimate only for level detection.
-  for (let start = 0; start < buffer.length; start += frameSize) {
-    let sum = 0;
-    let count = 0;
-    for (let c = 0; c < buffer.numberOfChannels; c++) {
-      const d = buffer.getChannelData(c);
-      const end = Math.min(start + frameSize, d.length);
-      for (let i = start; i < end; i++) {
-        sum += d[i] * d[i];
-        count++;
-      }
+  for(let i=0;i<fftSize;i++){
+    win[i]=.5-.5*Math.cos(2*Math.PI*i/(fftSize-1));
+  }
+
+  let low=0,body=0,lowMid=0,presence=0,sibilance=0,total=0,frames=0;
+
+  for(let start=0;start+fftSize<=maxSamples;start+=hop){
+    const re=new Float64Array(fftSize);
+    const im=new Float64Array(fftSize);
+    let rms=0;
+
+    for(let i=0;i<fftSize;i++){
+      const v=mono[start+i];
+      rms+=v*v;
+      re[i]=v*win[i];
     }
-    framePowers.push(sum / Math.max(1, count));
+
+    rms=Math.sqrt(rms/fftSize);
+    if(rms<.006)continue;
+
+    fftRadix2Local(re,im);
+
+    for(let k=1;k<fftSize/2;k++){
+      const hz=k*sr/fftSize;
+      const p=re[k]*re[k]+im[k]*im[k];
+      total+=p;
+
+      if(hz>=70&&hz<180)low+=p;
+      if(hz>=180&&hz<500){body+=p;lowMid+=p;}
+      if(hz>=500&&hz<1100)lowMid+=p;
+      if(hz>=2200&&hz<4500)presence+=p;
+      if(hz>=5500&&hz<10000)sibilance+=p;
+    }
+    frames++;
   }
 
-  const rmsFrames = framePowers.map(p => Math.sqrt(Math.max(0, p)));
-  const sorted = [...rmsFrames].sort((a,b) => a-b);
-  const floor = sorted[Math.floor(sorted.length * 0.22)] || 1e-5;
+  total=Math.max(1e-12,total);
+  return {
+    lowRatio:low/total,
+    bodyRatio:body/total,
+    lowMidRatio:lowMid/total,
+    presenceRatio:presence/total,
+    sibilanceRatio:sibilance/total,
+    frames
+  };
+}
 
-  // Treat frames clearly above the measured floor as likely speech/activity.
-  const active = rmsFrames.filter(r => r > Math.max(floor * 3.2, 0.004));
-  const speechRms = active.length
-    ? Math.sqrt(active.reduce((s,r) => s + r*r, 0) / active.length)
-    : Math.sqrt(rmsFrames.reduce((s,r) => s + r*r, 0) / Math.max(1, rmsFrames.length));
+function fftRadix2Local(re,im){
+  const n=re.length;
 
-  const currentDb = 20 * Math.log10(Math.max(1e-8, speechRms));
-  const wantedGain = Math.pow(10, (targetSpeechDb - currentDb) / 20);
-
-  // Never make a cleanup result massively louder just because quiet sections
-  // were suppressed. This was the biggest reason the sample sounded "different"
-  // mostly by volume instead of by cleanup.
-  let gain = Math.max(0.68, Math.min(1.85, wantedGain));
-
-  let peak = 0;
-  for (let c=0; c<buffer.numberOfChannels; c++) {
-    const d = buffer.getChannelData(c);
-    for (let i=0; i<d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  for(let i=1,j=0;i<n;i++){
+    let bit=n>>1;
+    for(;j&bit;bit>>=1)j^=bit;
+    j^=bit;
+    if(i<j){
+      let tr=re[i];re[i]=re[j];re[j]=tr;
+      let ti=im[i];im[i]=im[j];im[j]=ti;
+    }
   }
 
-  const peakCeiling = Math.pow(10, peakCeilingDb / 20);
-  if (peak > 1e-8 && peak * gain > peakCeiling) {
-    gain = peakCeiling / peak;
-  }
+  for(let len=2;len<=n;len<<=1){
+    const angle=-2*Math.PI/len;
+    const wrStep=Math.cos(angle),wiStep=Math.sin(angle);
 
-  // Apply a short cosine fade at the boundaries to avoid clicks after
-  // resampling/processing and use the soft limiter only as a last safety net.
-  const fadeSamples = Math.min(Math.floor(buffer.sampleRate * 0.012), Math.floor(buffer.length / 4));
+    for(let i=0;i<n;i+=len){
+      let wr=1,wi=0;
+      const half=len>>1;
 
-  for (let c=0; c<buffer.numberOfChannels; c++) {
-    const d = buffer.getChannelData(c);
-    for (let i=0; i<d.length; i++) {
-      let edge = 1;
-      if (fadeSamples > 0 && i < fadeSamples) {
-        edge = 0.5 - 0.5 * Math.cos(Math.PI * i / fadeSamples);
-      } else if (fadeSamples > 0 && i >= d.length - fadeSamples) {
-        const j = d.length - 1 - i;
-        edge = 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0,j) / fadeSamples);
+      for(let j=0;j<half;j++){
+        const ur=re[i+j],ui=im[i+j];
+        const vr=re[i+j+half]*wr-im[i+j+half]*wi;
+        const vi=re[i+j+half]*wi+im[i+j+half]*wr;
+
+        re[i+j]=ur+vr;
+        im[i+j]=ui+vi;
+        re[i+j+half]=ur-vr;
+        im[i+j+half]=ui-vi;
+
+        const nwr=wr*wrStep-wi*wiStep;
+        wi=wr*wiStep+wi*wrStep;
+        wr=nwr;
       }
-      d[i] = softLimit(d[i] * gain * edge);
     }
   }
 }
 
-function normalizeAudioBuffer(buffer, targetPeak=.82) {
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+function levelVoiceRms(buffer,targetDb=-17,peakCeilingDb=-1.2){
+  let sum=0,n=0;
+
+  for(let c=0;c<buffer.numberOfChannels;c++){
+    const d=buffer.getChannelData(c);
+    for(let i=0;i<d.length;i+=2){
+      const a=Math.abs(d[i]);
+      if(a>.006){
+        sum+=d[i]*d[i];
+        n++;
+      }
+    }
+  }
+
+  if(!n)return;
+
+  const rms=Math.sqrt(sum/n);
+  const measured=20*Math.log10(Math.max(1e-9,rms));
+  let gainDb=Math.max(-4,Math.min(4,targetDb-measured));
+  let gain=Math.pow(10,gainDb/20);
+
   let peak=0;
   for(let c=0;c<buffer.numberOfChannels;c++){
     const d=buffer.getChannelData(c);
-    for(let i=0;i<d.length;i++) peak=Math.max(peak,Math.abs(d[i]));
+    for(let i=0;i<d.length;i++)peak=Math.max(peak,Math.abs(d[i]));
   }
-  if(peak<1e-6) return;
-  const gain=Math.min(4, targetPeak/peak);
+
+  const ceiling=Math.pow(10,peakCeilingDb/20);
+  if(peak*gain>ceiling)gain=ceiling/Math.max(1e-9,peak);
+
+  const fade=Math.min(Math.floor(buffer.sampleRate*.012),Math.floor(buffer.length/4));
+
   for(let c=0;c<buffer.numberOfChannels;c++){
     const d=buffer.getChannelData(c);
-    for(let i=0;i<d.length;i++) d[i]=softLimit(d[i]*gain);
+
+    for(let i=0;i<d.length;i++){
+      let edge=1;
+      if(fade&&i<fade)edge=.5-.5*Math.cos(Math.PI*i/fade);
+      else if(fade&&i>=d.length-fade){
+        const j=d.length-1-i;
+        edge=.5-.5*Math.cos(Math.PI*Math.max(0,j)/fade);
+      }
+
+      d[i]=Math.max(-.999,Math.min(.999,d[i]*gain*edge));
+    }
   }
 }
 
-function softLimit(x) {
-  if (Math.abs(x) <= .96) return x;
-  const sign=Math.sign(x);
-  const over=Math.abs(x)-.96;
-  return sign*(.96 + .04*Math.tanh(over/.04));
+function analyzeBuffer(buffer){
+  const mono=mixToMono(buffer);
+  const sr=buffer.sampleRate;
+  const maxSamples=Math.min(mono.length,sr*120);
+  const stride=Math.max(1,Math.floor(maxSamples/450000));
+
+  let peak=0,sumSq=0,count=0,clipped=0;
+  const frameSize=Math.max(128,Math.floor(sr*.02));
+  const frames=[];
+
+  for(let start=0;start<maxSamples;start+=frameSize){
+    let fsq=0,fn=0;
+    for(let i=start;i<Math.min(start+frameSize,maxSamples);i+=stride){
+      const x=mono[i],ax=Math.abs(x);
+      peak=Math.max(peak,ax);
+      sumSq+=x*x;
+      if(ax>=.985)clipped++;
+      fsq+=x*x;fn++;count++;
+    }
+    if(fn)frames.push(Math.sqrt(fsq/fn));
+  }
+
+  const rms=Math.sqrt(sumSq/Math.max(1,count));
+  const rmsDb=toDb(rms);
+  const peakDb=toDb(peak);
+  const clipPct=clipped/Math.max(1,count)*100;
+  const sorted=[...frames].sort((a,b)=>a-b);
+  const floor=sorted[Math.floor(sorted.length*.2)]||0;
+  const floorDb=toDb(floor);
+  const crest=peakDb-rmsDb;
+
+  const issues=[];
+  let penalty=0;
+
+  if(clipPct>.08){
+    const high=clipPct>1;
+    issues.push({
+      name:"Clipping / overload",
+      detail:`About ${clipPct.toFixed(2)}% of sampled peaks are near maximum.`,
+      severity:high?"high":"medium",
+      label:high?"High":"Medium"
+    });
+    penalty+=high?22:12;
+  }
+
+  if(rmsDb<-28){
+    const high=rmsDb<-36;
+    issues.push({
+      name:"Voice level is low",
+      detail:`Average level is approximately ${rmsDb.toFixed(1)} dBFS.`,
+      severity:high?"high":"medium",
+      label:high?"High":"Medium"
+    });
+    penalty+=high?16:9;
+  }
+
+  if(floorDb>-38&&crest<19){
+    const high=floorDb>-30;
+    issues.push({
+      name:"Background noise floor",
+      detail:`Quiet sections remain around ${floorDb.toFixed(1)} dBFS.`,
+      severity:high?"high":"medium",
+      label:high?"High":"Medium"
+    });
+    penalty+=high?20:12;
+  }
+
+  const score=Math.max(20,Math.min(98,Math.round(94-penalty)));
+  const summary=issues.length
+    ? `${issues.length} issue${issues.length===1?"":"s"} detected. RIVANI AI will use one focused enhancement path instead of stacking aggressive filters.`
+    : "No major technical fault detected. Clear Voice X will keep the processing path restrained.";
+
+  return {score,issues,rmsDb,peakDb,floorDb,clipPct};
 }
 
-function cloneAudioBuffer(buffer) {
-  const out = new AudioBuffer({length:buffer.length, numberOfChannels:buffer.numberOfChannels, sampleRate:buffer.sampleRate});
-  for(let c=0;c<buffer.numberOfChannels;c++) out.copyToChannel(buffer.getChannelData(c), c);
-  return out;
+function drawWaveform(buffer,canvas){
+  if(!canvas)return;
+  const ctx=canvas.getContext("2d");
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const cssW=canvas.clientWidth||700,cssH=canvas.clientHeight||220;
+  canvas.width=Math.floor(cssW*dpr);
+  canvas.height=Math.floor(cssH*dpr);
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const grad=ctx.createLinearGradient(0,0,cssW,0);
+  grad.addColorStop(0,"#12c9ff");
+  grad.addColorStop(.5,"#4f7dff");
+  grad.addColorStop(1,"#b52cff");
+  ctx.strokeStyle=grad;
+  ctx.lineWidth=1.6;
+  ctx.globalAlpha=.9;
+
+  const mono=mixToMono(buffer),mid=cssH/2;
+  const step=Math.max(1,Math.floor(mono.length/cssW));
+  ctx.beginPath();
+
+  for(let x=0;x<cssW;x++){
+    let min=1,max=-1;
+    const start=x*step;
+
+    for(let i=start;i<Math.min(start+step,mono.length);i++){
+      const v=mono[i];
+      if(v<min)min=v;
+      if(v>max)max=v;
+    }
+
+    ctx.moveTo(x,mid+min*mid*.82);
+    ctx.lineTo(x,mid+max*mid*.82);
+  }
+  ctx.stroke();
 }
 
-function mixToMono(buffer) {
-  const n=buffer.length, ch=buffer.numberOfChannels;
-  const mono=new Float32Array(n);
-  for(let c=0;c<ch;c++){
+function mixToMono(buffer){
+  const mono=new Float32Array(buffer.length);
+  for(let c=0;c<buffer.numberOfChannels;c++){
     const d=buffer.getChannelData(c);
-    for(let i=0;i<n;i++) mono[i]+=d[i]/ch;
+    for(let i=0;i<d.length;i++)mono[i]+=d[i]/buffer.numberOfChannels;
   }
   return mono;
 }
 
-function goertzelPower(data, sr, freq, maxSamples) {
-  const N=Math.min(maxSamples, Math.floor(sr*30), data.length);
-  if(N<64) return 0;
-  const stride=Math.max(1,Math.floor(N/120000));
-  const w=2*Math.PI*freq/sr;
-  const coeff=2*Math.cos(w);
-  let s0=0,s1=0,s2=0,count=0;
-  for(let i=0;i<N;i+=stride){s0=data[i]+coeff*s1-s2;s2=s1;s1=s0;count++;}
-  return (s1*s1+s2*s2-coeff*s1*s2)/Math.max(1,count*count);
+function rebuildFromMono(reference,monoInput){
+  const mono=ensureLength(monoInput,reference.length);
+  const out=new AudioBuffer({
+    length:reference.length,
+    numberOfChannels:reference.numberOfChannels,
+    sampleRate:reference.sampleRate
+  });
+
+  if(reference.numberOfChannels===1){
+    out.copyToChannel(mono,0);
+    return out;
+  }
+
+  const L=reference.getChannelData(0);
+  const R=reference.getChannelData(1);
+  const oL=out.getChannelData(0);
+  const oR=out.getChannelData(1);
+
+  for(let i=0;i<mono.length;i++){
+    const side=(L[i]-R[i])*.025;
+    oL[i]=Math.max(-1,Math.min(1,mono[i]+side));
+    oR[i]=Math.max(-1,Math.min(1,mono[i]-side));
+  }
+
+  for(let c=2;c<reference.numberOfChannels;c++)out.copyToChannel(mono,c);
+  return out;
 }
 
-function bandProxy(data, sr, low, high, maxSamples) {
-  const freqs=[low,(low+high)*.35,(low+high)*.55,(low+high)*.75,high];
-  return freqs.reduce((sum,f)=>sum+goertzelPower(data,sr,f,maxSamples),0);
+async function resampleAudioBuffer(buffer,targetSampleRate){
+  if(buffer.sampleRate===targetSampleRate)return buffer;
+  const length=Math.max(1,Math.ceil(buffer.duration*targetSampleRate));
+  const offline=new OfflineAudioContext(buffer.numberOfChannels,length,targetSampleRate);
+  const src=offline.createBufferSource();
+  src.buffer=buffer;
+  src.connect(offline.destination);
+  src.start();
+  return await offline.startRendering();
 }
 
-function encodeWav(buffer) {
+function validateEnhancedOutput(original, enhanced) {
+  // Catch an accidental original-file export / stale result before the user
+  // downloads it. Compare a sparse mono sample at a common length.
+  const a=mixToMono(original);
+  const b=mixToMono(enhanced);
+  const n=Math.min(a.length,b.length);
+
+  if(n<1000)return;
+
+  const step=Math.max(1,Math.floor(n/120000));
+  let diff=0,energy=0,count=0;
+
+  for(let i=0;i<n;i+=step){
+    const d=a[i]-b[i];
+    diff+=d*d;
+    energy+=a[i]*a[i];
+    count++;
+  }
+
+  const nrms=Math.sqrt(diff/Math.max(1,count)) /
+    Math.max(1e-7,Math.sqrt(energy/Math.max(1,count)));
+
+  // After AI enhancement + finishing + resampling, an exact or near-exact
+  // result indicates a stale/original export path rather than a real repair.
+  if(nrms < 0.00005){
+    throw new Error(
+      "Enhanced output is unexpectedly identical to the original. " +
+      "RIVANI stopped the export instead of giving you a fake processed file. " +
+      "Hard refresh the page and retry."
+    );
+  }
+}
+
+function encodeWav(buffer){
   const channels=buffer.numberOfChannels;
   const sampleRate=buffer.sampleRate;
   const length=buffer.length;
@@ -1219,66 +1225,59 @@ function encodeWav(buffer) {
   const out=new ArrayBuffer(44+length*blockAlign);
   const view=new DataView(out);
   let o=0;
-  const writeStr=s=>{for(let i=0;i<s.length;i++)view.setUint8(o++,s.charCodeAt(i));};
-  writeStr('RIFF'); view.setUint32(o,36+length*blockAlign,true);o+=4;
-  writeStr('WAVE'); writeStr('fmt '); view.setUint32(o,16,true);o+=4;
-  view.setUint16(o,1,true);o+=2; view.setUint16(o,channels,true);o+=2;
-  view.setUint32(o,sampleRate,true);o+=4; view.setUint32(o,sampleRate*blockAlign,true);o+=4;
-  view.setUint16(o,blockAlign,true);o+=2; view.setUint16(o,16,true);o+=2;
-  writeStr('data'); view.setUint32(o,length*blockAlign,true);o+=4;
-  const channelData=Array.from({length:channels},(_,c)=>buffer.getChannelData(c));
+
+  const write=s=>{for(let i=0;i<s.length;i++)view.setUint8(o++,s.charCodeAt(i));};
+  write("RIFF");
+  view.setUint32(o,36+length*blockAlign,true);o+=4;
+  write("WAVE");write("fmt ");
+  view.setUint32(o,16,true);o+=4;
+  view.setUint16(o,1,true);o+=2;
+  view.setUint16(o,channels,true);o+=2;
+  view.setUint32(o,sampleRate,true);o+=4;
+  view.setUint32(o,sampleRate*blockAlign,true);o+=4;
+  view.setUint16(o,blockAlign,true);o+=2;
+  view.setUint16(o,16,true);o+=2;
+  write("data");
+  view.setUint32(o,length*blockAlign,true);o+=4;
+
+  const data=Array.from({length:channels},(_,c)=>buffer.getChannelData(c));
   for(let i=0;i<length;i++){
     for(let c=0;c<channels;c++){
-      const s=Math.max(-1,Math.min(1,channelData[c][i]));
-      view.setInt16(o,s<0?s*0x8000:s*0x7fff,true);o+=2;
+      const s=Math.max(-1,Math.min(1,data[c][i]));
+      view.setInt16(o,s<0?s*0x8000:s*0x7fff,true);
+      o+=2;
     }
   }
+
   return out;
 }
 
-function drawWaveform(buffer, canvas) {
-  if(!canvas) return;
-  const ctx=canvas.getContext('2d');
-  const dpr=Math.min(2,window.devicePixelRatio||1);
-  const cssW=canvas.clientWidth||700, cssH=canvas.clientHeight||220;
-  canvas.width=Math.floor(cssW*dpr); canvas.height=Math.floor(cssH*dpr);
-  ctx.scale(dpr,dpr);
-  ctx.clearRect(0,0,cssW,cssH);
-  const grad=ctx.createLinearGradient(0,0,cssW,0);
-  grad.addColorStop(0,'#12c9ff');grad.addColorStop(.5,'#4f7dff');grad.addColorStop(1,'#b52cff');
-  ctx.strokeStyle=grad;ctx.lineWidth=1.6;ctx.globalAlpha=.9;
-  const mono=mixToMono(buffer);
-  const mid=cssH/2;
-  const step=Math.max(1,Math.floor(mono.length/cssW));
-  ctx.beginPath();
-  for(let x=0;x<cssW;x++){
-    let min=1,max=-1;
-    const start=x*step;
-    for(let i=start;i<Math.min(start+step,mono.length);i++){const v=mono[i];if(v<min)min=v;if(v>max)max=v;}
-    ctx.moveTo(x,mid+min*mid*.82);ctx.lineTo(x,mid+max*mid*.82);
-  }
-  ctx.stroke();
-  ctx.globalAlpha=.2;ctx.strokeStyle='#8ba8ff';ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(cssW,mid);ctx.stroke();
+function ensureLength(value,length){
+  const src=value instanceof Float32Array?value:new Float32Array(value||0);
+  if(src.length===length)return src;
+  const out=new Float32Array(length);
+  out.set(src.subarray(0,Math.min(length,src.length)));
+  return out;
 }
 
-function setProcessingStage(stage) {
-  document.querySelectorAll('#processingStages [data-stage]').forEach(el => {
-    const names = ['scan','noise','voice','level','export'];
-    const current = names.indexOf(stage);
-    const idx = names.indexOf(el.dataset.stage);
-    el.classList.toggle('active', idx === current);
-    el.classList.toggle('done', idx < current);
+function setStage(stage){
+  const order=["upload","model","restore","level","export"];
+  const current=Math.max(0,order.indexOf(stage));
+
+  document.querySelectorAll("#processingStages [data-stage]").forEach(el=>{
+    const idx=order.indexOf(el.dataset.stage);
+    el.classList.toggle("active",idx===current);
+    el.classList.toggle("done",idx<current);
   });
 }
 
 function updateProgress(p,text){
-  $('processingBar').style.width=`${p}%`;
-  $('processingPercent').textContent=`${Math.round(p)}%`;
-  $('processingText').textContent=text;
+  $("processingBar").style.width=`${p}%`;
+  $("processingPercent").textContent=`${Math.round(p)}%`;
+  $("processingText").textContent=text;
 }
-function setEditorLoading(flag){ if(chooseBtn) chooseBtn.disabled=flag; }
+
 function toDb(x){return 20*Math.log10(Math.max(1e-9,x));}
-function formatTime(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+function formatTime(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;}
 function formatBytes(n){if(n<1024*1024)return `${(n/1024).toFixed(0)} KB`;return `${(n/1024/1024).toFixed(1)} MB`;}
-function capitalize(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 function tick(ms=0){return new Promise(r=>setTimeout(r,ms));}
