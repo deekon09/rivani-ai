@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030616">
+  <meta name="description" content="Repair noisy voice recordings in your browser with RIVANI AI Audio Repair Beta.">
+  <title>AI Audio Repair Beta — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css?v=9">
+</head>
+<body class="audio-repair-page">
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
+      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+      <nav class="main-nav" id="mainNav" aria-label="Primary navigation">
+        <a href="index.html">Home</a><a class="active" href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a>
+      </nav>
+      <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="audio-tool-hero section">
+      <div class="container audio-tool-hero-grid">
+        <div class="reveal">
+          <span class="status-pill live-beta">Beta · Local processing</span>
+          <span class="section-kicker">RIVANI AUDIO</span>
+          <h1>Repair bad voice recordings.</h1>
+          <p>Upload a recording, scan common quality problems, choose a repair style, compare before and after, and export the repaired audio.</p>
+          <div class="audio-hero-points">
+            <span>✓ No file upload to RIVANI servers</span>
+            <span>✓ Before / after preview</span>
+            <span>✓ WAV export</span>
+          </div>
+        </div>
+        <div class="audio-health-demo reveal delay-1">
+          <span class="audio-health-label">Audio Health</span>
+          <strong>43<span>/100</span></strong>
+          <div class="health-demo-bar"><i></i></div>
+          <ul><li><b>Fan / room noise</b><span>High</span></li><li><b>Voice level</b><span>Low</span></li><li><b>Rumble</b><span>Detected</span></li></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section audio-workspace-section">
+      <div class="container">
+        <div class="audio-workspace">
+          <div class="audio-upload-zone" id="audioDropZone">
+            <input type="file" id="audioFileInput" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac">
+            <div class="upload-orb">≋</div>
+            <h2>Drop your audio here</h2>
+            <p>or choose a file from your device</p>
+            <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
+            <small>Best in Chrome / Edge / Safari · Browser must be able to decode the selected file.</small>
+          </div>
+
+          <div class="audio-editor hidden" id="audioEditor">
+            <div class="audio-file-top">
+              <div class="audio-file-meta">
+                <div class="file-icon">♫</div>
+                <div><strong id="audioFileName">recording.wav</strong><span id="audioFileDetails">—</span></div>
+              </div>
+              <button class="small-ghost-btn" id="replaceAudioBtn" type="button">Replace file</button>
+            </div>
+
+            <div class="audio-wave-card">
+              <canvas id="waveCanvas" width="1400" height="220" aria-label="Audio waveform"></canvas>
+              <div class="wave-time-row"><span>Original waveform</span><span id="audioDuration">00:00</span></div>
+            </div>
+
+            <div class="audio-analysis-grid">
+              <article class="audio-score-card">
+                <div class="score-ring" id="scoreRing"><strong id="healthScore">--</strong><span>/100</span></div>
+                <div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">We’ll inspect level, clipping, low-frequency rumble, hum and background-floor indicators.</p></div>
+              </article>
+              <div class="audio-issues-card">
+                <div class="audio-card-title"><strong>Detected issues</strong><span id="issueCount">0 found</span></div>
+                <div class="issue-list" id="issueList"><div class="issue-empty">Run the audio scan to see findings.</div></div>
+              </div>
+            </div>
+
+            <div class="audio-actions-center">
+              <button class="btn btn-primary audio-main-action" id="scanAudioBtn" type="button">✦ Scan Audio</button>
+            </div>
+
+            <div class="repair-panel hidden" id="repairPanel">
+              <div class="repair-head">
+                <div><span class="section-kicker">REPAIR STYLE</span><h2>Choose how strong the repair should feel.</h2></div>
+                <span class="local-badge">Runs on this device</span>
+              </div>
+
+              <div class="preset-grid" id="presetGrid">
+                <button class="preset-card active" data-preset="natural" type="button"><span>Natural</span><small>Light cleanup, keeps room tone</small></button>
+                <button class="preset-card" data-preset="clean" type="button"><span>Clean</span><small>Stronger noise control + clearer voice</small></button>
+                <button class="preset-card" data-preset="studio" type="button"><span>Studio</span><small>Tighter dynamics + brighter presence</small></button>
+              </div>
+
+              <div class="strength-row">
+                <label for="repairStrength"><span>Repair strength</span><b id="repairStrengthValue">55%</b></label>
+                <input id="repairStrength" type="range" min="20" max="100" value="55">
+              </div>
+
+              <div class="repair-feature-row">
+                <span><i>✓</i> Rumble reduction</span><span><i>✓</i> Hum control</span><span><i>✓</i> Soft noise gate</span><span><i>✓</i> Voice presence</span><span><i>✓</i> Level normalization</span>
+              </div>
+
+              <button class="btn btn-primary audio-main-action" id="repairAudioBtn" type="button">Repair My Audio →</button>
+            </div>
+
+            <div class="audio-processing hidden" id="audioProcessing">
+              <div class="processing-orb"><span>R</span></div>
+              <h3 id="processingTitle">Repairing your recording…</h3>
+              <p id="processingText">Preparing local audio engine.</p>
+              <div class="processing-bar"><i id="processingBar"></i></div>
+              <span id="processingPercent">0%</span>
+            </div>
+
+            <div class="audio-result hidden" id="audioResult">
+              <div class="result-head">
+                <div><span class="status-pill live-beta">Repair complete</span><h2>Compare the result.</h2><p>The Beta currently uses local signal analysis, filtering, adaptive gating, dynamics and normalization. Neural denoising is the next engine upgrade.</p></div>
+                <div class="result-score"><span>New health</span><strong id="newHealthScore">--</strong></div>
+              </div>
+
+              <div class="compare-grid">
+                <article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio id="beforePlayer" controls></audio></article>
+                <article class="compare-card after"><span>AFTER</span><strong id="afterPresetLabel">Natural repair</strong><audio id="afterPlayer" controls></audio></article>
+              </div>
+
+              <div class="result-actions">
+                <button class="btn btn-primary" id="downloadAudioBtn" type="button">Download repaired WAV ↓</button>
+                <button class="btn btn-secondary" id="tryAgainBtn" type="button">Change repair style</button>
+              </div>
+
+              <div class="repair-disclosure">
+                <strong>Privacy note</strong>
+                <p>This Beta processes the file in your browser. The audio file is not sent to RIVANI’s account API or LUKI AI backend.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="audio-beta-note">
+          <span>Beta engine</span>
+          <p>This first working release focuses on a safe local repair pipeline. It does not yet use DeepFilterNet/RNNoise neural denoising, so difficult traffic, crowd noise and heavy echo can remain. That is the next implementation phase.</p>
+          <a href="article-audio-repair.html">Read the detailed Audio Repair guide →</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div>
+      <div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
+      <div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div>
+      <div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
+    </div>
+    <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
+  </footer>
+
+  <script src="script.js?v=9"></script>
+  <script type="module" src="auth-nav.js?v=9"></script>
+  <script type="module" src="audio-repair.js?v=9"></script>
+</body>
+</html>

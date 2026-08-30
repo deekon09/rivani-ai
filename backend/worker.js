@@ -26,11 +26,14 @@ RIVANI AI BRAND
 - The platform aims to show clear inputs, visible tool status, processing disclosures, previews where useful, and simple exports.
 
 CURRENT TOOL STATUS
-1. AI Audio Repair — flagship, in development.
-   Purpose: improve real-world voice recordings affected by background noise, room echo, hiss, uneven loudness, and difficult phone/laptop microphone audio.
-   Intended workflow: upload supported audio, scan common quality problems, choose a repair style such as Natural/Clean/Studio, preview before/after, export the repaired result.
+1. AI Audio Repair — flagship Beta, currently available.
+   Purpose: improve real-world voice recordings affected by background noise, rumble, hum, uneven loudness, hiss-like floor noise, and difficult phone/laptop microphone audio.
+   Current Beta workflow: upload supported audio, scan common technical problems, choose Natural/Clean/Studio, repair locally in the browser, preview before/after, and export WAV.
+   Current Beta engine: browser-side signal analysis, high-pass filtering, 50/60 Hz hum notches, soft adaptive noise gating, presence EQ, compression and peak normalization. Audio is not sent to the RIVANI account API for this tool.
+   Next engine upgrade: neural speech denoising using DeepFilterNet or RNNoise. Do not claim neural denoising is live yet.
    Useful for: podcasts/interviews, YouTube/Reels voiceovers, lectures/classrooms, phone and voice-note recordings.
    Limits: severely clipped audio may not be recoverable; overlapping speakers can remain difficult; aggressive enhancement can sound unnatural.
+   Tool: audio-repair.html
    Guide: article-audio-repair.html
 
 2. Image Enhancer — planned.
