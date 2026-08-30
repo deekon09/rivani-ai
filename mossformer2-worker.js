@@ -14,8 +14,13 @@ const ORT_VERSION = "1.29.0";
 const ORT_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
 const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 
-const MODEL_URL =
-  "https://huggingface.co/TigreGotico/audiosronnx-mossformer2/resolve/0d91401f480ab971bb26daa108771c5fc9c8cfeb/mossformer2_48k.onnx?download=true";
+const MODEL_PROXY_URL =
+  "https://rivani-models.rivani.workers.dev/mossformer2_48k.onnx";
+
+const MODEL_DIRECT_URL =
+  "https://huggingface.co/TigreGotico/audiosronnx-mossformer2/resolve/main/mossformer2_48k.onnx?download=true";
+
+const MODEL_URLS = [MODEL_PROXY_URL, MODEL_DIRECT_URL];
 
 const MODEL_CACHE = "rivani-clear-voice-models-v16";
 const SR = 48000;
@@ -152,88 +157,176 @@ async function ensureSession() {
 async function loadModelBytes() {
   const cache = "caches" in self ? await caches.open(MODEL_CACHE) : null;
 
+  // Prefer the stable RIVANI proxy cache key so model storage survives source
+  // URL changes.
   if (cache) {
-    const cached = await cache.match(MODEL_URL);
+    const cached = await cache.match(MODEL_PROXY_URL);
     if (cached) {
-      self.postMessage({
-        type:"modelProgress",
-        cached:true,
-        progress:100,
-        text:"MossFormer2 model loaded from browser cache."
-      });
-      return await cached.arrayBuffer();
+      const blob = await cached.blob();
+      if (blob.size > 200 * 1024 * 1024) {
+        self.postMessage({
+          type:"modelProgress",
+          cached:true,
+          progress:100,
+          text:"MossFormer2 model loaded from browser cache."
+        });
+        return await blob.arrayBuffer();
+      }
+      // Bad/partial cache entry: remove it before retrying.
+      try { await cache.delete(MODEL_PROXY_URL); } catch {}
     }
   }
 
-  self.postMessage({
-    type:"modelProgress",
-    cached:false,
-    progress:0,
-    text:"Loading Clear Voice AI model automatically…"
-  });
+  let lastError = null;
 
-  const response = await fetch(MODEL_URL, {mode:"cors", cache:"force-cache"});
-  if (!response.ok) {
-    throw new Error(`AI model download failed (${response.status}).`);
-  }
+  for (let sourceIndex=0; sourceIndex<MODEL_URLS.length; sourceIndex++) {
+    const url = MODEL_URLS[sourceIndex];
+    const sourceName = sourceIndex === 0 ? "RIVANI model proxy" : "direct model source";
 
-  const total = Number(response.headers.get("content-length") || 229126935);
-  const reader = response.body?.getReader();
+    self.postMessage({
+      type:"modelProgress",
+      cached:false,
+      progress:0,
+      text:`Connecting to ${sourceName}…`
+    });
 
-  if (!reader) {
-    const blob = await response.blob();
-    if (cache) {
-      try { await cache.put(MODEL_URL, new Response(blob)); } catch {}
-    }
-    return await blob.arrayBuffer();
-  }
+    try {
+      const response = await fetchWithTimeout(url, 120000);
 
-  const chunks = [];
-  let loaded = 0;
-  let lastReport = 0;
+      if (!response.ok) {
+        throw new Error(`${sourceName} returned HTTP ${response.status}`);
+      }
 
-  while (true) {
-    const {done, value} = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    loaded += value.byteLength;
+      const contentType = response.headers.get("content-type") || "";
+      const total = Number(response.headers.get("content-length") || 229126935);
+      const reader = response.body?.getReader();
 
-    const now = performance.now();
-    if (now - lastReport > 180) {
-      lastReport = now;
-      const pct = Math.max(0, Math.min(99, (loaded / total) * 100));
+      if (!reader) {
+        const blob = await response.blob();
+        validateModelBlob(blob, sourceName, contentType);
+
+        if (cache) {
+          try {
+            await cache.put(
+              MODEL_PROXY_URL,
+              new Response(blob, {
+                headers:{
+                  "content-type":"application/octet-stream",
+                  "content-length":String(blob.size)
+                }
+              })
+            );
+          } catch (error) {
+            console.warn("Browser model cache unavailable:", error);
+          }
+        }
+
+        return await blob.arrayBuffer();
+      }
+
+      const chunks = [];
+      let loaded = 0;
+      let lastReport = 0;
+
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+
+        const now = performance.now();
+        if (now - lastReport > 180) {
+          lastReport = now;
+          const pct = Math.max(0, Math.min(99, (loaded / total) * 100));
+          self.postMessage({
+            type:"modelProgress",
+            cached:false,
+            progress:pct,
+            text:`Loading Clear Voice X model… ${Math.round(pct)}%`
+          });
+        }
+      }
+
+      const blob = new Blob(chunks, {type:"application/octet-stream"});
+      validateModelBlob(blob, sourceName, contentType);
+
+      if (cache) {
+        try {
+          await cache.put(
+            MODEL_PROXY_URL,
+            new Response(blob, {
+              headers:{
+                "content-type":"application/octet-stream",
+                "content-length":String(blob.size)
+              }
+            })
+          );
+        } catch (error) {
+          console.warn("Browser model cache unavailable:", error);
+        }
+      }
+
       self.postMessage({
         type:"modelProgress",
         cached:false,
-        progress:pct,
-        text:`Loading Clear Voice AI model… ${Math.round(pct)}%`
+        progress:100,
+        text:"MossFormer2 AI model ready."
+      });
+
+      return await blob.arrayBuffer();
+    } catch (error) {
+      lastError = error;
+      console.warn(`${sourceName} failed`, error);
+
+      self.postMessage({
+        type:"sourceFailed",
+        source:sourceName,
+        text:`${sourceName} failed: ${String(error?.message || error)}`
       });
     }
   }
 
-  const blob = new Blob(chunks, {type:"application/octet-stream"});
+  throw new Error(
+    `AI model could not be fetched. ${String(lastError?.message || lastError || "")} ` +
+    `Check that https://rivani-models.rivani.workers.dev/health returns OK.`
+  );
+}
 
-  if (cache) {
-    try {
-      await cache.put(
-        MODEL_URL,
-        new Response(blob, {
-          headers:{"content-type":"application/octet-stream"}
-        })
-      );
-    } catch (error) {
-      console.warn("Model cache unavailable:", error);
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      method:"GET",
+      mode:"cors",
+      cache:"no-store",
+      redirect:"follow",
+      signal:controller.signal
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("model request timed out");
     }
+    throw new Error(`network/CORS fetch failed (${String(error?.message || error)})`);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function validateModelBlob(blob, sourceName, contentType) {
+  // Official ONNX is 229,126,935 bytes. Leave margin for source metadata but
+  // reject HTML error pages / LFS pointer files / truncated responses.
+  if (blob.size < 200 * 1024 * 1024) {
+    throw new Error(
+      `${sourceName} returned only ${(blob.size/1024/1024).toFixed(1)} MB ` +
+      `instead of the ~229 MB ONNX model`
+    );
   }
 
-  self.postMessage({
-    type:"modelProgress",
-    cached:false,
-    progress:100,
-    text:"AI model ready."
-  });
-
-  return await blob.arrayBuffer();
+  if (/text\/html|application\/json/i.test(contentType)) {
+    throw new Error(`${sourceName} returned ${contentType} instead of ONNX bytes`);
+  }
 }
 
 // ---------------------------------------------------------------------------

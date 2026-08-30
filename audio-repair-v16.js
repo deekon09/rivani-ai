@@ -177,11 +177,19 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("mossformer2-worker.js?v=16",{type:"module"});
+  worker=new Worker("mossformer2-worker.js?v=16.1",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
     const status=$("clearEngineStatus");
+
+    if(d.type==="sourceFailed"){
+      console.warn(d.text);
+      if(status){
+        status.textContent="Primary model route failed · trying backup…";
+        status.classList.add("engine-error");
+      }
+    }
 
     if(d.type==="modelProgress"){
       if(status){
@@ -322,7 +330,7 @@ async function repairLocally(){
     const detail=String(error?.message||error||"").slice(0,220);
     alert(
       `Clear Voice X could not finish. ${detail}\n\n`+
-      `No lower-quality fallback result was generated. Try Chrome/Edge first; the first run also needs internet for the AI model to load automatically.`
+      `No lower-quality fallback result was generated. If this says model fetch failed, open the RIVANI model-proxy /health URL first and make sure it returns OK.`
     );
   }finally{
     repairBtn.disabled=false;
