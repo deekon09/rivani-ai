@@ -14,3 +14,125 @@ function openLuki(){lukiPanel?.classList.add('open');lukiPanel?.setAttribute('ar
 function closeLuki(){lukiPanel?.classList.remove('open');lukiPanel?.setAttribute('aria-hidden','true');lukiLauncher?.setAttribute('aria-expanded','false')}
 async function lukiAsk(question){const q=String(question||'').trim();if(!q)return;const historyForRequest=lukiHistory.slice(-8);lukiAdd(q,'user');lukiHistory.push({role:'user',content:q});const typing=lukiAdd('LUKI is thinking…','bot','typing');if(lukiInput)lukiInput.disabled=true;const send=lukiForm?.querySelector('button[type="submit"]');if(send)send.disabled=true;try{const response=await fetch(`${LUKI_API_BASE}/api/luki/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:q,history:historyForRequest,context:window.RIVANI_LUKI_CONTEXT||{signedIn:false}})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||'LUKI is temporarily unavailable.');const answer=String(data.answer||'').trim()||lukiFallbackReply(q);typing?.remove();lukiAdd(answer,'bot');lukiHistory.push({role:'assistant',content:answer});if(lukiHistory.length>10)lukiHistory.splice(0,lukiHistory.length-10)}catch(error){typing?.remove();const fallback=lukiFallbackReply(q);lukiAdd(fallback,'bot');lukiHistory.push({role:'assistant',content:fallback});console.warn('LUKI AI fallback:',error?.message||error)}finally{if(lukiInput){lukiInput.disabled=false;lukiInput.focus()}if(send)send.disabled=false}}
 lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')?closeLuki():openLuki());lukiClose?.addEventListener('click',closeLuki);lukiForm?.addEventListener('submit',async e=>{e.preventDefault();const q=lukiInput?.value.trim();if(!q)return;lukiInput.value='';await lukiAsk(q)});lukiQuick?.addEventListener('click',async e=>{const b=e.target.closest('button[data-question]');if(!b)return;openLuki();await lukiAsk(b.dataset.question)});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLuki()});
+
+
+/* ==========================================================
+   RIVANI V20.1 · Global brand text + background pulse
+   Visual only. Does not alter tool processing.
+   ========================================================== */
+(function installRivaniBrandMotion(){
+  const TEXT="RIVANI AI";
+  const SKIP_TAGS=new Set([
+    "SCRIPT","STYLE","NOSCRIPT","TEXTAREA","INPUT","OPTION","CODE","PRE","SVG"
+  ]);
+
+  function ensureBackgroundPulse(){
+    if(document.querySelector(".rivani-bg-pulse-layer"))return;
+
+    const layer=document.createElement("div");
+    layer.className="rivani-bg-pulse-layer";
+    layer.setAttribute("aria-hidden","true");
+    document.body.prepend(layer);
+  }
+
+  function decorateTextNode(node){
+    if(!node || node.nodeType!==Node.TEXT_NODE)return;
+    const value=node.nodeValue||"";
+    if(!value.includes(TEXT))return;
+
+    const parent=node.parentElement;
+    if(!parent || SKIP_TAGS.has(parent.tagName))return;
+    if(parent.closest(".rivani-ai-textfx"))return;
+
+    const pieces=value.split(TEXT);
+    if(pieces.length<2)return;
+
+    const fragment=document.createDocumentFragment();
+
+    pieces.forEach((piece,index)=>{
+      if(piece)fragment.appendChild(document.createTextNode(piece));
+
+      if(index<pieces.length-1){
+        const span=document.createElement("span");
+        span.className="rivani-ai-textfx";
+        span.dataset.rivaniText=TEXT;
+        span.textContent=TEXT;
+        fragment.appendChild(span);
+      }
+    });
+
+    node.replaceWith(fragment);
+  }
+
+  function decorateWithin(root=document.body){
+    if(!root)return;
+
+    if(root.nodeType===Node.TEXT_NODE){
+      decorateTextNode(root);
+      return;
+    }
+
+    if(root.nodeType!==Node.ELEMENT_NODE && root.nodeType!==Node.DOCUMENT_FRAGMENT_NODE){
+      return;
+    }
+
+    if(root.nodeType===Node.ELEMENT_NODE){
+      if(SKIP_TAGS.has(root.tagName))return;
+      if(root.matches?.(".rivani-ai-textfx"))return;
+    }
+
+    const walker=document.createTreeWalker(
+      root,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node){
+          const parent=node.parentElement;
+          if(!parent)return NodeFilter.FILTER_REJECT;
+          if(SKIP_TAGS.has(parent.tagName))return NodeFilter.FILTER_REJECT;
+          if(parent.closest(".rivani-ai-textfx"))return NodeFilter.FILTER_REJECT;
+          return (node.nodeValue||"").includes(TEXT)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT;
+        }
+      }
+    );
+
+    const nodes=[];
+    while(walker.nextNode())nodes.push(walker.currentNode);
+    nodes.forEach(decorateTextNode);
+  }
+
+  function start(){
+    ensureBackgroundPulse();
+    decorateWithin(document.body);
+
+    const observer=new MutationObserver(mutations=>{
+      for(const mutation of mutations){
+        if(mutation.type==="characterData"){
+          decorateTextNode(mutation.target);
+          continue;
+        }
+
+        mutation.addedNodes.forEach(node=>{
+          if(node.nodeType===Node.TEXT_NODE){
+            decorateTextNode(node);
+          }else if(node.nodeType===Node.ELEMENT_NODE){
+            decorateWithin(node);
+          }
+        });
+      }
+    });
+
+    observer.observe(document.body,{
+      subtree:true,
+      childList:true,
+      characterData:true
+    });
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",start,{once:true});
+  }else{
+    start();
+  }
+})();

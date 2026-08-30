@@ -806,3 +806,169 @@
   .pro-specialist-title{display:block}
   .pro-specialist-title small{display:block;text-align:left;margin-top:4px}
 }
+
+
+/* ==========================================================
+   RIVANI V20.1 · Brand shimmer + slow background breathing
+   ========================================================== */
+
+/* Keep background pulse behind all content but inside one stable
+   stacking context so it renders consistently on desktop/mobile. */
+body{
+  isolation:isolate
+}
+
+.rivani-bg-pulse-layer{
+  position:fixed;
+  z-index:-2;
+  pointer-events:none;
+  inset:-18vmax;
+  transform:translate3d(0,0,0) scale(.94);
+  opacity:.11;
+  will-change:transform,opacity;
+  background:
+    radial-gradient(circle at 22% 38%,
+      rgba(18,201,255,.33) 0,
+      rgba(26,102,255,.15) 18%,
+      transparent 44%),
+    radial-gradient(circle at 78% 54%,
+      rgba(123,73,255,.25) 0,
+      rgba(194,41,255,.09) 20%,
+      transparent 46%),
+    radial-gradient(circle at 53% 78%,
+      rgba(33,118,255,.19) 0,
+      transparent 40%);
+  filter:blur(52px);
+  animation:
+    rivaniBackgroundBreath 12s ease-in-out infinite,
+    rivaniBackgroundDrift 24s ease-in-out infinite alternate
+}
+
+@keyframes rivaniBackgroundBreath{
+  0%,100%{
+    opacity:.075;
+    transform:translate3d(0,0,0) scale(.93)
+  }
+  50%{
+    opacity:.155;
+    transform:translate3d(0,-1.2%,0) scale(1.035)
+  }
+}
+@keyframes rivaniBackgroundDrift{
+  0%{background-position:0 0,0 0,0 0}
+  50%{background-position:4vw -3vh,-5vw 3vh,2vw 4vh}
+  100%{background-position:-2vw 4vh,4vw -2vh,-3vw -3vh}
+}
+
+/* Every visible exact "RIVANI AI" phrase keeps its original text color,
+   while a soft cyan/blue/violet highlight slides across it. */
+.rivani-ai-textfx{
+  position:relative;
+  display:inline-block;
+  isolation:isolate;
+  white-space:nowrap;
+  text-shadow:
+    0 0 5px rgba(35,181,255,.08),
+    0 0 12px rgba(90,83,255,.04);
+  animation:rivaniTextBaseGlow 6.4s ease-in-out infinite
+}
+
+.rivani-ai-textfx::after{
+  content:attr(data-rivani-text);
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  color:transparent;
+  -webkit-text-fill-color:transparent;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 4%,
+      rgba(77,215,255,.05) 22%,
+      #72e9ff 42%,
+      #4f8cff 52%,
+      #9e69ff 62%,
+      rgba(194,41,255,.10) 76%,
+      transparent 96%
+    );
+  background-size:240% 100%;
+  background-position:180% 0;
+  -webkit-background-clip:text;
+  background-clip:text;
+  opacity:.18;
+  filter:drop-shadow(0 0 5px rgba(69,190,255,.20));
+  animation:
+    rivaniTextShimmer 5.8s cubic-bezier(.4,0,.2,1) infinite,
+    rivaniTextOverlayGlow 5.8s ease-in-out infinite
+}
+
+@keyframes rivaniTextShimmer{
+  0%,18%{background-position:185% 0}
+  58%{background-position:-65% 0}
+  100%{background-position:-65% 0}
+}
+@keyframes rivaniTextOverlayGlow{
+  0%,15%,100%{opacity:.08}
+  42%{opacity:.82}
+  68%{opacity:.20}
+}
+@keyframes rivaniTextBaseGlow{
+  0%,100%{
+    text-shadow:
+      0 0 4px rgba(35,181,255,.06),
+      0 0 10px rgba(90,83,255,.03)
+  }
+  50%{
+    text-shadow:
+      0 0 7px rgba(35,198,255,.17),
+      0 0 17px rgba(108,67,255,.09)
+  }
+}
+
+/* Brand images outside the live processing/LUKI orb also breathe softly. */
+.footer-brand img,
+.auth-card-head img,
+.dash-side-brand img{
+  transform:translate3d(0,0,0);
+  will-change:filter,transform;
+  animation:rivaniSecondaryLogoAura 7.2s ease-in-out infinite
+}
+@keyframes rivaniSecondaryLogoAura{
+  0%,100%{
+    filter:drop-shadow(0 0 3px rgba(39,174,255,.06));
+    transform:translate3d(0,0,0)
+  }
+  50%{
+    filter:
+      drop-shadow(0 0 9px rgba(54,200,255,.19))
+      drop-shadow(0 0 16px rgba(118,67,255,.08));
+    transform:translate3d(0,-.4px,0)
+  }
+}
+
+/* Existing grid gets a slightly clearer heartbeat without flashing. */
+.grid-overlay{
+  animation:
+    rivaniGridDrift 28s linear infinite,
+    rivaniGridBreathV201 11.5s ease-in-out infinite
+}
+@keyframes rivaniGridBreathV201{
+  0%,100%{opacity:.075}
+  50%{opacity:.145}
+}
+
+/* Accessibility / low-power behavior. */
+@media(prefers-reduced-motion:reduce){
+  .rivani-bg-pulse-layer,
+  .rivani-ai-textfx,
+  .rivani-ai-textfx::after,
+  .footer-brand img,
+  .auth-card-head img,
+  .dash-side-brand img,
+  .grid-overlay{
+    animation:none!important
+  }
+
+  .rivani-bg-pulse-layer{opacity:.08}
+  .rivani-ai-textfx::after{opacity:.18;background-position:50% 0}
+}
