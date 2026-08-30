@@ -1,0 +1,717 @@
+// RIVANI AI V16 - Clear Voice X
+// MossFormer2_SE_48K ONNX in-browser speech enhancement.
+// No server GPU. No RNNoise/DeepFilter stacking. No time-domain dry/wet mix.
+//
+// Reference pipeline reproduced from audiosronnx / ClearerVoice-Studio:
+// 48 kHz, 40 ms Kaldi fbank, 8 ms hop, 60 mels + delta + delta-delta,
+// waveform scale x32768, symmetric Hamming, 1920-point non-centred STFT,
+// ONNX mask [1,T,961], overlap-add ISTFT.
+//
+// The model is fetched automatically and cached by the browser. The user never
+// needs to manually install/download a model file.
+
+const ORT_VERSION = "1.29.0";
+const ORT_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
+const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+
+const MODEL_URL =
+  "https://huggingface.co/TigreGotico/audiosronnx-mossformer2/resolve/0d91401f480ab971bb26daa108771c5fc9c8cfeb/mossformer2_48k.onnx?download=true";
+
+const MODEL_CACHE = "rivani-clear-voice-models-v16";
+const SR = 48000;
+const WIN = 1920;         // 40 ms
+const HOP = 384;          // 8 ms
+const FBANK_FFT = 2048;
+const NUM_MELS = 60;
+const BINS = WIN / 2 + 1; // 961
+const MAX_WAV = 32768.0;
+const EPS32 = 1.1920928955078125e-7;
+
+let ort = null;
+let session = null;
+let provider = null;
+let modelPromise = null;
+let runtimePromise = null;
+let bluestein1920 = null;
+let melFilters = null;
+let symmetricHamming1920 = null;
+
+self.onmessage = async (event) => {
+  const data = event.data || {};
+
+  try {
+    if (data.type === "warmup") {
+      await ensureSession();
+      self.postMessage({type:"ready", provider});
+      return;
+    }
+
+    if (data.type !== "process") return;
+
+    const input = new Float32Array(data.buffer);
+    const strength = Math.max(0.25, Math.min(1, Number(data.strength || 0.85)));
+
+    await ensureSession();
+    self.postMessage({
+      type:"phase",
+      phase:"model",
+      text:`MossFormer2 48K running with ${provider === "webgpu" ? "WebGPU" : "WASM"}…`
+    });
+
+    const started = performance.now();
+    const output = await denoiseLong(input, strength);
+    const elapsedMs = performance.now() - started;
+
+    self.postMessage({
+      type:"done",
+      provider,
+      elapsedMs,
+      buffer:output.buffer
+    }, [output.buffer]);
+  } catch (error) {
+    console.error(error);
+    self.postMessage({
+      type:"error",
+      message:String(error?.message || error || "MossFormer2 failed")
+    });
+  }
+};
+
+async function ensureRuntime() {
+  if (ort) return ort;
+
+  if (!runtimePromise) {
+    runtimePromise = (async () => {
+      self.postMessage({type:"phase", phase:"model", text:"Loading ONNX Runtime…"});
+      const mod = await import(ORT_URL);
+
+      mod.env.wasm.wasmPaths = ORT_WASM_BASE;
+      mod.env.wasm.numThreads =
+        self.crossOriginIsolated
+          ? Math.max(1, Math.min(4, (self.navigator?.hardwareConcurrency || 4) - 1))
+          : 1;
+
+      try {
+        mod.env.webgpu.powerPreference = "high-performance";
+      } catch {}
+
+      ort = mod;
+      return ort;
+    })();
+  }
+
+  return runtimePromise;
+}
+
+async function ensureSession() {
+  if (session) return session;
+  if (modelPromise) return modelPromise;
+
+  modelPromise = (async () => {
+    const runtime = await ensureRuntime();
+    const modelBytes = await loadModelBytes();
+
+    const common = {
+      graphOptimizationLevel:"all",
+      executionMode:"sequential",
+      preferredOutputLocation:"cpu"
+    };
+
+    if (self.navigator?.gpu) {
+      try {
+        self.postMessage({type:"phase", phase:"model", text:"Starting MossFormer2 on WebGPU…"});
+        session = await runtime.InferenceSession.create(modelBytes, {
+          ...common,
+          executionProviders:["webgpu"]
+        });
+        provider = "webgpu";
+        return session;
+      } catch (error) {
+        console.warn("MossFormer2 WebGPU session failed; retrying WASM.", error);
+      }
+    }
+
+    self.postMessage({type:"phase", phase:"model", text:"Starting MossFormer2 with WebAssembly fallback…"});
+    const wasmBytes = modelBytes.byteLength ? modelBytes : await loadModelBytes();
+    session = await runtime.InferenceSession.create(wasmBytes, {
+      ...common,
+      executionProviders:["wasm"]
+    });
+    provider = "wasm";
+    return session;
+  })();
+
+  try {
+    return await modelPromise;
+  } catch (e) {
+    modelPromise = null;
+    throw e;
+  }
+}
+
+async function loadModelBytes() {
+  const cache = "caches" in self ? await caches.open(MODEL_CACHE) : null;
+
+  if (cache) {
+    const cached = await cache.match(MODEL_URL);
+    if (cached) {
+      self.postMessage({
+        type:"modelProgress",
+        cached:true,
+        progress:100,
+        text:"MossFormer2 model loaded from browser cache."
+      });
+      return await cached.arrayBuffer();
+    }
+  }
+
+  self.postMessage({
+    type:"modelProgress",
+    cached:false,
+    progress:0,
+    text:"Loading Clear Voice AI model automatically…"
+  });
+
+  const response = await fetch(MODEL_URL, {mode:"cors", cache:"force-cache"});
+  if (!response.ok) {
+    throw new Error(`AI model download failed (${response.status}).`);
+  }
+
+  const total = Number(response.headers.get("content-length") || 229126935);
+  const reader = response.body?.getReader();
+
+  if (!reader) {
+    const blob = await response.blob();
+    if (cache) {
+      try { await cache.put(MODEL_URL, new Response(blob)); } catch {}
+    }
+    return await blob.arrayBuffer();
+  }
+
+  const chunks = [];
+  let loaded = 0;
+  let lastReport = 0;
+
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.byteLength;
+
+    const now = performance.now();
+    if (now - lastReport > 180) {
+      lastReport = now;
+      const pct = Math.max(0, Math.min(99, (loaded / total) * 100));
+      self.postMessage({
+        type:"modelProgress",
+        cached:false,
+        progress:pct,
+        text:`Loading Clear Voice AI model… ${Math.round(pct)}%`
+      });
+    }
+  }
+
+  const blob = new Blob(chunks, {type:"application/octet-stream"});
+
+  if (cache) {
+    try {
+      await cache.put(
+        MODEL_URL,
+        new Response(blob, {
+          headers:{"content-type":"application/octet-stream"}
+        })
+      );
+    } catch (error) {
+      console.warn("Model cache unavailable:", error);
+    }
+  }
+
+  self.postMessage({
+    type:"modelProgress",
+    cached:false,
+    progress:100,
+    text:"AI model ready."
+  });
+
+  return await blob.arrayBuffer();
+}
+
+// ---------------------------------------------------------------------------
+// MossFormer2 pipeline
+// ---------------------------------------------------------------------------
+
+async function denoiseLong(input, strength) {
+  const x = sanitize(input);
+  if (!x.length) return x;
+
+  prepareDSP();
+
+  // Browser memory is more predictable when every clip is processed as the
+  // official 4 s window / 3 s stride path, even below the upstream 20 s cutoff.
+  const windowSamples = SR * 4;
+  const stride = SR * 3;
+  const giveUp = (windowSamples - stride) >> 1; // 0.5 s
+  const out = new Float32Array(x.length);
+
+  if (x.length <= windowSamples) {
+    const enhanced = await enhanceSegment(x, strength);
+    out.set(enhanced.subarray(0, x.length));
+    return out;
+  }
+
+  const positions = [];
+  for (let pos=0; pos<x.length; pos+=stride) positions.push(pos);
+
+  for (let s=0; s<positions.length; s++) {
+    const pos = positions[s];
+    const valid = Math.min(windowSamples, x.length - pos);
+
+    const seg = new Float32Array(windowSamples);
+    seg.set(x.subarray(pos, pos + valid));
+
+    self.postMessage({
+      type:"segmentProgress",
+      segment:s+1,
+      segments:positions.length,
+      progress:Math.round((s / positions.length) * 100),
+      text:`Enhancing speech segment ${s+1} of ${positions.length}…`
+    });
+
+    const enhanced = await enhanceSegment(seg, strength);
+
+    const keepStart = pos === 0 ? 0 : giveUp;
+    const isLast = pos + windowSamples >= x.length;
+    const keepEnd = isLast ? valid : Math.min(valid, windowSamples - giveUp);
+
+    for (let i=keepStart; i<keepEnd; i++) {
+      const oi = pos + i;
+      if (oi < out.length) out[oi] = enhanced[i];
+    }
+  }
+
+  self.postMessage({
+    type:"segmentProgress",
+    segment:positions.length,
+    segments:positions.length,
+    progress:100,
+    text:"Neural speech cleanup complete."
+  });
+
+  return out;
+}
+
+async function enhanceSegment(input, strength) {
+  const scaled = new Float64Array(input.length);
+  for (let i=0;i<input.length;i++) scaled[i] = input[i] * MAX_WAV;
+
+  const {features, frames} = computeFeatures(scaled);
+  if (!frames) return new Float32Array(input.length);
+
+  const tensor = new ort.Tensor("float32", features, [1, frames, 180]);
+  const feeds = {[session.inputNames[0]]: tensor};
+  const results = await session.run(feeds);
+  const resultTensor = results[session.outputNames[0]];
+  const maskDataRaw = await resultTensor.getData();
+  const mask = maskDataRaw instanceof Float32Array
+    ? maskDataRaw
+    : new Float32Array(maskDataRaw);
+
+  try { resultTensor.dispose?.(); } catch {}
+  try { tensor.dispose?.(); } catch {}
+
+  const enhancedScaled = applyMaskISTFT(scaled, mask, frames, strength);
+  const out = new Float32Array(input.length);
+
+  for (let i=0;i<out.length;i++) {
+    const y = i < enhancedScaled.length ? enhancedScaled[i] / MAX_WAV : 0;
+    out[i] = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+  }
+
+  return out;
+}
+
+function prepareDSP() {
+  if (!symmetricHamming1920) {
+    symmetricHamming1920 = hammingSymmetric(WIN);
+  }
+  if (!melFilters) {
+    melFilters = buildSparseMelFilters(NUM_MELS, FBANK_FFT, SR);
+  }
+  if (!bluestein1920) {
+    bluestein1920 = new BluesteinPlan(WIN);
+  }
+}
+
+function computeFeatures(scaled) {
+  if (scaled.length < WIN) {
+    return {features:new Float32Array(0), frames:0};
+  }
+
+  const frames = 1 + Math.floor((scaled.length - WIN) / HOP);
+  const mels = new Float32Array(frames * NUM_MELS);
+
+  const frame = new Float64Array(FBANK_FFT);
+  const re = new Float64Array(FBANK_FFT);
+  const im = new Float64Array(FBANK_FFT);
+
+  for (let t=0; t<frames; t++) {
+    const start=t*HOP;
+
+    let mean=0;
+    for (let n=0;n<WIN;n++) mean += scaled[start+n];
+    mean /= WIN;
+
+    let prev = scaled[start] - mean;
+    for (let n=0;n<WIN;n++) {
+      const raw = scaled[start+n] - mean;
+      const shifted = n===0 ? raw : prev;
+      const emphasized = raw - 0.97 * shifted;
+      frame[n] = emphasized * symmetricHamming1920[n];
+      prev = raw;
+    }
+    frame.fill(0, WIN);
+
+    re.set(frame);
+    im.fill(0);
+    fftRadix2(re, im, false);
+
+    for (let m=0;m<NUM_MELS;m++) {
+      const filter = melFilters[m];
+      let energy=0;
+      const weights=filter.weights;
+
+      for (let k=0;k<weights.length;k++) {
+        const bin=filter.start+k;
+        const power=re[bin]*re[bin]+im[bin]*im[bin];
+        energy += power * weights[k];
+      }
+
+      mels[t*NUM_MELS+m] = Math.log(Math.max(energy, EPS32));
+    }
+  }
+
+  const d1 = computeDeltas(mels, frames, NUM_MELS);
+  const d2 = computeDeltas(d1, frames, NUM_MELS);
+  const features = new Float32Array(frames * 180);
+
+  for (let t=0;t<frames;t++) {
+    const o=t*180, b=t*NUM_MELS;
+    features.set(mels.subarray(b,b+NUM_MELS), o);
+    features.set(d1.subarray(b,b+NUM_MELS), o+60);
+    features.set(d2.subarray(b,b+NUM_MELS), o+120);
+  }
+
+  return {features, frames};
+}
+
+function applyMaskISTFT(scaled, mask, featureFrames, strength) {
+  const nFrames = Math.min(
+    1 + Math.floor((scaled.length - WIN) / HOP),
+    featureFrames,
+    Math.floor(mask.length / BINS)
+  );
+
+  const outLen = WIN + HOP * Math.max(0, nFrames - 1);
+  const ola = new Float64Array(Math.max(outLen, scaled.length));
+  const winSq = new Float64Array(Math.max(outLen, scaled.length));
+
+  // At default ~85%, gamma is ~1.02: nearly the trained model's native mask.
+  // Low settings relax suppression; 100% is only mildly stronger. No waveform
+  // dry/wet blend is used, so there is no comb-filter / flanging failure mode.
+  const gamma = 0.55 + 0.55 * strength;
+  const maxAttDb = 18 + 30 * strength; // 25.5..48 dB floor
+  const maskFloor = Math.pow(10, -maxAttDb / 20);
+
+  const time = new Float64Array(WIN);
+
+  for (let t=0;t<nFrames;t++) {
+    const start=t*HOP;
+    for (let n=0;n<WIN;n++) {
+      time[n] = scaled[start+n] * symmetricHamming1920[n];
+    }
+
+    const spec = bluestein1920.forwardReal(time);
+    const re = spec.re;
+    const im = spec.im;
+
+    const mo=t*BINS;
+    for (let f=0;f<BINS;f++) {
+      let m=mask[mo+f];
+      if (!Number.isFinite(m)) m=1;
+      m=Math.max(0,Math.min(1.5,m));
+
+      // Preserve any learned >1 boost, shape only attenuation masks below 1.
+      let effective=m;
+      if (m<1) effective=Math.max(maskFloor, Math.pow(m, gamma));
+
+      re[f]*=effective;
+      im[f]*=effective;
+
+      if (f>0 && f<WIN/2) {
+        const mirror=WIN-f;
+        re[mirror]*=effective;
+        im[mirror]*=effective;
+      }
+    }
+
+    const restored = bluestein1920.inverseComplex(re, im);
+
+    for (let n=0;n<WIN;n++) {
+      const idx=start+n;
+      const w=symmetricHamming1920[n];
+      ola[idx] += restored[n] * w;
+      winSq[idx] += w*w;
+    }
+  }
+
+  const result = new Float32Array(scaled.length);
+  for (let i=0;i<result.length;i++) {
+    const denom=winSq[i];
+    result[i] = denom>1e-11 ? ola[i]/denom : 0;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Exact-ish Kaldi front-end helpers
+// ---------------------------------------------------------------------------
+
+function hammingSymmetric(n) {
+  const out=new Float64Array(n);
+  for(let k=0;k<n;k++) out[k]=0.54-0.46*Math.cos(2*Math.PI*k/(n-1));
+  return out;
+}
+
+function hzToMel(freq) {
+  return 1127 * Math.log(1 + freq / 700);
+}
+
+function buildSparseMelFilters(numBins, paddedWindow, sampleRate) {
+  const nyquist=sampleRate/2;
+  const fftBinWidth=sampleRate/paddedWindow;
+  const melLow=hzToMel(20);
+  const melHigh=hzToMel(nyquist);
+  const delta=(melHigh-melLow)/(numBins+1);
+  const filters=[];
+
+  // Kaldi's mel_banks has paddedWindow//2 columns (excludes Nyquist).
+  const freqBins=paddedWindow/2;
+
+  for(let b=0;b<numBins;b++) {
+    const left=melLow+b*delta;
+    const center=melLow+(b+1)*delta;
+    const right=melLow+(b+2)*delta;
+
+    let start=-1,end=-1;
+    const temp=[];
+
+    for(let k=0;k<freqBins;k++) {
+      const mel=hzToMel(fftBinWidth*k);
+      const up=(mel-left)/(center-left);
+      const down=(right-mel)/(right-center);
+      const w=Math.max(0,Math.min(up,down));
+      if(w>0) {
+        if(start<0) start=k;
+        end=k;
+        temp.push([k,w]);
+      }
+    }
+
+    if(start<0) {
+      filters.push({start:0,weights:new Float64Array(0)});
+      continue;
+    }
+
+    const weights=new Float64Array(end-start+1);
+    for(const [k,w] of temp) weights[k-start]=w;
+    filters.push({start,weights});
+  }
+
+  return filters;
+}
+
+function computeDeltas(features, frames, channels) {
+  if (!frames) return new Float32Array(0);
+  const out=new Float32Array(frames*channels);
+  const denom=10; // 2*(1^2+2^2)
+
+  for(let t=0;t<frames;t++) {
+    const tm2=Math.max(0,t-2), tm1=Math.max(0,t-1);
+    const tp1=Math.min(frames-1,t+1), tp2=Math.min(frames-1,t+2);
+
+    for(let c=0;c<channels;c++) {
+      out[t*channels+c] =
+        (
+          (features[tp1*channels+c]-features[tm1*channels+c]) +
+          2*(features[tp2*channels+c]-features[tm2*channels+c])
+        ) / denom;
+    }
+  }
+
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// FFT
+// 2048-point radix-2 for Kaldi fbank.
+// 1920-point Bluestein FFT for exact MossFormer STFT.
+// ---------------------------------------------------------------------------
+
+function fftRadix2(re, im, inverse) {
+  const n=re.length;
+  if ((n & (n-1)) !== 0) throw new Error("radix2 FFT requires power-of-two length");
+
+  for(let i=1,j=0;i<n;i++) {
+    let bit=n>>1;
+    for(;j&bit;bit>>=1) j^=bit;
+    j^=bit;
+    if(i<j) {
+      let tr=re[i];re[i]=re[j];re[j]=tr;
+      let ti=im[i];im[i]=im[j];im[j]=ti;
+    }
+  }
+
+  for(let len=2;len<=n;len<<=1) {
+    const angle=(inverse?2:-2)*Math.PI/len;
+    const wlenR=Math.cos(angle), wlenI=Math.sin(angle);
+
+    for(let i=0;i<n;i+=len) {
+      let wr=1,wi=0;
+      const half=len>>1;
+
+      for(let j=0;j<half;j++) {
+        const uR=re[i+j],uI=im[i+j];
+        const vR=re[i+j+half]*wr-im[i+j+half]*wi;
+        const vI=re[i+j+half]*wi+im[i+j+half]*wr;
+
+        re[i+j]=uR+vR; im[i+j]=uI+vI;
+        re[i+j+half]=uR-vR; im[i+j+half]=uI-vI;
+
+        const nwr=wr*wlenR-wi*wlenI;
+        wi=wr*wlenI+wi*wlenR;
+        wr=nwr;
+      }
+    }
+  }
+
+  if(inverse) {
+    for(let i=0;i<n;i++) {re[i]/=n;im[i]/=n;}
+  }
+}
+
+class BluesteinPlan {
+  constructor(n) {
+    this.n=n;
+    let m=1;
+    while(m<2*n-1)m<<=1;
+    this.m=m;
+
+    this.chirpR=new Float64Array(n);
+    this.chirpI=new Float64Array(n);
+
+    const bR=new Float64Array(m);
+    const bI=new Float64Array(m);
+
+    for(let k=0;k<n;k++) {
+      const angle=Math.PI*((k*k)%(2*n))/n;
+      const c=Math.cos(angle),s=Math.sin(angle);
+      this.chirpR[k]=c;
+      this.chirpI[k]=s;
+
+      bR[k]=c;bI[k]=s;
+      if(k!==0) {
+        bR[m-k]=c;
+        bI[m-k]=s;
+      }
+    }
+
+    fftRadix2(bR,bI,false);
+    this.bFftR=bR;
+    this.bFftI=bI;
+  }
+
+  forwardReal(input) {
+    const n=this.n,m=this.m;
+    const aR=new Float64Array(m);
+    const aI=new Float64Array(m);
+
+    for(let k=0;k<n;k++) {
+      const c=this.chirpR[k],s=this.chirpI[k];
+      const xr=input[k];
+      aR[k]=xr*c;
+      aI[k]=-xr*s;
+    }
+
+    fftRadix2(aR,aI,false);
+
+    for(let i=0;i<m;i++) {
+      const ar=aR[i],ai=aI[i],br=this.bFftR[i],bi=this.bFftI[i];
+      aR[i]=ar*br-ai*bi;
+      aI[i]=ar*bi+ai*br;
+    }
+
+    fftRadix2(aR,aI,true);
+
+    const re=new Float64Array(n);
+    const im=new Float64Array(n);
+    for(let k=0;k<n;k++) {
+      const c=this.chirpR[k],s=this.chirpI[k];
+      const ar=aR[k],ai=aI[k];
+      re[k]=ar*c+ai*s;
+      im[k]=ai*c-ar*s;
+    }
+    return {re,im};
+  }
+
+  forwardComplex(inRe,inIm) {
+    const n=this.n,m=this.m;
+    const aR=new Float64Array(m);
+    const aI=new Float64Array(m);
+
+    for(let k=0;k<n;k++) {
+      const c=this.chirpR[k],s=this.chirpI[k];
+      const xr=inRe[k],xi=inIm[k];
+      aR[k]=xr*c+xi*s;
+      aI[k]=xi*c-xr*s;
+    }
+
+    fftRadix2(aR,aI,false);
+
+    for(let i=0;i<m;i++) {
+      const ar=aR[i],ai=aI[i],br=this.bFftR[i],bi=this.bFftI[i];
+      aR[i]=ar*br-ai*bi;
+      aI[i]=ar*bi+ai*br;
+    }
+
+    fftRadix2(aR,aI,true);
+
+    const re=new Float64Array(n);
+    const im=new Float64Array(n);
+    for(let k=0;k<n;k++) {
+      const c=this.chirpR[k],s=this.chirpI[k];
+      const ar=aR[k],ai=aI[k];
+      re[k]=ar*c+ai*s;
+      im[k]=ai*c-ar*s;
+    }
+    return {re,im};
+  }
+
+  inverseComplex(inRe,inIm) {
+    const n=this.n;
+    const conjIm=new Float64Array(n);
+    for(let i=0;i<n;i++) conjIm[i]=-inIm[i];
+    const y=this.forwardComplex(inRe,conjIm);
+    const out=new Float64Array(n);
+    for(let i=0;i<n;i++) out[i]=y.re[i]/n;
+    return out;
+  }
+}
+
+function sanitize(input) {
+  const out=new Float32Array(input.length);
+  for(let i=0;i<input.length;i++) {
+    const v=input[i];
+    out[i]=Number.isFinite(v)?Math.max(-1,Math.min(1,v)):0;
+  }
+  return out;
+}

@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#030616">
-  <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a LOCAL speech-enhancement engine.">
+  <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a 48K speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=15f">
+  <link rel="stylesheet" href="styles.css?v=16f">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,25 +26,25 @@
     <section class="audio-tool-hero section">
       <div class="container audio-tool-hero-grid">
         <div class="reveal">
-          <span class="status-pill live-beta">Free Local Clear Voice</span>
+          <span class="status-pill live-beta">Clear Voice X Beta</span>
           <span class="section-kicker">RIVANI AUDIO</span>
           <h1>Make the voice the focus.</h1>
-          <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated DeepFilterNet3 speech enhancement running directly on your device, with no RIVANI GPU server charge.</p>
+          <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated Full-band MossFormer2 speech enhancement running directly on your device—built for a more natural, cleaner one-click result.</p>
           <div class="audio-hero-points">
             <span>✓ One clear repair workflow</span>
-            <span>✓ DeepFilterNet3 WebAssembly</span>
+            <span>✓ MossFormer2 48 kHz</span>
             <span>✓ Before / after preview</span>
             <span>✓ WAV export</span>
           </div>
         </div>
         <div class="audio-health-demo reveal delay-1">
-          <span class="audio-health-label">LOCAL AI PATH</span>
-          <strong>AI<span> LOCAL</span></strong>
+          <span class="audio-health-label">CLEAR VOICE X</span>
+          <strong>AI<span> 48K</span></strong>
           <div class="health-demo-bar"><i style="width:82%"></i></div>
           <ul>
-            <li><b>Noise suppression</b><span>DeepFilterNet3</span></li>
-            <li><b>Processing cost</b><span>Your device</span></li>
-            <li><b>Server GPU bill</b><span>None</span></li>
+            <li><b>Speech denoising</b><span>MossFormer2</span></li>
+            <li><b>Processing</b><span>Your device</span></li>
+            <li><b>Voice path</b><span>Full-band 48K</span></li>
           </ul>
         </div>
       </div>
@@ -59,7 +59,7 @@
             <h2>Drop your voice recording here</h2>
             <p>or choose a file from your device</p>
             <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
-            <small>No account is required for processing. The audio stays on your device. First use downloads the DeepFilterNet3 browser model.</small>
+            <small>No manual model install. On first use, the browser automatically loads and caches the Clear Voice X AI model; your recording itself stays on your device.</small>
           </div>
 
           <div class="audio-editor hidden" id="audioEditor">
@@ -94,12 +94,12 @@
             <div class="repair-panel hidden" id="repairPanel">
               <div class="repair-head">
                 <div>
-                  <span class="section-kicker">FREE LOCAL ENGINE</span>
+                  <span class="section-kicker">CLEAR VOICE X ENGINE</span>
                   <h2>One repair. You control how much noise goes.</h2>
-                  <p class="repair-subcopy">Natural / Clean / Studio are no longer separate denoise engines. DeepFilterNet3 always follows one repair path. The slider only controls how strongly noise is reduced.</p>
+                  <p class="repair-subcopy">Natural / Clean / Studio are no longer separate denoise engines. One neural speech-enhancement path. The slider changes mask strength without mixing delayed dry/wet waveforms.</p>
                 </div>
                 <div class="repair-plan-badges">
-                  <span class="gpu-badge">LOCAL AI</span>
+                  <span class="gpu-badge">ON-DEVICE AI</span>
                   <span class="free-badge">FREE BETA</span>
                 </div>
               </div>
@@ -108,40 +108,27 @@
                 <div class="clear-engine-orb"><span>R</span><i></i><i></i></div>
                 <div>
                   <div class="neural-title-row">
-                    <strong>RIVANI Local Clear Voice</strong>
-                    <span class="engine-live" id="clearEngineStatus">DeepFilterNet3 · waiting to load</span>
+                    <strong>RIVANI Clear Voice X</strong>
+                    <span class="engine-live" id="clearEngineStatus">MossFormer2 48K · loads automatically</span>
                   </div>
-                  <p>DeepFilterNet3 runs locally, then RIVANI automatically aligns neural latency before a conservative Artifact Guard blend. This prevents dry/wet phase damage and reduces metallic/choppy voice.</p>
+                  <p>MossFormer2 predicts a full-band speech mask at 48 kHz. RIVANI applies it in the spectral domain, so there is no delayed neural/dry waveform blend that can create comb-filter or phasey artifacts.</p>
                 </div>
               </div>
 
               <div class="clear-control-card">
                 <label for="repairStrength">
-                  <span><b>Noise Removal</b><small>60% is the recommended smooth setting. Higher values remove more noise but can sound less natural.</small></span>
-                  <strong id="repairStrengthValue">60%</strong>
+                  <span><b>Enhancement Strength</b><small>85% is the starting point. Lower keeps more room sound; higher pushes the learned speech mask harder.</small></span>
+                  <strong id="repairStrengthValue">85%</strong>
                 </label>
-                <input id="repairStrength" type="range" min="25" max="100" value="60">
+                <input id="repairStrength" type="range" min="25" max="100" value="85">
                 <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
               </div>
-
-              <div class="voice-finish-block">
-                <div>
-                  <span class="control-title">Voice Finish <em>optional</em></span>
-                  <small>This changes final loudness/presentation—not the denoise engine.</small>
-                </div>
-                <div class="environment-options" id="voiceFinishOptions">
-                  <button type="button" data-finish="natural">Natural</button>
-                  <button type="button" data-finish="broadcast" class="active">Broadcast</button>
-                  <button type="button" data-finish="studio">Studio</button>
-                </div>
-              </div>
-
-              <div class="repair-feature-row">
-                <span><i>✓</i> Neural denoise</span>
-                <span><i>✓</i> Speech restoration</span>
-                <span><i>✓</i> 30s overlap processing</span>
-                <span><i>✓</i> LUFS-style finish</span>
-                <span><i>✓</i> Peak guard</span>
+<div class="repair-feature-row">
+                <span><i>✓</i> MossFormer2 48K</span>
+                <span><i>✓</i> Full-band speech mask</span>
+                <span><i>✓</i> No dry/wet neural mix</span>
+                <span><i>✓</i> Automatic voice level</span>
+                <span><i>✓</i> Peak protection</span>
               </div>
 <button class="btn btn-primary audio-main-action gpu-repair-button" id="repairAudioBtn" type="button">
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
@@ -171,12 +158,12 @@
                   <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
                 </div>
               </div>
-              <span class="processing-kicker">RIVANI LOCAL CLEAR VOICE</span>
+              <span class="processing-kicker">RIVANI CLEAR VOICE X</span>
               <h3 id="processingTitle">Preparing your repair…</h3>
-              <p id="processingText">Preparing the local AI model.</p>
+              <p id="processingText">Preparing MossFormer2 48K.</p>
               <div class="processing-stages" id="processingStages">
                 <span class="active" data-stage="upload">Upload</span>
-                <span data-stage="model">DeepFilter</span>
+                <span data-stage="model">MossFormer</span>
                 <span data-stage="restore">Smooth</span>
                 <span data-stage="level">Finish</span>
                 <span data-stage="export">Result</span>
@@ -190,9 +177,9 @@
                 <div>
                   <span class="status-pill live-beta">Clear Voice complete</span>
                   <h2>Listen before you download.</h2>
-                  <p>The repaired file was created on this device with DeepFilterNet3 and RIVANI’s local finishing. Compare at a similar listening volume and listen for background reduction, consonant clarity and any unnatural artifacts.</p>
+                  <p>The repaired file was created on this device with MossFormerNet3 and RIVANI’s local finishing. Compare at a similar listening volume and listen for background reduction, consonant clarity and any unnatural artifacts.</p>
                 </div>
-                <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">LOCAL</strong></div>
+                <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">48K</strong></div>
               </div>
               <div class="compare-grid">
                 <article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio id="beforePlayer" controls></audio></article>
@@ -204,15 +191,15 @@
               </div>
               <div class="repair-disclosure">
                 <strong>Processing disclosure</strong>
-                <p>Your selected audio is processed locally in this browser. RIVANI does not upload the audio to a GPU processing server in this Free Local build.</p>
+                <p>Your selected recording is processed locally in this browser. The AI model loads automatically from the web and is cached, but the recording is not sent to a RIVANI GPU processing server.</p>
               </div>
             </div>
           </div>
         </div>
 
         <div class="audio-beta-note">
-          <span>Free Local Beta</span>
-          <p>DeepFilterNet3 is for speech noise suppression. Background music and another person speaking over the target voice remain separate-source problems for a future engine.</p>
+          <span>Clear Voice X Beta</span>
+          <p>MossFormerNet3 is for speech noise suppression. Background music and another person speaking over the target voice remain separate-source problems for a future engine.</p>
         </div>
       </div>
     </section>
@@ -239,8 +226,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=15f"></script>
-  <script type="module" src="auth-nav.js?v=15f"></script>
-  <script type="module" src="audio-repair-local.js?v=15"></script>
+  <script src="script.js?v=16f"></script>
+  <script type="module" src="auth-nav.js?v=16f"></script>
+  <script type="module" src="audio-repair-v16.js?v=16"></script>
 </body>
 </html>

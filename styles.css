@@ -245,3 +245,38 @@
   background:linear-gradient(90deg,#0aa6bb,#2d73ff 52%,#8f3dff)!important
 }
 .audio-repair-page .gpu-result-mark{font-size:18px!important;letter-spacing:.8px!important;color:#75e4d1!important}
+
+
+/* ===== RIVANI V16 · Clear Voice X ===== */
+.audio-repair-page .clear-engine-card{
+  border-color:rgba(72,153,255,.30);
+  background:
+    radial-gradient(circle at 5% 10%,rgba(0,196,255,.12),transparent 27%),
+    radial-gradient(circle at 90% 10%,rgba(137,56,255,.10),transparent 30%),
+    linear-gradient(115deg,rgba(6,18,47,.90),rgba(13,8,38,.88));
+}
+.audio-repair-page .clear-engine-orb{
+  background:linear-gradient(145deg,#00a9ed,#4765ff 52%,#9e3cf0);
+  box-shadow:0 0 38px rgba(64,120,255,.25)
+}
+.audio-repair-page .gpu-badge{
+  background:linear-gradient(90deg,rgba(9,165,255,.17),rgba(129,61,255,.17));
+  border-color:rgba(91,162,255,.28);
+  color:#a5e9ff
+}
+.audio-repair-page .clear-control-card{
+  border-color:rgba(75,135,255,.20);
+  background:linear-gradient(180deg,rgba(8,17,43,.75),rgba(5,9,28,.65))
+}
+.audio-repair-page .gpu-repair-button{
+  background:linear-gradient(90deg,#008eff,#5162ff 50%,#a03bff)!important;
+  box-shadow:0 18px 48px rgba(66,83,255,.26)!important
+}
+.audio-repair-page .gpu-result-mark{
+  font-size:18px!important;
+  letter-spacing:1px!important;
+  color:#79ddff!important
+}
+.model-auto-note{
+  margin-top:10px;color:#7d8ba8;font-size:10px;line-height:1.5
+}
