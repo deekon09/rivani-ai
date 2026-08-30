@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Manage your RIVANI AI profile, plan, security and account settings.">
   <title>My Dashboard — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body class="account-dashboard-page dashboard-v2-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -128,7 +128,7 @@
 
               <article class="danger-zone-card">
                 <div class="danger-zone-title"><span>!</span><div><small>DANGER ZONE</small><h3>Delete your RIVANI account</h3></div></div>
-                <p>Deletion uses a 7-day grace period. During the grace period you can cancel the request. The production server-side deletion worker will be connected separately before this feature is enabled for real permanent deletion.</p>
+                <p>Deletion uses a 7-day grace period. After you schedule the request, RIVANI signs you out automatically. You can log back in during the grace period to cancel before the scheduled backend permanently deletes the account.</p>
                 <div id="deletionBanner" class="deletion-banner" hidden></div>
                 <button class="danger-btn" id="openDeleteModal" type="button">Request account deletion</button>
               </article>
@@ -144,7 +144,7 @@
       <button class="account-modal-close" id="closeDeleteModal" type="button" aria-label="Close">×</button>
       <span class="section-kicker danger-kicker">ACCOUNT DELETION</span>
       <h2 id="deleteTitle">Request 7-day account deletion</h2>
-      <p>For safety, you must be signed in and type the exact username shown on your dashboard. A production backend will later perform the final deletion only after the 7-day grace period.</p>
+      <p>For safety, you must be recently signed in and type the exact username shown on your dashboard. After the request is scheduled, you will be signed out automatically. You can log back in within 7 days to cancel it.</p>
       <div class="delete-account-preview"><span class="delete-preview-avatar" id="deleteAvatar">R</span><div><small>ACCOUNT</small><b id="deleteAccountName">RIVANI user</b><span id="deleteAccountEmail">—</span></div></div>
       <div class="auth-field"><label for="deleteUsername">Type your exact username</label><input id="deleteUsername" type="text" autocomplete="off" placeholder="Your username"></div>
       <label class="terms-check" for="deleteAcknowledge"><input id="deleteAcknowledge" type="checkbox"><span>I understand that my Firebase account will be permanently deleted after the 7-day grace period unless I cancel the request first.</span></label>
@@ -156,7 +156,7 @@
 
   <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a></div><div><strong>Account</strong><a href="dashboard.html">Dashboard</a><a href="privacy.html">Privacy</a></div><div><strong>Legal</strong><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Account access secured with Firebase Authentication.</span></div></footer>
 
-  <script src="script.js"></script>
-  <script type="module" src="dashboard.js"></script>
+  <script src="script.js?v=8"></script>
+  <script type="module" src="dashboard.js?v=8"></script>
 </body>
 </html>

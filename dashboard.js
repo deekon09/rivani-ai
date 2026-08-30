@@ -130,8 +130,11 @@ scheduleDeleteBtn?.addEventListener('click', async()=>{
       body:JSON.stringify({ username: expected, acknowledged: true })
     });
     currentDeletionRequest = { requestedAt:data.requestedAt, deleteAt:data.deleteAt, status:'pending' };
-    setDeleteStatus('Deletion scheduled. You have 7 days to cancel.','success');
+    setDeleteStatus('Deletion scheduled. Signing you out for account security…','success');
     renderDeletionState();
+    await authMod.signOut(auth);
+    location.replace('auth.html?mode=login&deletion=scheduled');
+    return;
   } catch (error) {
     if (error.code === 'RECENT_LOGIN_REQUIRED') {
       setDeleteStatus('For security, log out and sign in again, then return here to request deletion.','error');

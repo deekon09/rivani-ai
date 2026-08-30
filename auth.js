@@ -67,7 +67,11 @@ function setMode(nextMode){
   const u = new URL(location.href); u.searchParams.set('mode', mode); history.replaceState({}, '', u);
 }
 
-setMode(new URLSearchParams(location.search).get('mode') === 'signup' ? 'signup' : 'login');
+const initialParams = new URLSearchParams(location.search);
+setMode(initialParams.get('mode') === 'signup' ? 'signup' : 'login');
+if (initialParams.get('deletion') === 'scheduled') {
+  message('Your account deletion request is scheduled. You have 7 days to log back in and cancel it from your dashboard before permanent deletion.', 'warning');
+}
 loginTab?.addEventListener('click',()=>setMode('login'));
 signupTab?.addEventListener('click',()=>setMode('signup'));
 

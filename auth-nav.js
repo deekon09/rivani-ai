@@ -7,6 +7,12 @@ if (configured) {
     const app = appMod.getApps().length ? appMod.getApps()[0] : appMod.initializeApp(firebaseConfig);
     const auth = authMod.getAuth(app);
     authMod.onAuthStateChanged(auth, user => {
+      window.RIVANI_LUKI_CONTEXT = user ? {
+        signedIn: true,
+        username: user.displayName?.trim() || '',
+        email: user.email || '',
+        plan: 'Free'
+      } : { signedIn: false, plan: null };
       const login = document.querySelector('[data-auth-login]');
       const signup = document.querySelector('[data-auth-signup]');
       if (user) {
