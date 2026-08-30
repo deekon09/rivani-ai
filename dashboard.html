@@ -4,52 +4,150 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#030616">
-  <meta name="description" content="Your RIVANI AI account dashboard.">
-  <title>Dashboard — RIVANI AI</title>
+  <meta name="description" content="Manage your RIVANI AI profile, plan, security and account settings.">
+  <title>My Dashboard — RIVANI AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="account-dashboard-page">
+<body class="account-dashboard-page dashboard-v2-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+
   <header class="site-header"><div class="container nav-wrap">
     <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
     <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <nav class="main-nav" id="mainNav" aria-label="Primary navigation"><a href="index.html">Home</a><a href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="articles.html">Articles</a></nav>
-    <div class="nav-account"><a class="nav-cta active" href="dashboard.html">Dashboard</a></div>
+    <div class="nav-account"><a class="nav-cta active" href="dashboard.html">My Account</a></div>
   </div></header>
 
-  <main><section class="dashboard-page section"><div class="container">
-    <div class="dashboard-welcome reveal"><div><span class="section-kicker">MY RIVANI</span><h1>Welcome, <span id="welcomeName">RIVANI user</span>.</h1><p>Manage your profile, current plan and account security from one place.</p></div><button class="dashboard-logout" id="logoutBtn" type="button">Log out</button></div>
+  <main class="account-hub section">
+    <div class="container">
+      <div id="dashboardLoading" class="dashboard-loading">Checking your secure session…</div>
 
-    <div id="dashboardLoading" class="dashboard-loading">Checking your secure session…</div>
-    <div id="dashboardContent" hidden>
-      <div class="account-dashboard-grid">
-        <aside class="profile-card reveal">
-          <div class="profile-avatar" id="profileAvatar">R</div>
-          <h2 id="profileUsername">RIVANI user</h2>
-          <p id="profileEmail">—</p>
-          <span class="verified-pill">Authenticated account</span>
-          <div class="profile-meta"><div><small>Sign-in method</small><b id="profileProvider">—</b></div><div><small>Member since</small><b id="profileCreated">—</b></div><div><small>Last sign in</small><b id="profileLastLogin">—</b></div></div>
-        </aside>
+      <div id="dashboardContent" hidden>
+        <div class="account-hub-shell">
+          <aside class="account-hub-sidebar reveal">
+            <a class="dash-side-brand" href="index.html"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
+            <div class="side-profile-mini">
+              <div class="side-avatar" id="sideAvatar">R</div>
+              <div><strong id="sideUsername">RIVANI user</strong><span id="sideEmail">—</span></div>
+            </div>
 
-        <div class="dashboard-stack">
-          <section class="plan-card reveal delay-1"><div><span class="section-kicker">CURRENT PLAN</span><h2 id="currentPlan">FREE</h2><p>Your account starts on the Free plan. Pro and Premium plan controls will be connected when billing is added.</p></div><div class="plan-badge" id="planBadge">FREE</div></section>
+            <nav class="account-side-nav" aria-label="Dashboard sections">
+              <button class="side-nav-link active" data-target="overviewPanel" type="button"><span>⌂</span>Overview</button>
+              <button class="side-nav-link" data-target="planPanel" type="button"><span>◇</span>My plan</button>
+              <button class="side-nav-link" data-target="profilePanel" type="button"><span>◎</span>Profile</button>
+              <button class="side-nav-link" data-target="securityPanel" type="button"><span>⌾</span>Security</button>
+              <a class="side-nav-link" href="index.html#tools"><span>✦</span>Explore tools</a>
+            </nav>
 
-          <section class="account-details-card reveal delay-2"><div class="card-title-row"><div><span class="section-kicker">PROFILE DETAILS</span><h2>Your account information</h2></div></div><div class="account-detail-grid"><div><small>Username</small><b id="detailUsername">—</b></div><div><small>Email</small><b id="detailEmail">—</b></div><div><small>Account status</small><b class="status-good">Active</b></div><div><small>Plan</small><b id="detailPlan">Free</b></div></div></section>
+            <div class="side-plan-chip"><span>Current plan</span><strong id="sidePlan">FREE</strong></div>
+            <button class="side-logout" id="logoutBtn" type="button">Log out</button>
+          </aside>
 
-          <section class="danger-card reveal delay-3"><div><span class="section-kicker danger-kicker">DANGER ZONE</span><h2>Delete your account</h2><p>RIVANI is designed to use a 7-day grace period before permanent account deletion. You will need to type your exact username and confirm the deletion notice.</p></div><button class="danger-btn" id="openDeleteModal" type="button">Delete account</button><div id="deletionBanner" class="deletion-banner" hidden></div></section>
+          <section class="account-hub-main">
+            <div class="account-topbar reveal">
+              <div><span class="section-kicker">MY RIVANI</span><h1>Hi, <span id="welcomeName">RIVANI user</span>.</h1><p>Your account, plan and security — all in one place.</p></div>
+              <div class="account-status-pill"><i></i><span>Account active</span></div>
+            </div>
+
+            <section class="dashboard-panel active" id="overviewPanel">
+              <div class="overview-stat-grid">
+                <article class="overview-stat-card reveal delay-1"><span>PLAN</span><strong id="overviewPlan">FREE</strong><small>Your current RIVANI plan</small></article>
+                <article class="overview-stat-card reveal delay-1"><span>ACCOUNT</span><strong>ACTIVE</strong><small>Firebase authentication verified</small></article>
+                <article class="overview-stat-card reveal delay-2"><span>SIGN IN</span><strong id="overviewProvider">—</strong><small>Primary authentication method</small></article>
+                <article class="overview-stat-card reveal delay-2"><span>TOOLS</span><strong>READY</strong><small>Explore the RIVANI toolkit</small></article>
+              </div>
+
+              <div class="dashboard-two-col">
+                <article class="premium-plan-card reveal delay-2">
+                  <div class="plan-glow"></div>
+                  <div class="plan-card-copy"><span class="section-kicker">CURRENT PLAN</span><h2 id="currentPlan">FREE</h2><p>You are currently on the Free plan. Pro and Premium will appear here automatically when billing and plan management are connected.</p><div class="plan-feature-row"><span>✓ Account access</span><span>✓ RIVANI tools</span><span>✓ Secure sign-in</span></div></div>
+                  <div class="plan-orb"><span id="planBadge">FREE</span><small>PLAN</small></div>
+                </article>
+
+                <article class="quick-tools-card reveal delay-3">
+                  <div class="dash-card-head"><div><span class="section-kicker">QUICK ACCESS</span><h2>Jump back into tools</h2></div><a href="index.html#tools">View all</a></div>
+                  <div class="quick-tool-list">
+                    <a href="article-audio-repair.html"><span class="qt-icon">◉</span><span><b>AI Audio Repair</b><small>Clean and repair recordings</small></span><i>→</i></a>
+                    <a href="article-image-enhancer.html"><span class="qt-icon">✦</span><span><b>Image Enhancer</b><small>Improve image quality</small></span><i>→</i></a>
+                    <a href="article-pdf-assistant.html"><span class="qt-icon">▤</span><span><b>PDF Assistant</b><small>Understand documents faster</small></span><i>→</i></a>
+                  </div>
+                </article>
+              </div>
+
+              <article class="account-summary-card reveal delay-3">
+                <div class="dash-card-head"><div><span class="section-kicker">ACCOUNT SUMMARY</span><h2>Your RIVANI profile</h2></div><button class="text-action" type="button" data-target="profilePanel">View profile</button></div>
+                <div class="account-summary-grid">
+                  <div><small>USERNAME</small><b id="summaryUsername">—</b></div>
+                  <div><small>EMAIL</small><b id="summaryEmail">—</b></div>
+                  <div><small>MEMBER SINCE</small><b id="summaryCreated">—</b></div>
+                  <div><small>LAST SIGN IN</small><b id="summaryLastLogin">—</b></div>
+                </div>
+              </article>
+            </section>
+
+            <section class="dashboard-panel" id="planPanel" hidden>
+              <div class="panel-heading"><span class="section-kicker">MY PLAN</span><h2>Plan & membership</h2><p>Your current plan is linked to this RIVANI account. Billing is not connected yet, so all new accounts remain on Free.</p></div>
+              <div class="membership-current-card">
+                <div><span class="membership-label">ACTIVE PLAN</span><h3 id="planPanelName">FREE</h3><p>No payment method is required for your current plan.</p></div><div class="membership-mark">FREE</div>
+              </div>
+              <div class="future-plan-grid">
+                <article><span>FREE</span><h3>Free</h3><p>Current starter access for RIVANI accounts.</p><b>Active now</b></article>
+                <article class="future"><span>PRO</span><h3>Pro</h3><p>Future upgrade tier for higher usage and advanced tools.</p><b>Coming later</b></article>
+                <article class="future premium"><span>PREMIUM</span><h3>Premium</h3><p>Future highest tier for expanded limits and premium features.</p><b>Coming later</b></article>
+              </div>
+              <div class="info-note"><strong>No billing is active yet.</strong><span>We will connect real plan limits and payments separately before Pro or Premium can be purchased.</span></div>
+            </section>
+
+            <section class="dashboard-panel" id="profilePanel" hidden>
+              <div class="panel-heading"><span class="section-kicker">PROFILE</span><h2>Profile details</h2><p>These details come from your authenticated RIVANI account.</p></div>
+              <div class="profile-detail-layout">
+                <article class="large-profile-card">
+                  <div class="profile-avatar large" id="profileAvatar">R</div>
+                  <h3 id="profileUsername">RIVANI user</h3><p id="profileEmail">—</p>
+                  <span class="verified-pill">Authenticated account</span>
+                </article>
+                <article class="profile-data-card">
+                  <div><small>Username</small><b id="detailUsername">—</b></div>
+                  <div><small>Email address</small><b id="detailEmail">—</b></div>
+                  <div><small>Sign-in method</small><b id="profileProvider">—</b></div>
+                  <div><small>Account status</small><b class="status-good">Active</b></div>
+                  <div><small>Member since</small><b id="profileCreated">—</b></div>
+                  <div><small>Last sign in</small><b id="profileLastLogin">—</b></div>
+                </article>
+              </div>
+              <div class="profile-note">Username editing will be added later with server-side uniqueness checks, so nobody can claim a username that already belongs to another RIVANI account.</div>
+            </section>
+
+            <section class="dashboard-panel" id="securityPanel" hidden>
+              <div class="panel-heading"><span class="section-kicker">SECURITY</span><h2>Security & account control</h2><p>Manage sign-in information and sensitive account actions here.</p></div>
+
+              <div class="security-grid">
+                <article class="security-card"><span class="security-icon">✓</span><div><small>EMAIL STATUS</small><h3 id="emailVerification">Checking…</h3><p id="emailVerificationCopy">Your authentication status is being checked.</p></div></article>
+                <article class="security-card"><span class="security-icon">⌾</span><div><small>SIGN-IN METHOD</small><h3 id="securityProvider">—</h3><p>Used to securely access your RIVANI account.</p></div></article>
+              </div>
+
+              <article class="danger-zone-card">
+                <div class="danger-zone-title"><span>!</span><div><small>DANGER ZONE</small><h3>Delete your RIVANI account</h3></div></div>
+                <p>Deletion uses a 7-day grace period. During the grace period you can cancel the request. The production server-side deletion worker will be connected separately before this feature is enabled for real permanent deletion.</p>
+                <div id="deletionBanner" class="deletion-banner" hidden></div>
+                <button class="danger-btn" id="openDeleteModal" type="button">Request account deletion</button>
+              </article>
+            </section>
+          </section>
         </div>
       </div>
     </div>
-  </div></section></main>
+  </main>
 
   <div class="account-modal" id="deleteModal" aria-hidden="true">
     <div class="account-modal-card" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
       <button class="account-modal-close" id="closeDeleteModal" type="button" aria-label="Close">×</button>
       <span class="section-kicker danger-kicker">ACCOUNT DELETION</span>
-      <h2 id="deleteTitle">Start a 7-day deletion request</h2>
-      <p>Type your exact username below. This development build records the grace-period request in the browser; automatic server-side Firebase deletion will be connected in the backend step before production launch.</p>
-      <div class="auth-field"><label for="deleteUsername">Confirm username</label><input id="deleteUsername" type="text" autocomplete="off" placeholder="Type your exact username"></div>
-      <label class="terms-check" for="deleteAcknowledge"><input id="deleteAcknowledge" type="checkbox"><span>I understand that the final production flow will permanently delete my account after the 7-day grace period unless I cancel the request.</span></label>
+      <h2 id="deleteTitle">Request 7-day account deletion</h2>
+      <p>For safety, you must be signed in and type the exact username shown on your dashboard. A production backend will later perform the final deletion only after the 7-day grace period.</p>
+      <div class="delete-account-preview"><span class="delete-preview-avatar" id="deleteAvatar">R</span><div><small>ACCOUNT</small><b id="deleteAccountName">RIVANI user</b><span id="deleteAccountEmail">—</span></div></div>
+      <div class="auth-field"><label for="deleteUsername">Type your exact username</label><input id="deleteUsername" type="text" autocomplete="off" placeholder="Your username"></div>
+      <label class="terms-check" for="deleteAcknowledge"><input id="deleteAcknowledge" type="checkbox"><span>I understand that permanent deletion is intended to happen after 7 days unless I cancel the request.</span></label>
       <div class="auth-status" id="deleteStatus" aria-live="polite"></div>
       <button class="danger-btn full" id="scheduleDeleteBtn" type="button">Start 7-day deletion request</button>
       <button class="cancel-delete-btn" id="cancelDeleteRequest" type="button" hidden>Cancel deletion request</button>
