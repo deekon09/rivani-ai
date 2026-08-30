@@ -95,9 +95,11 @@ async function ensureRuntime() {
       const mod = await import(ORT_URL);
 
       mod.env.wasm.wasmPaths = ORT_WASM_BASE;
+      const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
+
       mod.env.wasm.numThreads =
         self.crossOriginIsolated
-          ? Math.max(1, Math.min(4, (self.navigator?.hardwareConcurrency || 4) - 1))
+          ? (cores>=12?5:cores>=8?4:cores>=6?3:cores>=4?2:1)
           : 1;
 
       ort = mod;

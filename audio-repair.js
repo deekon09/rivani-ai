@@ -78,6 +78,12 @@ let micAudioContext=null;
 let micAnalyser=null;
 let micLevelRaf=0;
 
+const rivaniDeviceProfile=detectRivaniDeviceProfile();
+document.body.classList.toggle(
+  "rivani-low-power-device",
+  rivaniDeviceProfile.lowPower
+);
+
 function normalizePlan(value){
   return String(value||"free").trim().toLowerCase();
 }
@@ -88,6 +94,59 @@ function getAudioPlan(){
 
 function isProPlan(){
   return currentAudioPlan==="pro";
+}
+
+function detectRivaniDeviceProfile(){
+  const cores=Math.max(1,Number(navigator.hardwareConcurrency)||4);
+  const memory=Number(navigator.deviceMemory)||0;
+  const ua=navigator.userAgent||"";
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const lowPower=mobile||cores<=4||(memory>0&&memory<=4);
+
+  return {
+    cores,
+    memory,
+    mobile,
+    lowPower,
+    preferWebGPU:Boolean(navigator.gpu)&&!mobile&&cores>=6&&(memory===0||memory>=6)
+  };
+}
+
+function setProcessingPerformanceMode(active){
+  document.body.classList.toggle("rivani-processing-performance",Boolean(active));
+}
+
+function releaseSpeakerWorker(){
+  if(!speakerWorker)return;
+  try{speakerWorker.terminate();}catch{}
+  speakerWorker=null;
+}
+
+function releaseMusicWorker(){
+  if(!musicWorker)return;
+  try{musicWorker.terminate();}catch{}
+  musicWorker=null;
+}
+
+function releaseDereverbWorker(){
+  if(!dereverbWorker)return;
+  try{dereverbWorker.terminate();}catch{}
+  dereverbWorker=null;
+}
+
+function releaseInactiveSpecialistWorkers(){
+  if(!backgroundVoicesEnabled)releaseSpeakerWorker();
+  if(!musicControlEnabled)releaseMusicWorker();
+  if(!dereverbEnabled)releaseDereverbWorker();
+}
+
+function releaseSpecialistsForLowPowerDevice(){
+  if(!rivaniDeviceProfile.lowPower)return;
+  // Large ONNX sessions are released after each job on weaker/mobile devices.
+  // Cached model bytes remain in Cache Storage, so they are not re-downloaded.
+  releaseSpeakerWorker();
+  releaseMusicWorker();
+  releaseDereverbWorker();
 }
 
 function todayKey(){
@@ -288,11 +347,32 @@ document.querySelectorAll("[data-pro-lock]").forEach(btn=>{
 document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const feature=btn.dataset.specialistEngine||"Specialist AI";
+
     if(audioTestingMode){
-      if(feature==="Background Voices"){backgroundVoicesEnabled=!backgroundVoicesEnabled;renderSpecialistControls();if(backgroundVoicesEnabled)warmupBackgroundVoices();return;}
-      if(feature==="Music Control"){musicControlEnabled=!musicControlEnabled;renderSpecialistControls();if(musicControlEnabled)warmupMusicControl();return;}
-      if(feature==="De-Reverb"){dereverbEnabled=!dereverbEnabled;renderSpecialistControls();return;}
+      if(feature==="Background Voices"){
+        backgroundVoicesEnabled=!backgroundVoicesEnabled;
+        if(backgroundVoicesEnabled)warmupBackgroundVoices();
+        else releaseSpeakerWorker();
+        renderSpecialistControls();
+        return;
+      }
+
+      if(feature==="Music Control"){
+        musicControlEnabled=!musicControlEnabled;
+        if(musicControlEnabled)warmupMusicControl();
+        else releaseMusicWorker();
+        renderSpecialistControls();
+        return;
+      }
+
+      if(feature==="De-Reverb"){
+        dereverbEnabled=!dereverbEnabled;
+        if(!dereverbEnabled)releaseDereverbWorker();
+        renderSpecialistControls();
+        return;
+      }
     }
+
     openProMessage(`${feature} · Pro AI`,`${feature} is a specialist RIVANI audio feature.`);
   });
 });
@@ -545,7 +625,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=22");
+    const worker=new Worker("mp3-export-worker.js?v=23");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -713,7 +793,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=22",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -799,6 +879,10 @@ async function repairLocally(){
   }
 
   repairBtn.disabled=true;
+
+  // Performance Mode changes only decorative rendering, never audio quality.
+  setProcessingPerformanceMode(true);
+
   repairPanel.classList.add("hidden");
   result.classList.add("hidden");
   processing.classList.remove("hidden");
@@ -810,25 +894,121 @@ async function repairLocally(){
 
     const buffer48=await resampleAudioBuffer(sourceBuffer,48000);
     let mono=mixToMono(buffer48);
-    const activeSpecialists=[musicControlEnabled?"music":null,backgroundVoicesEnabled?"voices":null,dereverbEnabled?"dereverb":null].filter(Boolean);
-    const preStart=5,preEnd=48,slice=activeSpecialists.length?(preEnd-preStart)/activeSpecialists.length:0;let specialistIndex=0;
+
+    const activeSpecialists=[
+      musicControlEnabled?"music":null,
+      backgroundVoicesEnabled?"voices":null,
+      dereverbEnabled?"dereverb":null
+    ].filter(Boolean);
+
+    const preStart=5;
+    const preEnd=48;
+    const slice=activeSpecialists.length
+      ?(preEnd-preStart)/activeSpecialists.length
+      :0;
+    let specialistIndex=0;
+
     if(musicControlEnabled){
-      const a=preStart+slice*specialistIndex++,b=a+slice;setStage("model");updateProgress(Math.round(a),"Music Control Beta is separating voice from background music…");
-      const b441=await resampleAudioBuffer(sourceBuffer,44100);const st=getStereoChannels(b441);
-      const vocals=await runMusicControlBeta(st.left,st.right,musicRemoval,(p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t));
-      mono=resampleMonoLinear(vocals,44100,48000);updateProgress(Math.round(b),"Music separation ready.");
+      const a=preStart+slice*specialistIndex++;
+      const b=a+slice;
+      setStage("model");
+      updateProgress(Math.round(a),"Music Control Beta is separating voice from background music…");
+
+      const b441=await resampleAudioBuffer(sourceBuffer,44100);
+      const st=getStereoChannels(b441);
+      const musicResult=await runMusicControlBeta(
+        st.left,
+        st.right,
+        musicRemoval,
+        (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
+      );
+
+      mono=resampleMonoLinear(musicResult.audio,44100,48000);
+      const musicState=$("musicControlState");
+      if(musicState){
+        musicState.textContent=musicResult.safetyFallback
+          ?"BETA ON · SAFE"
+          :"BETA ON";
+      }
+      updateProgress(
+        Math.round(b),
+        musicResult.safetyFallback
+          ?"Music model became too aggressive — speech-preservation guard protected the voice."
+          :"Music separation ready with speech protection."
+      );
     }
+
     if(backgroundVoicesEnabled){
-      const a=preStart+slice*specialistIndex++,b=a+slice;setStage("model");updateProgress(Math.round(a),"Background Voices Beta is separating overlapping speakers…");
-      const mono16=resampleMonoLinear(mono,48000,16000);const sep=await runBackgroundVoicesBeta(mono16,speakerMode,(p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t));
-      mono=resampleMonoLinear(sep.audio,16000,48000);const state=$("backgroundVoicesState");if(state&&speakerMode==="auto")state.textContent=`BETA ON · ${sep.selected}`;updateProgress(Math.round(b),`${sep.selected} isolated.`);
+      const a=preStart+slice*specialistIndex++;
+      const b=a+slice;
+      setStage("model");
+      updateProgress(Math.round(a),"Background Voices Beta is checking for overlapping speakers…");
+
+      const preSpeaker48=new Float32Array(mono);
+      const mono16=resampleMonoLinear(mono,48000,16000);
+      const sep=await runBackgroundVoicesBeta(
+        mono16,
+        speakerMode,
+        (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
+      );
+
+      if(sep.applied){
+        const sep48=resampleMonoLinear(sep.audio,16000,48000);
+        mono=restoreSeparatedSpeechAir(sep48,preSpeaker48);
+      }else{
+        mono=preSpeaker48;
+      }
+
+      const state=$("backgroundVoicesState");
+      if(state){
+        state.textContent=sep.applied
+          ?`BETA ON · ${sep.selected}`
+          :"BETA ON · SAFE PASS";
+      }
+
+      updateProgress(
+        Math.round(b),
+        sep.applied
+          ?`${sep.selected} isolated with voice-detail protection.`
+          :"No reliable second speaker detected — original voice path preserved."
+      );
     }
+
     if(dereverbEnabled){
-      const a=preStart+slice*specialistIndex++,b=a+slice;setStage("model");updateProgress(Math.round(a),"De-Reverb Beta is analyzing room reflections…");
-      mono=await runDereverbBeta(mono,dereverbStrength,(p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t));updateProgress(Math.round(b),"Room-reflection cleanup ready.");
+      const a=preStart+slice*specialistIndex++;
+      const b=a+slice;
+      setStage("model");
+      updateProgress(Math.round(a),"De-Reverb Beta is analyzing room reflections…");
+      mono=await runDereverbBeta(
+        mono,
+        dereverbStrength,
+        (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
+      );
+      updateProgress(Math.round(b),"Room-reflection cleanup ready.");
     }
-    const clearStart=activeSpecialists.length?50:8;setStage("model");updateProgress(clearStart,"Starting RIVANI AI Clear Voice…");
-    const enhanced=await runMossFormer(mono,Number(strength.value)/100,(p,text,providerName)=>{activeProvider=providerName||activeProvider;const mapped=clearStart+Math.round(Number(p||0)*((80-clearStart)/100));updateProgress(Math.min(80,mapped),text);});
+
+    const clearStart=activeSpecialists.length?50:8;
+    setStage("model");
+    updateProgress(clearStart,"Starting RIVANI AI Clear Voice…");
+
+    // Fan/Traffic already receive one restrained post-model cleanup pass.
+    // When a source-separation stage is active, avoid a second aggressive
+    // attenuation inside the neural mask path.
+    const separationSpecialistActive=musicControlEnabled||backgroundVoicesEnabled;
+
+    const enhanced=await runMossFormer(
+      mono,
+      Number(strength.value)/100,
+      (p,text,providerName)=>{
+        activeProvider=providerName||activeProvider;
+        const mapped=clearStart+Math.round(Number(p||0)*((80-clearStart)/100));
+        updateProgress(Math.min(80,mapped),text);
+      },
+      {
+        fanAssist:separationSpecialistActive?false:fanAssist,
+        trafficAssist:separationSpecialistActive?false:trafficAssist
+      }
+    );
 
     setStage("restore");
     updateProgress(82,"Applying transparent voice finishing—no dry/wet neural blend…");
@@ -916,13 +1096,16 @@ async function repairLocally(){
     alert(`${activeNames.join(" / ")} could not finish. ${detail}\n\n`+`No fake fallback was generated. If a specialist model route says unavailable, deploy the included V22 rivani-models Worker update and retry.`);
   }finally{
     repairBtn.disabled=false;
+    setProcessingPerformanceMode(false);
+    releaseInactiveSpecialistWorkers();
+    releaseSpecialistsForLowPowerDevice();
   }
 }
 
 function getDereverbWorker(){
   if(dereverbWorker)return dereverbWorker;
 
-  dereverbWorker=new Worker("dereverb-worker.js?v=22");
+  dereverbWorker=new Worker("dereverb-worker.js?v=23");
   return dereverbWorker;
 }
 
@@ -978,14 +1161,203 @@ function getStereoChannels(buffer){
 function resampleMonoLinear(input,fromRate,toRate){
   if(fromRate===toRate)return new Float32Array(input);if(!input.length)return new Float32Array();const len=Math.max(1,Math.round(input.length*toRate/fromRate)),out=new Float32Array(len),ratio=fromRate/toRate;for(let i=0;i<len;i++){const pos=i*ratio,a=Math.floor(pos),b=Math.min(input.length-1,a+1),t=pos-a;out[i]=(input[a]||0)*(1-t)+(input[b]||0)*t;}return out;
 }
-function getSpeakerWorker(){if(!speakerWorker)speakerWorker=new Worker("speaker-separation-worker.js?v=22",{type:"module"});return speakerWorker;}
-function getMusicWorker(){if(!musicWorker)musicWorker=new Worker("music-separation-worker.js?v=22",{type:"module"});return musicWorker;}
-function warmupBackgroundVoices(){const state=$("backgroundVoicesState"),w=getSpeakerWorker();if(state)state.textContent="PREPARING…";const listener=e=>{const d=e.data||{};if(d.type==="ready"||d.type==="error"){w.removeEventListener("message",listener);if(state)state.textContent=d.type==="ready"?(backgroundVoicesEnabled?"BETA ON":"BETA OFF"):"RETRY";}};w.addEventListener("message",listener);w.postMessage({type:"warmup"});}
-function warmupMusicControl(){const state=$("musicControlState"),w=getMusicWorker();if(state)state.textContent="PREPARING…";const listener=e=>{const d=e.data||{};if(d.type==="ready"||d.type==="error"){w.removeEventListener("message",listener);if(state)state.textContent=d.type==="ready"?(musicControlEnabled?"BETA ON":"BETA OFF"):"RETRY";}};w.addEventListener("message",listener);w.postMessage({type:"warmup"});}
-async function runBackgroundVoicesBeta(mono16,mode,onProgress){const w=getSpeakerWorker(),copy=new Float32Array(mono16);return await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{w.removeEventListener("message",listener);reject(new Error("Background Voices Beta timed out."));},360000);const listener=e=>{const d=e.data||{};if(d.type==="modelProgress"||d.type==="progress"){onProgress?.(Number(d.progress||0),d.text||"Separating speakers…");return;}if(d.type==="error"){clearTimeout(timeout);w.removeEventListener("message",listener);reject(new Error(d.message||"Background Voices Beta failed."));return;}if(d.type==="done"){clearTimeout(timeout);w.removeEventListener("message",listener);resolve({audio:new Float32Array(d.buffer),selected:d.selected||"VOICE A",energyA:Number(d.energyA||0),energyB:Number(d.energyB||0)});}};w.addEventListener("message",listener);w.postMessage({type:"process",mode,buffer:copy.buffer},[copy.buffer]);});}
-async function runMusicControlBeta(left,right,amount,onProgress){const w=getMusicWorker(),l=new Float32Array(left),r=new Float32Array(right);return await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{w.removeEventListener("message",listener);reject(new Error("Music Control Beta timed out."));},360000);const listener=e=>{const d=e.data||{};if(d.type==="modelProgress"||d.type==="progress"){onProgress?.(Number(d.progress||0),d.text||"Separating music…");return;}if(d.type==="error"){clearTimeout(timeout);w.removeEventListener("message",listener);reject(new Error(d.message||"Music Control Beta failed."));return;}if(d.type==="done"){clearTimeout(timeout);w.removeEventListener("message",listener);resolve(new Float32Array(d.buffer));}};w.addEventListener("message",listener);w.postMessage({type:"process",amount:Math.max(.60,Math.min(1,Number(amount)||1)),left:l.buffer,right:r.buffer},[l.buffer,r.buffer]);});}
+function getSpeakerWorker(){
+  if(!speakerWorker){
+    speakerWorker=new Worker("speaker-separation-worker.js?v=23",{type:"module"});
+  }
+  return speakerWorker;
+}
 
-async function runMossFormer(mono,strength,onProgress){
+function getMusicWorker(){
+  if(!musicWorker){
+    musicWorker=new Worker("music-separation-worker.js?v=23",{type:"module"});
+  }
+  return musicWorker;
+}
+
+function warmupBackgroundVoices(){
+  const state=$("backgroundVoicesState");
+  const w=getSpeakerWorker();
+  if(state)state.textContent="PREPARING…";
+
+  const listener=e=>{
+    const d=e.data||{};
+    if(d.type==="ready"||d.type==="error"){
+      w.removeEventListener("message",listener);
+      if(state){
+        state.textContent=d.type==="ready"
+          ?(backgroundVoicesEnabled?"BETA ON":"BETA OFF")
+          :"RETRY";
+      }
+    }
+  };
+
+  w.addEventListener("message",listener);
+  w.postMessage({
+    type:"warmup",
+    deviceProfile:rivaniDeviceProfile
+  });
+}
+
+function warmupMusicControl(){
+  const state=$("musicControlState");
+  const w=getMusicWorker();
+  if(state)state.textContent="PREPARING…";
+
+  const listener=e=>{
+    const d=e.data||{};
+    if(d.type==="ready"||d.type==="error"){
+      w.removeEventListener("message",listener);
+      if(state){
+        state.textContent=d.type==="ready"
+          ?(musicControlEnabled?"BETA ON":"BETA OFF")
+          :"RETRY";
+      }
+    }
+  };
+
+  w.addEventListener("message",listener);
+  w.postMessage({
+    type:"warmup",
+    deviceProfile:rivaniDeviceProfile
+  });
+}
+
+async function runBackgroundVoicesBeta(mono16,mode,onProgress){
+  const w=getSpeakerWorker();
+  const copy=new Float32Array(mono16);
+
+  return await new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>{
+      w.removeEventListener("message",listener);
+      reject(new Error("Background Voices Beta timed out."));
+    },360000);
+
+    const listener=e=>{
+      const d=e.data||{};
+
+      if(d.type==="modelProgress"||d.type==="progress"){
+        onProgress?.(Number(d.progress||0),d.text||"Separating speakers…");
+        return;
+      }
+
+      if(d.type==="error"){
+        clearTimeout(timeout);
+        w.removeEventListener("message",listener);
+        reject(new Error(d.message||"Background Voices Beta failed."));
+        return;
+      }
+
+      if(d.type==="done"){
+        clearTimeout(timeout);
+        w.removeEventListener("message",listener);
+        resolve({
+          audio:new Float32Array(d.buffer),
+          selected:d.selected||"VOICE A",
+          energyA:Number(d.energyA||0),
+          energyB:Number(d.energyB||0),
+          applied:d.applied!==false,
+          confidence:Number(d.confidence||0),
+          reason:String(d.reason||"")
+        });
+      }
+    };
+
+    w.addEventListener("message",listener);
+    w.postMessage({
+      type:"process",
+      mode,
+      deviceProfile:rivaniDeviceProfile,
+      buffer:copy.buffer
+    },[copy.buffer]);
+  });
+}
+
+async function runMusicControlBeta(left,right,amount,onProgress){
+  const w=getMusicWorker();
+  const l=new Float32Array(left);
+  const r=new Float32Array(right);
+
+  return await new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>{
+      w.removeEventListener("message",listener);
+      reject(new Error("Music Control Beta timed out."));
+    },360000);
+
+    const listener=e=>{
+      const d=e.data||{};
+
+      if(d.type==="modelProgress"||d.type==="progress"){
+        onProgress?.(Number(d.progress||0),d.text||"Separating music…");
+        return;
+      }
+
+      if(d.type==="error"){
+        clearTimeout(timeout);
+        w.removeEventListener("message",listener);
+        reject(new Error(d.message||"Music Control Beta failed."));
+        return;
+      }
+
+      if(d.type==="done"){
+        clearTimeout(timeout);
+        w.removeEventListener("message",listener);
+        resolve({
+          audio:new Float32Array(d.buffer),
+          safetyFallback:Boolean(d.safetyFallback),
+          retentionDb:Number(d.retentionDb||0)
+        });
+      }
+    };
+
+    w.addEventListener("message",listener);
+    w.postMessage({
+      type:"process",
+      amount:Math.max(.60,Math.min(1,Number(amount)||1)),
+      deviceProfile:rivaniDeviceProfile,
+      left:l.buffer,
+      right:r.buffer
+    },[l.buffer,r.buffer]);
+  });
+}
+
+function rmsFloat32(x,stride=8){
+  let sum=0,n=0;
+  for(let i=0;i<x.length;i+=Math.max(1,stride)){
+    const v=Number.isFinite(x[i])?x[i]:0;
+    sum+=v*v;
+    n++;
+  }
+  return Math.sqrt(sum/Math.max(1,n));
+}
+
+function highPassBiquadMono(input,sampleRate,frequency=7200,q=.707){
+  const out=new Float32Array(input.length);
+  const w0=2*Math.PI*frequency/sampleRate;
+  const cos=Math.cos(w0),sin=Math.sin(w0),alpha=sin/(2*q);
+  let b0=(1+cos)/2,b1=-(1+cos),b2=(1+cos)/2,a0=1+alpha,a1=-2*cos,a2=1-alpha;
+  b0/=a0;b1/=a0;b2/=a0;a1/=a0;a2/=a0;
+  let x1=0,x2=0,y1=0,y2=0;
+  for(let i=0;i<input.length;i++){
+    const x0=input[i]||0;
+    const y0=b0*x0+b1*x1+b2*x2-a1*y1-a2*y2;
+    out[i]=Math.max(-1,Math.min(1,y0));
+    x2=x1;x1=x0;y2=y1;y1=y0;
+  }
+  return out;
+}
+
+function restoreSeparatedSpeechAir(processed48,reference48){
+  if(!processed48.length||processed48.length!==reference48.length)return processed48;
+  const high=highPassBiquadMono(reference48,48000,7200,.707);
+  const out=new Float32Array(processed48.length);
+  for(let i=0;i<out.length;i++){
+    out[i]=Math.max(-1,Math.min(1,processed48[i]+high[i]*.18));
+  }
+  return out;
+}
+
+async function runMossFormer(mono,strength,onProgress,assistsOverride=null){
   const w=getWorker();
   const copy=new Float32Array(mono);
 
@@ -1027,11 +1399,13 @@ async function runMossFormer(mono,strength,onProgress){
     };
 
     w.addEventListener("message",listener);
+    const effectiveAssists=assistsOverride||{fanAssist,trafficAssist};
+
     w.postMessage({
       type:"process",
       strength,
-      fanAssist,
-      trafficAssist,
+      fanAssist:Boolean(effectiveAssists.fanAssist),
+      trafficAssist:Boolean(effectiveAssists.trafficAssist),
       buffer:copy.buffer
     },[copy.buffer]);
   });

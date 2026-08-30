@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -57,8 +57,12 @@
             <input type="file" id="audioFileInput" accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,audio/wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/flac">
 
             <div class="audio-source-switch" role="tablist" aria-label="Choose audio source">
-              <button id="uploadSourceTab" class="audio-source-tab active" type="button" role="tab" aria-selected="true"><span>↥</span> Upload Audio</button>
-              <button id="micSourceTab" class="audio-source-tab" type="button" role="tab" aria-selected="false"><span>●</span> Record Microphone</button>
+              <button id="uploadSourceTab" class="audio-source-tab active" type="button" role="tab" aria-selected="true">
+                <span>↥</span> Upload Audio
+              </button>
+              <button id="micSourceTab" class="audio-source-tab" type="button" role="tab" aria-selected="false">
+                <span>●</span> Record Microphone
+              </button>
             </div>
 
             <div id="uploadSourcePane" class="audio-source-pane">
@@ -71,11 +75,19 @@
             <div id="micSourcePane" class="audio-source-pane hidden">
               <div class="mic-record-shell">
                 <div class="mic-record-orb" id="micRecordOrb"><span>●</span><i></i></div>
-                <span class="section-kicker">LIVE RECORDING</span>
-                <h2>Record directly with your microphone</h2>
-                <p>Record first, then scan and enhance it through the same RIVANI audio workflow.</p>
+                <div class="mic-record-copy">
+                  <span class="section-kicker">LIVE RECORDING</span>
+                  <h2>Record directly with your microphone</h2>
+                  <p>Record first, then scan and enhance the recording through the same RIVANI audio workflow.</p>
+                </div>
+
                 <div class="mic-live-meter" aria-hidden="true"><i id="micLevelFill"></i></div>
-                <div class="mic-record-status"><strong id="micTimer">00:00</strong><span id="micStatus">Microphone is ready when you are.</span></div>
+
+                <div class="mic-record-status">
+                  <strong id="micTimer">00:00</strong>
+                  <span id="micStatus">Microphone is ready when you are.</span>
+                </div>
+
                 <div class="mic-record-actions">
                   <button class="btn btn-primary" id="startMicBtn" type="button">● Start Recording</button>
                   <button class="small-ghost-btn hidden" id="stopMicBtn" type="button">■ Stop & Use Recording</button>
@@ -88,7 +100,7 @@
               <div class="support-line"><b>Upload:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
               <div class="support-line"><b>Free:</b> 30 min · 500 MB · 5 enhancements/day</div>
               <div class="support-line"><b>Pro:</b> 1 GB/file · 5 h processing/day · unlimited jobs</div>
-              <div class="support-line"><b>Mic:</b> same plan limits as uploaded audio</div>
+              <div class="support-line"><b>Mic:</b> same duration/plan limits as uploaded audio</div>
               <div class="support-line" id="dailyAudioUsage"><b>TEST MODE:</b> daily job lock temporarily disabled</div>
               <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
             </div>
@@ -226,14 +238,26 @@
                 </div>
 
                 
+
                 <div class="specialist-settings-grid">
                   <div class="specialist-setting hidden" id="backgroundVoiceSettings">
-                    <div><span class="specialist-setting-kicker">PRIMARY SPEAKER</span><strong>Which separated voice should RIVANI keep?</strong><small>Auto keeps the more dominant speech stream. Switch to A or B if the wrong speaker is selected.</small></div>
+                    <div>
+                      <span class="specialist-setting-kicker">PRIMARY SPEAKER</span>
+                      <strong>Which separated voice should RIVANI keep?</strong>
+                      <small>Auto keeps the more dominant speech stream. Switch to A or B if the wrong speaker is selected.</small>
+                    </div>
                     <button class="mini-cycle-btn" id="speakerModeBtn" type="button">AUTO</button>
                   </div>
+
                   <div class="specialist-setting hidden" id="musicControlSettings">
                     <div class="specialist-setting-range">
-                      <label for="musicRemoval"><span><span class="specialist-setting-kicker">MUSIC REMOVAL</span><strong>How strongly should separated music be removed?</strong></span><b id="musicRemovalValue">100%</b></label>
+                      <label for="musicRemoval">
+                        <span>
+                          <span class="specialist-setting-kicker">MUSIC REMOVAL</span>
+                          <strong>How strongly should separated music be removed?</strong>
+                        </span>
+                        <b id="musicRemovalValue">100%</b>
+                      </label>
                       <input id="musicRemoval" type="range" min="60" max="100" value="100">
                     </div>
                   </div>
@@ -350,8 +374,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=22"></script>
-  <script type="module" src="auth-nav.js?v=22"></script>
-  <script type="module" src="audio-repair.js?v=22"></script>
+  <script src="script.js?v=23"></script>
+  <script type="module" src="auth-nav.js?v=23"></script>
+  <script type="module" src="audio-repair.js?v=23"></script>
 </body>
 </html>

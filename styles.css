@@ -1620,3 +1620,61 @@ body{
 /* specialists */
 .specialist-beta-card{opacity:1!important;cursor:pointer!important}.specialist-beta-card em{color:#70d7ff!important}.specialist-beta-card.lab-active{border-color:rgba(56,218,180,.36)!important;background:radial-gradient(circle at 12% 0,rgba(40,208,188,.12),transparent 42%),linear-gradient(135deg,rgba(8,42,50,.78),rgba(21,13,55,.58))!important}.specialist-beta-card.lab-active em{color:#85efcf!important}.specialist-settings-grid{display:grid;gap:9px;margin-top:10px}.specialist-setting{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 13px;border:1px solid rgba(73,129,198,.16);border-radius:13px;background:rgba(7,13,31,.56)}.specialist-setting-kicker{display:block;margin-bottom:3px;color:#70d9ff;font-size:7px;font-weight:900;letter-spacing:.12em}.specialist-setting strong,.specialist-setting small{display:block}.specialist-setting strong{color:#dce8f8;font-size:9.5px}.specialist-setting small{margin-top:3px;color:#68758d;font-size:7.7px;line-height:1.4}.mini-cycle-btn{flex:0 0 auto;min-width:80px;min-height:35px;padding:0 10px;border-radius:999px;border:1px solid rgba(62,181,255,.25);background:rgba(16,55,104,.44);color:#8ee4ff;font-size:7.8px;font-weight:900;cursor:pointer}.specialist-setting-range{width:100%}.specialist-setting label{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px}.specialist-setting label b{color:#c9f2ff;font-size:10px}.specialist-setting input[type="range"]{width:100%;margin-top:9px}
 @media(max-width:720px){.audio-source-switch{width:100%}.audio-source-tab{padding:0 8px}.specialist-setting{align-items:flex-start;flex-direction:column}.mini-cycle-btn{width:100%}}@media(prefers-reduced-motion:reduce){.rivani-logo-shine-shell::before,.rivani-logo-shine-shell::after,.mic-record-orb.recording i{animation:none!important}}
+
+
+/* RIVANI V22.1 · processing performance mode */
+body.rivani-processing-performance .rivani-bg-pulse-layer,
+body.rivani-processing-performance .ambient,
+body.rivani-processing-performance .grid-overlay,
+body.rivani-processing-performance .rivani-logo-shine-shell::before,
+body.rivani-processing-performance .rivani-logo-shine-shell::after,
+body.rivani-processing-performance .clear-engine-orb::after,
+body.rivani-processing-performance .processing-orb::after,
+body.rivani-processing-performance .brand img,
+body.rivani-processing-performance .luki-launcher-orb,
+body.rivani-processing-performance .luki-avatar{
+  animation-play-state:paused!important;
+}
+
+body.rivani-processing-performance .rivani-bg-pulse-layer,
+body.rivani-processing-performance .ambient{
+  opacity:.055!important;
+}
+
+body.rivani-processing-performance .grid-overlay{
+  opacity:.045!important;
+}
+
+body.rivani-processing-performance .processing-orb{
+  box-shadow:0 0 22px rgba(44,132,255,.16)!important;
+}
+
+
+/* ==========================================================
+   RIVANI V23 · Consolidated automatic performance mode
+   ========================================================== */
+body.rivani-low-power-device .rivani-bg-pulse-layer{opacity:.08!important;filter:blur(46px)!important}
+body.rivani-low-power-device .ambient{opacity:.07!important;filter:blur(44px)!important}
+body.rivani-low-power-device .grid-overlay{opacity:.055!important}
+
+body.rivani-processing-performance .rivani-bg-pulse-layer,
+body.rivani-processing-performance .ambient,
+body.rivani-processing-performance .grid-overlay,
+body.rivani-processing-performance .rivani-logo-shine-shell::before,
+body.rivani-processing-performance .rivani-logo-shine-shell::after,
+body.rivani-processing-performance .rivani-ai-textfx::after,
+body.rivani-processing-performance .clear-engine-orb::after,
+body.rivani-processing-performance .processing-orb::after,
+body.rivani-processing-performance .luki-launcher,
+body.rivani-processing-performance .luki-avatar,
+body.rivani-processing-performance .brand::before,
+body.rivani-processing-performance .brand::after{
+  animation:none!important;
+  transition:none!important;
+}
+body.rivani-processing-performance .rivani-bg-pulse-layer,
+body.rivani-processing-performance .ambient{opacity:.035!important}
+body.rivani-processing-performance .grid-overlay{opacity:.025!important}
+body.rivani-processing-performance .processing-orb{box-shadow:0 0 18px rgba(45,139,255,.14)!important}
+.specialist-beta-card em{white-space:nowrap}
+@media(max-width:720px){body.rivani-low-power-device .rivani-bg-pulse-layer{filter:blur(38px)!important}}

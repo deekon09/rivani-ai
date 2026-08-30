@@ -1,0 +1,5 @@
+# Audio-only cross-origin isolation for WASM SharedArrayBuffer threading.
+/audio-repair*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
+  Permissions-Policy: cross-origin-isolated=(self)

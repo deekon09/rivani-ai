@@ -1,6 +1,7 @@
 // RIVANI AI · Music Control Beta
 const ORT_VERSION="1.29.0";
-const ORT_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
+const ORT_WEBGPU_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
+const ORT_WASM_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
 const ORT_WASM_BASE=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 const MODEL_PROXY="https://rivani-models.rivani.workers.dev/music-vocals.onnx";
 const MODEL_DIRECT="https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR_MDXNET_9482.onnx";
@@ -8,10 +9,204 @@ const CACHE_NAME="rivani-specialist-models-v22";
 const SR=44100,NFFT=4096,HOP=1024,DIM_F=2048,DIM_T=256,CHUNK=HOP*(DIM_T-1),OVERLAP=Math.round(CHUNK*.10),STRIDE=CHUNK-OVERLAP,PAD=NFFT>>1;
 const WINDOW=new Float64Array(NFFT);for(let n=0;n<NFFT;n++)WINDOW[n]=.5-.5*Math.cos(2*Math.PI*n/NFFT);
 let ort=null,session=null,sessionPromise=null;
-self.onmessage=async e=>{const d=e.data||{};try{if(d.type==="warmup"){await ensureSession();self.postMessage({type:"ready"});return;}if(d.type!=="process")return;const l=sanitize(new Float32Array(d.left)),r=sanitize(new Float32Array(d.right)),amount=clamp(Number(d.amount||1),.60,1);if(l.length!==r.length)throw new Error("Music Control received mismatched stereo channels.");await ensureSession();const out=await separateLong(l,r,amount);self.postMessage({type:"done",buffer:out.buffer},[out.buffer]);}catch(err){self.postMessage({type:"error",message:String(err?.message||err||"Music Control Beta failed")});}};
-async function ensureSession(){if(session)return session;if(sessionPromise)return sessionPromise;sessionPromise=(async()=>{self.postMessage({type:"modelProgress",progress:1,text:"Preparing Music Control AI…"});ort=await import(ORT_URL);ort.env.wasm.wasmPaths=ORT_WASM_BASE;ort.env.wasm.numThreads=1;ort.env.wasm.simd=true;const bytes=await getModelBytes();session=await ort.InferenceSession.create(bytes,{executionProviders:["wasm"],graphOptimizationLevel:"all"});self.postMessage({type:"modelProgress",progress:100,text:"Music Control AI ready."});return session;})();try{return await sessionPromise;}finally{sessionPromise=null;}}
+let deviceProfile={lowPower:false,preferWebGPU:true};
+
+self.onmessage=async e=>{
+  const d=e.data||{};
+  try{
+    if(d.deviceProfile){deviceProfile={...deviceProfile,...d.deviceProfile};}
+    if(d.type==="warmup"){
+      await ensureSession();
+      self.postMessage({type:"ready"});
+      return;
+    }
+    if(d.type!=="process")return;
+
+    const l=sanitize(new Float32Array(d.left));
+    const r=sanitize(new Float32Array(d.right));
+    const amount=clamp(Number(d.amount||1),.60,1);
+    if(l.length!==r.length)throw new Error("Music Control received mismatched stereo channels.");
+
+    await ensureSession();
+    const result=await separateLong(l,r,amount);
+    self.postMessage({
+      type:"done",
+      safetyFallback:result.safetyFallback,
+      retentionDb:result.retentionDb,
+      buffer:result.audio.buffer
+    },[result.audio.buffer]);
+  }catch(err){
+    self.postMessage({type:"error",message:String(err?.message||err||"Music Control Beta failed")});
+  }
+};
+
+async function ensureSession(){
+  if(session)return session;
+  if(sessionPromise)return sessionPromise;
+
+  sessionPromise=(async()=>{
+    self.postMessage({
+      type:"modelProgress",
+      progress:1,
+      text:"Preparing Music Control AI…"
+    });
+
+    const bytes=await getModelBytes();
+
+    // Same model and weights; WebGPU only changes where inference executes.
+    if(self.navigator?.gpu&&deviceProfile.preferWebGPU&&!deviceProfile.lowPower){
+      try{
+        const gpuOrt=await import(ORT_WEBGPU_URL);
+
+        self.postMessage({
+          type:"modelProgress",
+          progress:96,
+          text:"Starting accelerated Music Control AI…"
+        });
+
+        const gpuSession=await gpuOrt.InferenceSession.create(bytes,{
+          executionProviders:["webgpu"],
+          graphOptimizationLevel:"all",
+          preferredOutputLocation:"cpu"
+        });
+
+        ort=gpuOrt;
+        session=gpuSession;
+
+        self.postMessage({
+          type:"modelProgress",
+          progress:100,
+          text:"Music Control AI ready · accelerated"
+        });
+
+        return session;
+      }catch(error){
+        console.warn("Music Control WebGPU unavailable; using WASM.",error);
+      }
+    }
+
+    const wasmOrt=await import(ORT_WASM_URL);
+    wasmOrt.env.wasm.wasmPaths=ORT_WASM_BASE;
+    wasmOrt.env.wasm.numThreads=chooseWasmThreads();
+    wasmOrt.env.wasm.simd=true;
+
+    self.postMessage({
+      type:"modelProgress",
+      progress:97,
+      text:`Starting Music Control AI · ${wasmOrt.env.wasm.numThreads>1?"multi-core":"compatibility"}…`
+    });
+
+    session=await wasmOrt.InferenceSession.create(bytes,{
+      executionProviders:["wasm"],
+      graphOptimizationLevel:"all",
+      executionMode:"sequential",
+      preferredOutputLocation:"cpu"
+    });
+
+    ort=wasmOrt;
+
+    self.postMessage({
+      type:"modelProgress",
+      progress:100,
+      text:`Music Control AI ready · ${wasmOrt.env.wasm.numThreads>1?"multi-core":"WASM"}`
+    });
+
+    return session;
+  })();
+
+  try{
+    return await sessionPromise;
+  }finally{
+    sessionPromise=null;
+  }
+}
+
+function chooseWasmThreads(){
+  if(!self.crossOriginIsolated)return 1;
+
+  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
+
+  if(cores>=8)return 4;
+  if(cores>=6)return 3;
+  if(cores>=4)return 2;
+  return 1;
+}
 async function getModelBytes(){const cache=await caches.open(CACHE_NAME),key=new Request(MODEL_PROXY),cached=await cache.match(key);if(cached){const ab=await cached.arrayBuffer();if(ab.byteLength>20000000)return ab;}let last;for(const url of [MODEL_PROXY,MODEL_DIRECT]){try{const res=await fetch(url,{mode:"cors",cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);const total=Number(res.headers.get("content-length")||0),reader=res.body?.getReader();let ab;if(reader){let loaded=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;self.postMessage({type:"modelProgress",progress:total?Math.min(94,Math.round(loaded/total*94)):25,text:total?`Preparing Music Control AI ${Math.round(loaded/total*100)}%…`:"Preparing Music Control AI…"});}ab=concatChunks(chunks,loaded);}else ab=await res.arrayBuffer();if(ab.byteLength<20000000)throw new Error("Music model download was incomplete.");try{await cache.put(key,new Response(ab.slice(0),{headers:{"content-type":"application/octet-stream"}}));}catch{}return ab;}catch(err){last=err;}}throw new Error(`Music Control model could not load. Deploy the V22 rivani-models Worker update. ${last?.message||""}`);}
-async function separateLong(left,right,amount){if(!left.length)return new Float32Array();const sum=new Float64Array(left.length),wgt=new Float64Array(left.length),pos=[];for(let p=0;p<left.length;p+=STRIDE){pos.push(p);if(p+CHUNK>=left.length)break;}for(let ci=0;ci<pos.length;ci++){const p=pos[ci],valid=Math.min(CHUNK,left.length-p),l=reflectPad(left.subarray(p,p+valid),CHUNK),r=reflectPad(right.subarray(p,p+valid),CHUNK);self.postMessage({type:"progress",progress:Math.round(ci/Math.max(1,pos.length)*100),text:`Separating voice from music ${ci+1} of ${pos.length}…`});const stem=await runChunk(l,r);for(let i=0;i<valid;i++){const oi=p+i;let w=1;if(ci>0&&i<OVERLAP){const t=i/(OVERLAP-1);w*=.5-.5*Math.cos(Math.PI*t);}if(ci<pos.length-1&&i>=STRIDE){const t=(i-STRIDE)/(OVERLAP-1);w*=.5+.5*Math.cos(Math.PI*t);}const mix=(l[i]+r[i])*.5,voc=(stem.left[i]+stem.right[i])*.5;sum[oi]+=(mix*(1-amount)+voc*amount)*w;wgt[oi]+=w;}}const out=new Float32Array(left.length);for(let i=0;i<out.length;i++)out[i]=clamp(wgt[i]>1e-9?sum[i]/wgt[i]:(left[i]+right[i])*.5,-1,1);self.postMessage({type:"progress",progress:100,text:"Music separation ready."});return out;}
+async function separateLong(left,right,amount){
+  if(!left.length)return {audio:new Float32Array(),safetyFallback:false,retentionDb:0};
+
+  const sum=new Float64Array(left.length),wgt=new Float64Array(left.length),rawMono=new Float32Array(left.length),pos=[];
+  for(let i=0;i<rawMono.length;i++)rawMono[i]=(left[i]+right[i])*.5;
+  for(let p=0;p<left.length;p+=STRIDE){pos.push(p);if(p+CHUNK>=left.length)break;}
+
+  for(let ci=0;ci<pos.length;ci++){
+    const p=pos[ci],valid=Math.min(CHUNK,left.length-p);
+    const l=reflectPad(left.subarray(p,p+valid),CHUNK),r=reflectPad(right.subarray(p,p+valid),CHUNK);
+    self.postMessage({type:"progress",progress:Math.round(ci/Math.max(1,pos.length)*100),text:`Separating voice from music ${ci+1} of ${pos.length}…`});
+    const stem=await runChunk(l,r);
+
+    for(let i=0;i<valid;i++){
+      const oi=p+i;let w=1;
+      if(ci>0&&i<OVERLAP){const t=i/(OVERLAP-1);w*=.5-.5*Math.cos(Math.PI*t);}
+      if(ci<pos.length-1&&i>=STRIDE){const t=(i-STRIDE)/(OVERLAP-1);w*=.5+.5*Math.cos(Math.PI*t);}
+      const mix=(l[i]+r[i])*.5,voc=(stem.left[i]+stem.right[i])*.5;
+      sum[oi]+=(mix*(1-amount)+voc*amount)*w;wgt[oi]+=w;
+    }
+  }
+
+  const candidate=new Float32Array(left.length);
+  for(let i=0;i<candidate.length;i++)candidate[i]=clamp(wgt[i]>1e-9?sum[i]/wgt[i]:rawMono[i],-1,1);
+
+  const rawRms=rmsSignal(rawMono),candidateRms=rmsSignal(candidate);
+  const ratio=rawRms>1e-8?candidateRms/rawRms:1;
+  const retentionDb=20*Math.log10(Math.max(1e-8,ratio));
+  const catastrophic=!Number.isFinite(ratio)||ratio<.018;
+
+  if(catastrophic){
+    const guarded=speechPreservationFallback(rawMono,candidate);
+    self.postMessage({type:"progress",progress:100,text:"Music model became over-aggressive — speech-preservation guard protected the voice."});
+    return {audio:guarded,safetyFallback:true,retentionDb};
+  }
+
+  applyLocalSpeechRetentionGuard(rawMono,candidate);
+  self.postMessage({type:"progress",progress:100,text:"Music separation ready with speech-preservation guard."});
+  return {audio:candidate,safetyFallback:false,retentionDb};
+}
+
+function rmsSignal(x){
+  let s=0,n=0;for(let i=0;i<x.length;i+=4){const v=x[i];s+=v*v;n++;}
+  return Math.sqrt(s/Math.max(1,n));
+}
+
+function speechPreservationFallback(raw,candidate){
+  const out=new Float32Array(raw.length);
+  const rr=rmsSignal(raw),cr=rmsSignal(candidate);
+  const candidateUsable=cr>rr*.006;
+  // Avoid silence: preserve a controlled speech path, then Clear Voice runs next.
+  for(let i=0;i<out.length;i++)out[i]=clamp((candidateUsable?candidate[i]*.35:0)+raw[i]*.24,-1,1);
+  return out;
+}
+
+function applyLocalSpeechRetentionGuard(raw,candidate){
+  const block=Math.round(SR*.020),fade=Math.max(8,Math.round(SR*.004));
+  for(let start=0;start<raw.length;start+=block){
+    const end=Math.min(raw.length,start+block);let rr=0,cc=0;
+    for(let i=start;i<end;i++){rr+=raw[i]*raw[i];cc+=candidate[i]*candidate[i];}
+    const n=Math.max(1,end-start),r=Math.sqrt(rr/n),c=Math.sqrt(cc/n);
+    if(r<.0045)continue;
+    const localRatio=c/(r+1e-10);
+    if(localRatio<.063){
+      const need=clamp(.12-localRatio,.03,.12);
+      for(let i=start;i<end;i++){
+        let edge=1,rel=i-start,tail=end-1-i;
+        if(rel<fade)edge*=rel/fade;
+        if(tail<fade)edge*=tail/fade;
+        candidate[i]=clamp(candidate[i]+raw[i]*need*edge,-1,1);
+      }
+    }
+  }
+}
+
 async function runChunk(left,right){const input=buildModelInput(left,right),tensor=new ort.Tensor("float32",input,[1,4,DIM_F,DIM_T]),name=session.inputNames[0],outs=await session.run({[name]:tensor}),out=outs[session.outputNames[0]];if(!out?.data||out.data.length<4*DIM_F*DIM_T)throw new Error(`Unexpected Music Control output shape [${out?.dims?.join(", ")||"none"}].`);return synthesizeVocals(out.data,left.length);}
 function buildModelInput(left,right){const L=centerReflectPad(left,PAD),R=centerReflectPad(right,PAD),out=new Float32Array(4*DIM_F*DIM_T),rl=new Float64Array(NFFT),il=new Float64Array(NFFT),rr=new Float64Array(NFFT),ir=new Float64Array(NFFT);for(let t=0;t<DIM_T;t++){const start=t*HOP;rl.fill(0);il.fill(0);rr.fill(0);ir.fill(0);for(let n=0;n<NFFT;n++){rl[n]=L[start+n]*WINDOW[n];rr[n]=R[start+n]*WINDOW[n];}fftInPlace(rl,il,false);fftInPlace(rr,ir,false);for(let b=0;b<DIM_F;b++){out[idx4(0,b,t)]=rl[b];out[idx4(1,b,t)]=il[b];out[idx4(2,b,t)]=rr[b];out[idx4(3,b,t)]=ir[b];}}return out;}
 function synthesizeVocals(spec,valid){const total=CHUNK+2*PAD,sumL=new Float64Array(total),sumR=new Float64Array(total),norm=new Float64Array(total),rl=new Float64Array(NFFT),il=new Float64Array(NFFT),rr=new Float64Array(NFFT),ir=new Float64Array(NFFT);for(let t=0;t<DIM_T;t++){rl.fill(0);il.fill(0);rr.fill(0);ir.fill(0);for(let b=0;b<DIM_F;b++){rl[b]=spec[idx4(0,b,t)]||0;il[b]=spec[idx4(1,b,t)]||0;rr[b]=spec[idx4(2,b,t)]||0;ir[b]=spec[idx4(3,b,t)]||0;}for(let b=1;b<NFFT/2;b++){rl[NFFT-b]=rl[b];il[NFFT-b]=-il[b];rr[NFFT-b]=rr[b];ir[NFFT-b]=-ir[b];}fftInPlace(rl,il,true);fftInPlace(rr,ir,true);const start=t*HOP;for(let n=0;n<NFFT;n++){const i=start+n,w=WINDOW[n];sumL[i]+=rl[n]*w;sumR[i]+=rr[n]*w;norm[i]+=w*w;}}const left=new Float32Array(valid),right=new Float32Array(valid);for(let i=0;i<valid;i++){const j=i+PAD,d=norm[j]>1e-10?norm[j]:1;left[i]=clamp(sumL[j]/d,-1,1);right[i]=clamp(sumR[j]/d,-1,1);}return {left,right};}
