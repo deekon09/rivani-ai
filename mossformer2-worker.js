@@ -336,28 +336,31 @@ async function denoiseLong(input, strength) {
 
   prepareDSP();
 
-  // Browser memory is more predictable when every clip is processed as the
-  // official 4 s window / 3 s stride path, even below the upstream 20 s cutoff.
-  const windowSamples = SR * 4;
-  const stride = SR * 3;
-  const giveUp = (windowSamples - stride) >> 1; // 0.5 s
-  const out = new Float32Array(x.length);
+  const windowSamples = SR * 4; // 4 s model context
+  const stride = SR * 3;        // 3 s movement
+  const overlap = windowSamples - stride; // 1 s
 
   if (x.length <= windowSamples) {
-    const enhanced = await enhanceSegment(x, strength);
-    out.set(enhanced.subarray(0, x.length));
-    return out;
+    const padded = padSegmentReflect(x, windowSamples);
+    const enhanced = await enhanceSegment(padded, strength);
+    return enhanced.subarray(0, x.length);
   }
 
   const positions = [];
-  for (let pos=0; pos<x.length; pos+=stride) positions.push(pos);
+  for (let pos=0; pos<x.length; pos+=stride) {
+    positions.push(pos);
+    if (pos + windowSamples >= x.length) break;
+  }
+
+  // Weighted overlap-add instead of a hard 0.5 s discard/switch.
+  const sum = new Float64Array(x.length);
+  const weight = new Float64Array(x.length);
 
   for (let s=0; s<positions.length; s++) {
     const pos = positions[s];
     const valid = Math.min(windowSamples, x.length - pos);
 
-    const seg = new Float32Array(windowSamples);
-    seg.set(x.subarray(pos, pos + valid));
+    const seg = padSegmentReflect(x.subarray(pos, pos + valid), windowSamples);
 
     self.postMessage({
       type:"segmentProgress",
@@ -369,15 +372,37 @@ async function denoiseLong(input, strength) {
 
     const enhanced = await enhanceSegment(seg, strength);
 
-    const keepStart = pos === 0 ? 0 : giveUp;
-    const isLast = pos + windowSamples >= x.length;
-    const keepEnd = isLast ? valid : Math.min(valid, windowSamples - giveUp);
-
-    for (let i=keepStart; i<keepEnd; i++) {
+    for (let i=0; i<valid; i++) {
       const oi = pos + i;
-      if (oi < out.length) out[oi] = enhanced[i];
+      if (oi >= x.length) break;
+
+      let ww = 1;
+
+      // Equal-power-ish cosine crossfade over the entire 1 s overlap.
+      if (s > 0 && i < overlap) {
+        const t = i / Math.max(1, overlap - 1);
+        ww *= 0.5 - 0.5 * Math.cos(Math.PI * t);
+      }
+
+      if (s < positions.length - 1 && i >= stride) {
+        const t = (i - stride) / Math.max(1, overlap - 1);
+        ww *= 0.5 + 0.5 * Math.cos(Math.PI * t);
+      }
+
+      sum[oi] += enhanced[i] * ww;
+      weight[oi] += ww;
     }
   }
+
+  const out = new Float32Array(x.length);
+  for (let i=0; i<out.length; i++) {
+    if (weight[i] > 1e-9) out[i] = sum[i] / weight[i];
+    else out[i] = x[i];
+  }
+
+  // Very light seam/tail smoothing only on sample-to-sample discontinuities.
+  // This is NOT a noise gate and does not lower quiet words.
+  smoothRareDiscontinuities(out);
 
   self.postMessage({
     type:"segmentProgress",
@@ -388,6 +413,52 @@ async function denoiseLong(input, strength) {
   });
 
   return out;
+}
+
+function padSegmentReflect(input, targetLength) {
+  const src = input instanceof Float32Array ? input : new Float32Array(input);
+  if (src.length >= targetLength) return src.subarray(0, targetLength);
+
+  const out = new Float32Array(targetLength);
+  out.set(src);
+
+  if (src.length === 0) return out;
+  if (src.length === 1) {
+    out.fill(src[0], 1);
+    return out;
+  }
+
+  // Reflect the last ~600 ms repeatedly rather than appending a sudden wall
+  // of zeros. The model gets realistic continuing context near the real tail,
+  // while only the original valid portion is ever returned to the user.
+  const context = Math.min(src.length, Math.floor(SR * 0.60));
+  const contextStart = src.length - context;
+
+  for (let i=src.length; i<targetLength; i++) {
+    const p = (i - src.length) % Math.max(2, context * 2 - 2);
+    const r = p < context ? p : (context * 2 - 2 - p);
+    const idx = Math.max(contextStart, Math.min(src.length - 1, src.length - 1 - r));
+    out[i] = src[idx];
+  }
+
+  return out;
+}
+
+function smoothRareDiscontinuities(audio) {
+  if (audio.length < 4) return;
+
+  // Local median-like correction only for extremely abnormal one-sample jumps.
+  // Normal consonant attacks are far below this threshold and remain untouched.
+  for (let i=2; i<audio.length-2; i++) {
+    const jump = Math.abs(audio[i] - audio[i-1]);
+    const local =
+      (Math.abs(audio[i-1]-audio[i-2]) +
+       Math.abs(audio[i+1]-audio[i])) * 0.5;
+
+    if (jump > 0.42 && jump > local * 7) {
+      audio[i] = (audio[i-1] + audio[i+1]) * 0.5;
+    }
+  }
 }
 
 async function enhanceSegment(input, strength) {

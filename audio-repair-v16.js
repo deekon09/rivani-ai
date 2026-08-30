@@ -85,7 +85,7 @@ $("downloadAudioBtn")?.addEventListener("click",()=>{
   const a=document.createElement("a");
   a.href=repairedUrl;
   const base=(sourceFile?.name||"rivani-audio").replace(/\.[^.]+$/,"");
-  a.download=`${base}-rivani-clear-voice-x.wav`;
+  a.download=`${base}-rivani-v17-1-enhanced.wav`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -187,7 +187,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("mossformer2-worker.js?v=17",{type:"module"});
+  worker=new Worker("mossformer2-worker.js?v=17.1",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -309,7 +309,9 @@ async function repairLocally(){
     }
 
     setStage("export");
-    updateProgress(97,"Encoding repaired WAV…");
+    updateProgress(97,"Checking enhanced output and encoding WAV…");
+
+    validateEnhancedOutput(sourceBuffer, finalBuffer);
 
     const wav=encodeWav(finalBuffer);
     repairedBlob=new Blob([wav],{type:"audio/wav"});
@@ -327,7 +329,7 @@ async function repairLocally(){
       status.classList.remove("engine-error");
     }
 
-    updateProgress(100,"Clear Voice X complete.");
+    updateProgress(100,"AI Clear Voice complete.");
     await tick(240);
 
     processing.classList.add("hidden");
@@ -491,7 +493,9 @@ async function applyStudioFinish(buffer){
   const deess=offline.createBiquadFilter();
   deess.type="highshelf";
   deess.frequency.value=6200;
-  deess.gain.value=deEssGain;
+  // V17.1: keep a small negative ceiling so Studio Finish never boosts the
+  // high-frequency tail/noise bed after AI cleanup.
+  deess.gain.value=Math.min(-0.12,deEssGain);
 
   const comp=offline.createDynamicsCompressor();
   comp.threshold.value=-15;
@@ -816,6 +820,39 @@ async function resampleAudioBuffer(buffer,targetSampleRate){
   src.connect(offline.destination);
   src.start();
   return await offline.startRendering();
+}
+
+function validateEnhancedOutput(original, enhanced) {
+  // Catch an accidental original-file export / stale result before the user
+  // downloads it. Compare a sparse mono sample at a common length.
+  const a=mixToMono(original);
+  const b=mixToMono(enhanced);
+  const n=Math.min(a.length,b.length);
+
+  if(n<1000)return;
+
+  const step=Math.max(1,Math.floor(n/120000));
+  let diff=0,energy=0,count=0;
+
+  for(let i=0;i<n;i+=step){
+    const d=a[i]-b[i];
+    diff+=d*d;
+    energy+=a[i]*a[i];
+    count++;
+  }
+
+  const nrms=Math.sqrt(diff/Math.max(1,count)) /
+    Math.max(1e-7,Math.sqrt(energy/Math.max(1,count)));
+
+  // After AI enhancement + finishing + resampling, an exact or near-exact
+  // result indicates a stale/original export path rather than a real repair.
+  if(nrms < 0.00005){
+    throw new Error(
+      "Enhanced output is unexpectedly identical to the original. " +
+      "RIVANI stopped the export instead of giving you a fake processed file. " +
+      "Hard refresh the page and retry."
+    );
+  }
 }
 
 function encodeWav(buffer){
