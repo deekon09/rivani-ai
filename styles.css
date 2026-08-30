@@ -183,3 +183,32 @@
 .preset-card[data-preset="natural"].active{border-color:rgba(71,211,197,.52);box-shadow:0 0 0 1px rgba(54,194,180,.18),0 14px 34px rgba(25,125,132,.10)}
 .preset-card[data-preset="clean"].active{border-color:rgba(55,169,255,.62);box-shadow:0 0 0 1px rgba(55,147,255,.20),0 14px 34px rgba(25,86,205,.14)}
 .preset-card[data-preset="studio"].active{border-color:rgba(168,77,255,.62);box-shadow:0 0 0 1px rgba(150,69,255,.20),0 14px 36px rgba(99,37,205,.15)}
+
+
+/* ===== RIVANI Audio Repair V13 · Smooth Voice ===== */
+.engine-path-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:13px 0 3px
+}
+.engine-path{
+  display:flex;gap:10px;align-items:center;padding:11px 12px;border-radius:12px;
+  border:1px solid rgba(75,105,177,.12);background:rgba(4,9,26,.52);
+  opacity:.55;transition:.2s
+}
+.engine-path.active{
+  opacity:1;border-color:rgba(64,160,255,.34);
+  background:linear-gradient(115deg,rgba(29,111,255,.12),rgba(103,43,215,.09));
+  box-shadow:0 10px 28px rgba(35,76,178,.08)
+}
+.engine-path>span{
+  width:25px;height:25px;border-radius:8px;display:grid;place-items:center;
+  font-size:8px;font-weight:900;color:#8fdfff;background:rgba(38,125,255,.12);
+  border:1px solid rgba(61,154,255,.16)
+}
+.engine-path b{display:block;font-size:10px;color:#cdd9ed}
+.engine-path small{display:block;font-size:8px;color:#6e7d99;margin-top:3px;line-height:1.35}
+.preset-card[data-preset="studio"].active{
+  box-shadow:0 0 0 1px rgba(150,69,255,.18),0 14px 40px rgba(99,37,205,.12)
+}
+.processing-orbit{will-change:transform}
+.processing-wave i{will-change:height}
+@media(max-width:780px){.engine-path-grid{grid-template-columns:1fr}}

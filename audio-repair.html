@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Repair noisy voice recordings in your browser with RIVANI AI Audio Repair Beta.">
   <title>AI Audio Repair Beta — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=12.1">
+  <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,12 +26,12 @@
     <section class="audio-tool-hero section">
       <div class="container audio-tool-hero-grid">
         <div class="reveal">
-          <span class="status-pill live-beta">Neural Beta · Local processing</span>
+          <span class="status-pill live-beta">Smooth Voice Beta · Hybrid Neural</span>
           <span class="section-kicker">RIVANI AUDIO</span>
           <h1>Repair bad voice recordings.</h1>
           <p>Upload a recording, scan common quality problems, choose a repair style, compare before and after, and export the repaired audio.</p>
           <div class="audio-hero-points">
-            <span>✓ RNNoise neural cleanup</span>
+            <span>✓ RNNoise + DeepFilterNet3</span>
             <span>✓ No audio upload to RIVANI servers</span>
             <span>✓ Smooth Before / After preview</span>
             <span>✓ WAV export</span>
@@ -108,9 +108,9 @@
                 <div class="neural-engine-copy">
                   <div class="neural-title-row">
                     <strong>Neural Noise Removal</strong>
-                    <span class="engine-live" id="neuralEngineStatus">RNNoise · Tuned V12</span>
+                    <span class="engine-live" id="neuralEngineStatus">Hybrid Neural · Ready</span>
                   </div>
-                  <p>RNNoise handles the main speech denoising pass first. RIVANI then applies rumble, hum, adaptive room-floor control, voice tone protection and final level smoothing.</p>
+                  <p><b>Natural</b> uses light RNNoise. <b>Clean</b> switches to DeepFilterNet3 hybrid cleanup. <b>Studio</b> adds restoration, artifact protection and voice finishing. Silero VAD is used when available to protect speech boundaries.</p>
                 </div>
                 <button class="toggle-control active neural-toggle" id="neuralToggle" type="button" aria-pressed="true">
                   <span></span><b>ON</b>
@@ -119,14 +119,26 @@
 
               <div class="preset-grid" id="presetGrid">
                 <button class="preset-card active" data-preset="natural" type="button">
-                  <span>Natural</span><small>≈45% neural · light cleanup, most natural room tone</small>
+                  <span>Natural</span><small>RNNoise Light · original voice first, gentle cleanup</small>
                 </button>
                 <button class="preset-card" data-preset="clean" type="button">
-                  <span>Clean</span><small>≈78% neural · clearly stronger background suppression</small>
+                  <span>Clean</span><small>DeepFilter Hybrid · strong cleanup without studio coloration</small>
                 </button>
                 <button class="preset-card" data-preset="studio" type="button">
-                  <span>Studio</span><small>≈100% neural · strongest cleanup + studio voice polish</small>
+                  <span>Studio</span><small>DeepFilter + Restore · de-reverb, de-esser & smooth finishing</small>
                 </button>
+              </div>
+
+              <div class="engine-path-grid" id="enginePathGrid">
+                <div class="engine-path active" data-engine-mode="natural">
+                  <span>01</span><div><b>Natural</b><small>RNNoise → Artifact Guard → Gentle Level</small></div>
+                </div>
+                <div class="engine-path" data-engine-mode="clean">
+                  <span>02</span><div><b>Clean</b><small>Silero VAD → DeepFilterNet3 → De-esser → LUFS</small></div>
+                </div>
+                <div class="engine-path" data-engine-mode="studio">
+                  <span>03</span><div><b>Studio</b><small>Silero VAD → DFN3 → Restore → Artifact Guard → LUFS</small></div>
+                </div>
               </div>
 
               <div class="free-control-grid">
@@ -264,10 +276,10 @@
               <p id="processingText">Preparing local audio engine.</p>
 
               <div class="processing-stages" id="processingStages">
-                <span class="active" data-stage="scan">Scan</span>
-                <span data-stage="noise">Noise</span>
-                <span data-stage="voice">Voice</span>
-                <span data-stage="level">Level</span>
+                <span class="active" data-stage="scan">Speech Map</span>
+                <span data-stage="noise">Neural</span>
+                <span data-stage="voice">Restore</span>
+                <span data-stage="level">Loudness</span>
                 <span data-stage="export">Export</span>
               </div>
 
@@ -277,7 +289,7 @@
 
             <div class="audio-result hidden" id="audioResult">
               <div class="result-head">
-                <div><span class="status-pill live-beta">Repair complete</span><h2>Compare the result.</h2><p>The Neural Beta now runs RNNoise first, then RIVANI’s local hum/rumble filtering, smooth room-floor control, voice protection, dynamics and normalization.</p></div>
+                <div><span class="status-pill live-beta">Repair complete</span><h2>Compare the result.</h2><p>V13 chooses a different engine path for each preset. It can use Silero VAD, RNNoise, DeepFilterNet3, artifact-protected restoration, de-essing, moderate de-reverb and LUFS-style final leveling.</p></div>
                 <div class="result-score"><span>New health</span><strong id="newHealthScore">--</strong></div>
               </div>
 
@@ -301,7 +313,7 @@
 
         <div class="audio-beta-note">
           <span>Beta engine</span>
-          <p>This Neural Beta combines RNNoise with RIVANI’s local repair pipeline. Normal steady background noise should improve much more clearly. Heavy echo, background music and overlapping speakers still need separate future engines.</p>
+          <p>This Smooth Voice Beta is tuned to reduce the metallic “jhil-jhil” effect by avoiding stacked maximum denoise, protecting speech frames and keeping restoration conservative. Background music and overlapping speakers still require a future source-separation engine.</p>
           <a href="article-audio-repair.html">Read the detailed Audio Repair guide →</a>
         </div>
       </div>
@@ -336,8 +348,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=12.1"></script>
-  <script type="module" src="auth-nav.js?v=12.1"></script>
-  <script type="module" src="audio-repair.js?v=12.1"></script>
+  <script src="script.js?v=13"></script>
+  <script type="module" src="auth-nav.js?v=13"></script>
+  <script type="module" src="audio-repair.js?v=13"></script>
 </body>
 </html>

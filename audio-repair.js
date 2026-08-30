@@ -26,6 +26,8 @@ let voiceLockEnabled = true;
 let environmentMode = 'balanced';
 let neuralEnabled = true;
 let neuralWorker = null;
+let hybridWorker = null;
+let lastEngineReport = [];
 
 chooseBtn?.addEventListener('click', () => input?.click());
 replaceBtn?.addEventListener('click', () => input?.click());
@@ -50,7 +52,10 @@ dropZone?.addEventListener('drop', e => {
 presets.forEach(btn => btn.addEventListener('click', () => {
   selectedPreset = btn.dataset.preset || 'natural';
   presets.forEach(p => p.classList.toggle('active', p === btn));
-  const defaults = { natural:45, clean:78, studio:100 };
+  document.querySelectorAll('[data-engine-mode]').forEach(card => {
+    card.classList.toggle('active', card.dataset.engineMode === selectedPreset);
+  });
+  const defaults = { natural:42, clean:72, studio:86 };
   strength.value = defaults[selectedPreset];
   strengthValue.textContent = `${strength.value}%`;
 }));
@@ -306,88 +311,195 @@ async function repairAudio() {
   try {
     const s = Number(strength.value) / 100;
     const preset = selectedPreset;
-    let neuralStrength = getNeuralStrength(s, preset, environmentMode);
+    lastEngineReport = [];
 
     const cfg = {
-      natural: { gateDb: 4.5, highpass:68, presence:0.85, comp:-14, ratio:1.55, humQ:7, bright:0.05, targetSpeechDb:-18.5 },
-      clean:   { gateDb: 9.5, highpass:84, presence:1.75, comp:-17, ratio:2.25, humQ:9, bright:0.45, targetSpeechDb:-17.2 },
-      studio:  { gateDb: 13.5, highpass:100, presence:2.7, comp:-20, ratio:3.1, humQ:11, bright:0.95, targetSpeechDb:-16.2 }
+      natural: {
+        highpass:66, presence:0.45, bright:-0.10, comp:-13.5, ratio:1.35,
+        humQ:7, gateDb:1.8, targetLufs:-18.0, peakDb:-1.2,
+        speechWet:0.58, silenceWet:0.88, residualCutoff:9300
+      },
+      clean: {
+        highpass:80, presence:0.85, bright:0.05, comp:-16.0, ratio:1.75,
+        humQ:9, gateDb:3.2, targetLufs:-16.8, peakDb:-1.1,
+        speechWet:0.80, silenceWet:0.97, residualCutoff:8200
+      },
+      studio: {
+        highpass:92, presence:1.15, bright:0.12, comp:-18.0, ratio:2.15,
+        humQ:10, gateDb:4.0, targetLufs:-16.0, peakDb:-1.0,
+        speechWet:0.87, silenceWet:0.985, residualCutoff:7400
+      }
     }[preset];
 
     if (voiceLockEnabled) {
-      // Voice Lock softens tonal reshaping without cancelling the preset's
-      // actual denoise strength.
-      cfg.presence *= preset === 'studio' ? 0.90 : 0.82;
-      cfg.bright *= preset === 'studio' ? 0.86 : 0.72;
-      cfg.ratio *= 0.94;
+      cfg.presence *= 0.82;
+      cfg.bright *= 0.70;
+      cfg.speechWet *= preset === 'natural' ? 0.90 : 0.94;
     }
-
-    const environmentFactor =
-      environmentMode === 'studio' ? 1.12 :
-      environmentMode === 'natural' ? 0.62 : 0.88;
 
     setProcessingStage('scan');
-    updateProgress(3, neuralEnabled ? 'Loading neural speech engine…' : 'Preparing local repair engine…');
-    await tick(60);
+    updateProgress(3, 'Building a speech map to protect words and consonants…');
 
-    let working = sourceBuffer;
+    const dry48 = await resampleAudioBuffer(sourceBuffer, 48000);
+    const dryMono = mixToMono(dry48);
 
-    // RNNoise natively operates at 48 kHz / 480-sample frames.
+    let speechSegments = [];
+    let vadName = 'Energy VAD';
+
     if (neuralEnabled) {
-      setProcessingStage('noise');
-      updateProgress(8, 'Preparing 48 kHz neural frames…');
-
-      working = await resampleAudioBuffer(sourceBuffer, 48000);
-
-      updateProgress(13, 'RNNoise is separating speech from background noise…');
       try {
-        working = await runRnnoiseInWorker(
-          working,
-          neuralStrength,
-          voiceLockEnabled,
-          preset,
-          (p) => {
-            const mapped = 14 + p * 43;
-            updateProgress(mapped, p < .35
-              ? 'Neural noise suppression is listening for speech…'
-              : p < .75
-                ? 'Removing steady background noise while protecting voice…'
-                : 'Finishing the neural cleanup pass…'
-            );
-          }
-        );
-        const status = $('neuralEngineStatus');
-        if (status) {
-          status.textContent = 'RNNoise · Active';
-          status.classList.remove('engine-error');
+        speechSegments = await detectSpeechSilero(dryMono, 48000, p => {
+          updateProgress(4 + p * 8, 'Silero VAD is marking speech boundaries…');
+        });
+        if (speechSegments.length) {
+          vadName = 'Silero VAD';
+          lastEngineReport.push('Silero VAD');
         }
-      } catch (neuralError) {
-        console.error('RNNoise failed, using DSP fallback:', neuralError);
-        const status = $('neuralEngineStatus');
-        if (status) {
-          status.textContent = 'RNNoise unavailable · DSP fallback';
-          status.classList.add('engine-error');
-        }
-        updateProgress(55, 'Neural engine unavailable — continuing with local DSP repair…');
-        await tick(120);
+      } catch (vadError) {
+        console.warn('Silero VAD unavailable; using local VAD:', vadError);
       }
-    } else {
-      setProcessingStage('noise');
-      updateProgress(20, 'Neural cleanup bypassed — using local repair only…');
-      await tick(100);
     }
 
-    // Smooth adaptive floor control after RNNoise. This is intentionally less
-    // aggressive than the old version so words do not sound chopped.
-    const gateReduction = cfg.gateDb * (0.48 + 0.48 * s) * environmentFactor;
-    const gated = applySoftAdaptiveGate(working, gateReduction);
+    if (!speechSegments.length) {
+      speechSegments = detectSpeechEnergy(dryMono, 48000);
+      lastEngineReport.push('Local speech map');
+    }
 
+    const speechMask = buildSpeechMask(
+      dryMono.length,
+      48000,
+      speechSegments,
+      preset === 'natural' ? 80 : 55
+    );
+
+    let working48 = dry48;
+    let engineLabel = '';
+    let neuralStrength = getNeuralStrength(s, preset, environmentMode);
+
+    setProcessingStage('noise');
+
+    if (!neuralEnabled) {
+      updateProgress(15, 'Neural engines bypassed — using restoration DSP only…');
+      await tick(80);
+      engineLabel = 'Local DSP';
+    } else if (preset === 'natural') {
+      updateProgress(14, 'Natural mode: running a light RNNoise pass…');
+      try {
+        working48 = await runRnnoiseInWorker(
+          dry48,
+          neuralStrength,
+          voiceLockEnabled,
+          'natural',
+          p => updateProgress(
+            15 + p * 33,
+            p < .55 ? 'Removing steady noise gently…' : 'Keeping the original voice texture…'
+          )
+        );
+        lastEngineReport.push('RNNoise');
+        engineLabel = 'RNNoise Light';
+      } catch (error) {
+        console.warn('RNNoise unavailable:', error);
+        engineLabel = 'DSP fallback';
+      }
+    } else {
+      updateProgress(14, `${capitalize(preset)} mode: loading full-band DeepFilterNet3…`);
+      try {
+        const hybrid = await runHybridWorker({
+          mono: dryMono,
+          sampleRate: 48000,
+          preset,
+          strength: s,
+          doDeepFilter: true,
+          doRestoration: false,
+          clipped: (analysis?.clipPct || 0) > 0.06,
+          onPhase: ({progress, text}) => {
+            updateProgress(14 + progress * 40, text);
+          }
+        });
+
+        if (hybrid.deepFilterUsed) {
+          const wetMono = new Float32Array(hybrid.buffer);
+          working48 = rebuildVoiceStereo(dry48, wetMono, preset);
+          lastEngineReport.push(...hybrid.engines);
+          engineLabel = preset === 'clean' ? 'DeepFilter Hybrid' : 'DeepFilter Studio';
+        } else {
+          throw new Error('DeepFilterNet3 did not initialize');
+        }
+      } catch (dfError) {
+        console.warn('DeepFilterNet3 unavailable; RNNoise fallback:', dfError);
+        updateProgress(28, 'DeepFilterNet3 unavailable — switching to RNNoise fallback…');
+        working48 = await runRnnoiseInWorker(
+          dry48,
+          preset === 'studio' ? 0.82 : 0.70,
+          voiceLockEnabled,
+          preset,
+          p => updateProgress(29 + p * 27, 'Running neural fallback cleanup…')
+        );
+        lastEngineReport.push('RNNoise fallback');
+        engineLabel = 'RNNoise fallback';
+      }
+    }
+
+    // Artifact Guard: use the speech map + dry reference so a neural engine
+    // cannot completely overwrite voiced details. It also smooths the
+    // high-frequency residual where metallic "shimmer" is most audible.
     setProcessingStage('voice');
-    updateProgress(62, 'Smoothing voice tone, hum and rumble…');
-    const filtered = await processWithOfflineAudio(gated, {
-      highpass: cfg.highpass + 16 * (s - .5),
-      presence: cfg.presence * s,
-      bright: cfg.bright * s,
+    updateProgress(58, 'Artifact Guard is smoothing metallic residue and protecting speech…');
+
+    working48 = artifactGuardBlend(
+      dry48,
+      working48,
+      speechMask,
+      cfg.speechWet,
+      cfg.silenceWet,
+      cfg.residualCutoff
+    );
+    lastEngineReport.push('Artifact Guard');
+
+    // Clean and Studio receive restoration AFTER artifact protection.
+    if (neuralEnabled && preset !== 'natural') {
+      try {
+        const restoreMono = mixToMono(working48);
+        const restored = await runHybridWorker({
+          mono: restoreMono,
+          sampleRate: 48000,
+          preset,
+          strength: s,
+          doDeepFilter: false,
+          doRestoration: true,
+          clipped: (analysis?.clipPct || 0) > 0.06,
+          onPhase: ({progress, text}) => {
+            updateProgress(60 + progress * 14, text);
+          }
+        });
+
+        if (restored.restorationUsed) {
+          working48 = rebuildVoiceStereo(
+            working48,
+            new Float32Array(restored.buffer),
+            preset,
+            0.08
+          );
+          lastEngineReport.push(...restored.engines);
+        }
+      } catch (restoreError) {
+        console.warn('Optional restoration unavailable:', restoreError);
+      }
+    }
+
+    // Very gentle room-floor control. The strong gate from older builds was
+    // removed because it contributed to pumping / "jhil-jhil" transitions.
+    const environmentFactor =
+      environmentMode === 'studio' ? 1.10 :
+      environmentMode === 'natural' ? 0.55 : 0.82;
+    const gateReduction = cfg.gateDb * (0.65 + 0.30 * s) * environmentFactor;
+    const gated = applySoftAdaptiveGate(working48, gateReduction);
+
+    updateProgress(76, 'Applying hum control, voice tone and smooth dynamics…');
+    const polished = await processWithOfflineAudio(gated, {
+      highpass: cfg.highpass,
+      presence: cfg.presence,
+      bright: cfg.bright,
       compressorThreshold: cfg.comp,
       compressorRatio: cfg.ratio,
       humQ: cfg.humQ,
@@ -395,34 +507,41 @@ async function repairAudio() {
     });
 
     setProcessingStage('level');
-    updateProgress(82, 'Balancing speech loudness without boosting the noise floor…');
-    levelVoiceSmoothly(filtered, cfg.targetSpeechDb, -1.4);
+    updateProgress(84, `Leveling voice near ${cfg.targetLufs.toFixed(1)} LUFS without lifting the noise floor…`);
+    await levelToLufsStyle(polished, cfg.targetLufs, cfg.peakDb);
+    lastEngineReport.push('LUFS leveler', 'Peak guard');
 
-    // Restore the input sample rate for a friendlier export when possible.
-    let finalBuffer = filtered;
-    if (filtered.sampleRate !== sourceBuffer.sampleRate) {
-      finalBuffer = await resampleAudioBuffer(filtered, sourceBuffer.sampleRate);
+    let finalBuffer = polished;
+    if (polished.sampleRate !== sourceBuffer.sampleRate) {
+      finalBuffer = await resampleAudioBuffer(polished, sourceBuffer.sampleRate);
     }
 
     setProcessingStage('export');
-    updateProgress(93, 'Encoding repaired WAV…');
+    updateProgress(95, 'Encoding repaired WAV…');
     const wav = encodeWav(finalBuffer);
 
     repairedBlob = new Blob([wav], {type:'audio/wav'});
     if (repairedUrl) URL.revokeObjectURL(repairedUrl);
     repairedUrl = URL.createObjectURL(repairedBlob);
     $('afterPlayer').src = repairedUrl;
-    $('afterPresetLabel').textContent = neuralEnabled
-      ? `${capitalize(preset)} · ${Math.round(neuralStrength*100)}% neural cleanup`
-      : `${capitalize(preset)} · local DSP repair`;
 
-    const gain = neuralEnabled
-      ? (preset === 'natural' ? 9 : preset === 'clean' ? 16 : 22)
-      : (preset === 'natural' ? 5 : preset === 'clean' ? 9 : 13);
+    const engineSummary = unique(lastEngineReport).slice(0, 4).join(' + ');
+    $('afterPresetLabel').textContent =
+      `${capitalize(preset)} · ${engineLabel}${engineSummary ? ' · ' + engineSummary : ''}`;
+
+    const gain =
+      preset === 'natural' ? 8 :
+      preset === 'clean' ? 15 : 20;
     $('newHealthScore').textContent = Math.min(99, (analysis?.score || 65) + gain);
 
-    updateProgress(100, 'Repair complete.');
-    await tick(260);
+    const status = $('neuralEngineStatus');
+    if (status) {
+      status.textContent = `${vadName} · ${engineLabel}`;
+      status.classList.remove('engine-error', 'muted');
+    }
+
+    updateProgress(100, 'Smooth Voice repair complete.');
+    await tick(250);
 
     processing.classList.add('hidden');
     result.classList.remove('hidden');
@@ -431,7 +550,7 @@ async function repairAudio() {
     console.error('Audio repair failed:', error);
     processing.classList.add('hidden');
     repairPanel.classList.remove('hidden');
-    const detail = String(error?.message || error || '').slice(0, 120);
+    const detail = String(error?.message || error || '').slice(0, 140);
     alert(`Audio repair could not finish. ${detail ? 'Error: ' + detail : 'Try a shorter file or a modern Chrome/Edge/Safari browser.'}`);
   } finally {
     repairBtn.disabled = false;
@@ -439,20 +558,369 @@ async function repairAudio() {
 }
 
 function getNeuralStrength(baseStrength, preset, envMode) {
-  // Preset floors make the modes intentionally distinct even if the user
-  // leaves the strength slider near its default.
-  const floor =
-    preset === 'studio' ? 0.90 :
-    preset === 'clean'  ? 0.68 : 0.32;
+  const base =
+    preset === 'natural' ? Math.min(0.58, 0.28 + baseStrength * 0.46) :
+    preset === 'clean'  ? Math.min(0.78, 0.50 + baseStrength * 0.35) :
+                          Math.min(0.86, 0.55 + baseStrength * 0.34);
+  const env =
+    envMode === 'natural' ? -0.06 :
+    envMode === 'studio' ? 0.03 : 0;
+  return Math.max(0.22, Math.min(0.88, base + env));
+}
 
-  const environmentAdjust =
-    envMode === 'natural' ? -0.08 :
-    envMode === 'studio'  ? 0.04 : 0;
+async function detectSpeechSilero(mono, sampleRate, onProgress) {
+  onProgress?.(0.04);
+  const mod = await import("https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/+esm");
+  const NonRealTimeVAD = mod.NonRealTimeVAD;
+  if (!NonRealTimeVAD) throw new Error("Silero NonRealTimeVAD export unavailable");
 
-  return Math.max(
-    0.20,
-    Math.min(1, Math.max(floor, baseStrength) + environmentAdjust)
+  const vad = await NonRealTimeVAD.new({
+    model: "v5",
+    positiveSpeechThreshold: 0.56,
+    negativeSpeechThreshold: 0.34,
+    redemptionMs: 320,
+    preSpeechPadMs: 90,
+    minSpeechMs: 180
+  });
+
+  const segments = [];
+  let count = 0;
+  for await (const seg of vad.run(mono, sampleRate)) {
+    const start = Number(seg.start || 0);
+    const end = Number(seg.end || start);
+    if (end > start) segments.push({startMs:start, endMs:end});
+    count++;
+    // We cannot know total iterator progress precisely; report model activity,
+    // not a fake percentage.
+    onProgress?.(Math.min(0.92, 0.12 + count * 0.05));
+  }
+  onProgress?.(1);
+  return segments;
+}
+
+function detectSpeechEnergy(mono, sampleRate) {
+  const frame = Math.max(128, Math.floor(sampleRate * 0.02));
+  const hop = frame;
+  const rms = [];
+
+  for (let s=0; s<mono.length; s+=hop) {
+    let sum=0, n=0;
+    for (let i=s; i<Math.min(s+frame, mono.length); i++) {
+      sum += mono[i]*mono[i];
+      n++;
+    }
+    rms.push(Math.sqrt(sum/Math.max(1,n)));
+  }
+
+  const sorted = [...rms].sort((a,b)=>a-b);
+  const floor = sorted[Math.floor(sorted.length * 0.25)] || 1e-5;
+  const threshold = Math.max(floor * 3.0, 0.0045);
+
+  const raw = [];
+  let activeStart = -1;
+  for (let i=0; i<rms.length; i++) {
+    const isSpeech = rms[i] >= threshold;
+    if (isSpeech && activeStart < 0) activeStart = i;
+    if ((!isSpeech || i === rms.length-1) && activeStart >= 0) {
+      const endFrame = isSpeech && i === rms.length-1 ? i+1 : i;
+      if (endFrame - activeStart >= 5) {
+        raw.push({
+          startMs: activeStart * hop / sampleRate * 1000,
+          endMs: endFrame * hop / sampleRate * 1000
+        });
+      }
+      activeStart = -1;
+    }
+  }
+
+  // Merge gaps shorter than 180 ms so the protection mask stays smooth.
+  const merged = [];
+  for (const seg of raw) {
+    const prev = merged[merged.length-1];
+    if (prev && seg.startMs - prev.endMs < 180) prev.endMs = seg.endMs;
+    else merged.push({...seg});
+  }
+  return merged;
+}
+
+function buildSpeechMask(length, sampleRate, segments, fadeMs=60) {
+  const mask = new Float32Array(length);
+  const fade = Math.max(1, Math.floor(sampleRate * fadeMs / 1000));
+
+  for (const seg of segments) {
+    const start = Math.max(0, Math.floor((seg.startMs/1000)*sampleRate));
+    const end = Math.min(length, Math.ceil((seg.endMs/1000)*sampleRate));
+    const a = Math.max(0, start - fade);
+    const b = Math.min(length, end + fade);
+
+    for (let i=a; i<b; i++) {
+      let v = 1;
+      if (i < start) v = (i-a) / Math.max(1, start-a);
+      else if (i >= end) v = 1 - (i-end) / Math.max(1, b-end);
+      v = Math.max(0, Math.min(1, v));
+      if (v > mask[i]) mask[i] = v;
+    }
+  }
+  return mask;
+}
+
+async function runHybridWorker({mono, sampleRate, preset, strength, doDeepFilter, doRestoration, clipped, onPhase}) {
+  if (hybridWorker) {
+    try { hybridWorker.terminate(); } catch {}
+  }
+
+  hybridWorker = new Worker('hybrid-audio-worker.js?v=13', {type:'module'});
+  const input = new Float32Array(mono);
+
+  return await new Promise((resolve, reject) => {
+    const cleanup = () => {
+      if (hybridWorker) {
+        hybridWorker.terminate();
+        hybridWorker = null;
+      }
+    };
+
+    hybridWorker.onmessage = (event) => {
+      const d = event.data || {};
+      if (d.type === 'phase') {
+        onPhase?.(d);
+        return;
+      }
+      if (d.type === 'warning') {
+        console.warn(d.code || 'Hybrid warning', d.message || '');
+        return;
+      }
+      if (d.type === 'error') {
+        cleanup();
+        reject(new Error(d.message || 'Hybrid audio worker failed'));
+        return;
+      }
+      if (d.type === 'done') {
+        cleanup();
+        resolve(d);
+      }
+    };
+
+    hybridWorker.onerror = event => {
+      cleanup();
+      reject(new Error(event.message || 'Hybrid audio worker could not load'));
+    };
+
+    hybridWorker.postMessage({
+      type:'process',
+      monoBuffer:input.buffer,
+      sampleRate,
+      preset,
+      strength,
+      doDeepFilter,
+      doRestoration,
+      clipped
+    }, [input.buffer]);
+  });
+}
+
+function rebuildVoiceStereo(reference, processedMono, preset, sideOverride=null) {
+  const channels = reference.numberOfChannels;
+  const out = new AudioBuffer({
+    length: reference.length,
+    numberOfChannels: channels,
+    sampleRate: reference.sampleRate
+  });
+
+  if (channels === 1) {
+    out.copyToChannel(ensureFloatLength(processedMono, reference.length), 0);
+    return out;
+  }
+
+  const L = reference.getChannelData(0);
+  const R = reference.getChannelData(1);
+  const mono = ensureFloatLength(processedMono, reference.length);
+  const sideAmount = sideOverride ?? (
+    preset === 'natural' ? 0.24 :
+    preset === 'clean' ? 0.12 : 0.06
   );
+
+  const oL = out.getChannelData(0);
+  const oR = out.getChannelData(1);
+  for (let i=0; i<reference.length; i++) {
+    const side = (L[i] - R[i]) * 0.5 * sideAmount;
+    oL[i] = mono[i] + side;
+    oR[i] = mono[i] - side;
+  }
+
+  // Additional channels (rare for this voice tool) receive the repaired center.
+  for (let c=2; c<channels; c++) out.copyToChannel(mono, c);
+  return out;
+}
+
+function artifactGuardBlend(dryBuffer, wetBuffer, speechMask, speechWet, silenceWet, residualCutoff) {
+  const length = Math.min(dryBuffer.length, wetBuffer.length);
+  const channels = Math.min(dryBuffer.numberOfChannels, wetBuffer.numberOfChannels);
+  const out = new AudioBuffer({
+    length,
+    numberOfChannels: dryBuffer.numberOfChannels,
+    sampleRate: dryBuffer.sampleRate
+  });
+
+  const sr = dryBuffer.sampleRate;
+  const rc = 1 / (2 * Math.PI * Math.max(3500, residualCutoff));
+  const dt = 1 / sr;
+  const alpha = dt / (rc + dt);
+  const frame = Math.max(128, Math.floor(sr * 0.025));
+
+  for (let c=0; c<dryBuffer.numberOfChannels; c++) {
+    const dry = dryBuffer.getChannelData(Math.min(c, dryBuffer.numberOfChannels-1));
+    const wet = wetBuffer.getChannelData(Math.min(c, channels-1));
+    const dst = out.getChannelData(c);
+
+    let residualLP = 0;
+    let smoothWet = speechWet;
+
+    for (let s=0; s<length; s+=frame) {
+      const e = Math.min(length, s+frame);
+      let dryPow=1e-9, diffPow=1e-9, speech=0;
+      for (let i=s; i<e; i++) {
+        const d = dry[i];
+        const diff = wet[i] - d;
+        dryPow += d*d;
+        diffPow += diff*diff;
+        speech += speechMask[i] || 0;
+      }
+      speech /= Math.max(1, e-s);
+      const changeRatio = Math.sqrt(diffPow / dryPow);
+
+      let targetWet = speechWet * speech + silenceWet * (1-speech);
+
+      // If the neural output changes speech too radically, pull some dry voice
+      // back in automatically. This is the core anti-metallic Artifact Guard.
+      if (speech > 0.35 && changeRatio > 0.72) {
+        const penalty = Math.min(0.24, (changeRatio - 0.72) * 0.20);
+        targetWet = Math.max(0.48, targetWet - penalty);
+      }
+
+      for (let i=s; i<e; i++) {
+        smoothWet += (targetWet - smoothWet) * 0.0065;
+        const residual = wet[i] - dry[i];
+        residualLP += alpha * (residual - residualLP);
+
+        // Preserve low/mid neural correction but soften rapidly-changing HF
+        // residual that tends to be perceived as "jhil-jhil" / shimmer.
+        const smoothResidual = residualLP * 0.30 + residual * 0.70;
+        const value = dry[i] + smoothResidual * smoothWet;
+        dst[i] = Math.max(-0.999, Math.min(0.999, value));
+      }
+    }
+  }
+  return out;
+}
+
+async function levelToLufsStyle(buffer, targetLufs=-16.8, peakCeilingDb=-1.1) {
+  const weighted = await kWeightBuffer(buffer);
+  const block = Math.max(1, Math.floor(weighted.sampleRate * 0.4));
+  const hop = Math.max(1, Math.floor(weighted.sampleRate * 0.1));
+  const powers = [];
+
+  for (let start=0; start+block<=weighted.length; start+=hop) {
+    let sum=0, n=0;
+    for (let c=0; c<weighted.numberOfChannels; c++) {
+      const d=weighted.getChannelData(c);
+      for (let i=start; i<start+block; i++) {
+        sum += d[i]*d[i];
+        n++;
+      }
+    }
+    const p=sum/Math.max(1,n);
+    const l=-0.691 + 10*Math.log10(Math.max(1e-12,p));
+    if (l > -70) powers.push(p);
+  }
+
+  if (!powers.length) return;
+
+  let mean = powers.reduce((a,b)=>a+b,0)/powers.length;
+  let preliminary = -0.691 + 10*Math.log10(Math.max(1e-12,mean));
+  const relativeGate = preliminary - 10;
+  const gated = powers.filter(p => (-0.691 + 10*Math.log10(Math.max(1e-12,p))) > relativeGate);
+  if (gated.length) mean = gated.reduce((a,b)=>a+b,0)/gated.length;
+
+  const measured = -0.691 + 10*Math.log10(Math.max(1e-12,mean));
+  let gainDb = Math.max(-5.5, Math.min(5.5, targetLufs - measured));
+  let gain = Math.pow(10, gainDb/20);
+
+  const ceiling = Math.pow(10, peakCeilingDb/20);
+  const tp = estimateTruePeak4x(buffer);
+  if (tp * gain > ceiling) gain = ceiling / Math.max(1e-9,tp);
+
+  const fade = Math.min(Math.floor(buffer.sampleRate*0.012), Math.floor(buffer.length/4));
+  for (let c=0; c<buffer.numberOfChannels; c++) {
+    const d=buffer.getChannelData(c);
+    for (let i=0; i<d.length; i++) {
+      let edge=1;
+      if (fade && i<fade) edge=0.5-0.5*Math.cos(Math.PI*i/fade);
+      else if (fade && i>=d.length-fade) {
+        const j=d.length-1-i;
+        edge=0.5-0.5*Math.cos(Math.PI*Math.max(0,j)/fade);
+      }
+      d[i]=softLimit(d[i]*gain*edge);
+    }
+  }
+}
+
+async function kWeightBuffer(buffer) {
+  const offline = new OfflineAudioContext(
+    buffer.numberOfChannels,
+    buffer.length,
+    buffer.sampleRate
+  );
+  const src=offline.createBufferSource();
+  src.buffer=buffer;
+
+  const hp=offline.createBiquadFilter();
+  hp.type='highpass';
+  hp.frequency.value=38;
+  hp.Q.value=0.50;
+
+  const shelf=offline.createBiquadFilter();
+  shelf.type='highshelf';
+  shelf.frequency.value=1682;
+  shelf.gain.value=4.0;
+
+  src.connect(hp).connect(shelf).connect(offline.destination);
+  src.start();
+  return await offline.startRendering();
+}
+
+function estimateTruePeak4x(buffer) {
+  let peak=0;
+  for (let c=0; c<buffer.numberOfChannels; c++) {
+    const d=buffer.getChannelData(c);
+    if (!d.length) continue;
+    peak=Math.max(peak,Math.abs(d[0]));
+    for (let i=1; i<d.length; i++) {
+      const a=d[i-1], b=d[i];
+      peak=Math.max(peak,Math.abs(b));
+      // 4x linear intersample guard. Not a mastering-certified true-peak
+      // meter, but catches many overshoots missed by sample peak alone.
+      peak=Math.max(
+        peak,
+        Math.abs(a+(b-a)*0.25),
+        Math.abs(a+(b-a)*0.50),
+        Math.abs(a+(b-a)*0.75)
+      );
+    }
+  }
+  return peak;
+}
+
+function ensureFloatLength(value, length) {
+  const src = value instanceof Float32Array ? value : new Float32Array(value || 0);
+  if (src.length === length) return src;
+  const out = new Float32Array(length);
+  out.set(src.subarray(0, Math.min(length, src.length)));
+  return out;
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
 }
 
 async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, preset, onProgress) {
@@ -469,7 +937,7 @@ async function runRnnoiseInWorker(buffer, neuralStrength, voiceLock, preset, onP
     try { neuralWorker.terminate(); } catch {}
   }
 
-  neuralWorker = new Worker('rnnoise-worker.js?v=11', { type: 'module' });
+  neuralWorker = new Worker('rnnoise-worker.js?v=13', { type: 'module' });
 
   return await new Promise((resolve, reject) => {
     const cleanup = () => {
