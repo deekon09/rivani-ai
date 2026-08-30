@@ -23,7 +23,10 @@ const PRO_MAX_FILE_BYTES = 1024 * 1024 * 1024;
 const PRO_DAILY_SECONDS = 5 * 60 * 60;
 const PRO_USAGE_KEY = "rivani_pro_audio_usage_v1";
 
-const SUPPORTED_AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|aac|ogg|flac)$/i;
+const FREE_DAILY_JOBS = 5;
+const FREE_JOB_USAGE_KEY = "rivani_free_audio_jobs_v1";
+
+const SUPPORTED_AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|aac|ogg|flac|webm)$/i;
 const FREE_MP3_BITRATE = 192;
 
 let sourceFile=null;
@@ -57,6 +60,24 @@ let dereverbEnabled=true;
 let dereverbStrength=.58;
 let dereverbWorker=null;
 
+let backgroundVoicesEnabled=false;
+let musicControlEnabled=false;
+let speakerMode="auto";
+let musicRemoval=1.0;
+let speakerWorker=null;
+let musicWorker=null;
+let sourceOrigin="upload";
+
+let mediaRecorder=null;
+let micStream=null;
+let micChunks=[];
+let micBytes=0;
+let micStartedAt=0;
+let micTimerHandle=null;
+let micAudioContext=null;
+let micAnalyser=null;
+let micLevelRaf=0;
+
 function normalizePlan(value){
   return String(value||"free").trim().toLowerCase();
 }
@@ -73,6 +94,34 @@ function todayKey(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
+
+function readFreeJobUsage(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(FREE_JOB_USAGE_KEY)||"{}");
+    if(parsed.date!==todayKey())return {date:todayKey(),count:0};
+    return {date:parsed.date,count:Math.max(0,Math.floor(Number(parsed.count)||0))};
+  }catch{return {date:todayKey(),count:0};}
+}
+
+function writeFreeJobUsage(count){
+  try{localStorage.setItem(FREE_JOB_USAGE_KEY,JSON.stringify({date:todayKey(),count:Math.max(0,Math.floor(Number(count)||0))}));}catch{}
+  renderDailyJobUsage();
+}
+function recordCompletedAudioJob(){
+  if(isProPlan())return;
+  const u=readFreeJobUsage();
+  writeFreeJobUsage(u.count+1);
+}
+function freeJobsRemaining(){return Math.max(0,FREE_DAILY_JOBS-readFreeJobUsage().count);}
+function renderDailyJobUsage(){
+  const el=$("dailyAudioUsage"); if(!el)return;
+  if(isProPlan()){el.innerHTML="<b>PRO:</b> unlimited enhancement jobs · 5 h processing/day";return;}
+  const u=readFreeJobUsage();
+  el.innerHTML=audioTestingMode
+    ? `<b>TEST MODE:</b> ${u.count} completed today · future Free limit ${FREE_DAILY_JOBS}/day is not enforced yet`
+    : `<b>FREE TODAY:</b> ${Math.min(u.count,FREE_DAILY_JOBS)}/${FREE_DAILY_JOBS} enhancements used`;
+}
+function canStartAnotherFreeJob(){return isProPlan()||audioTestingMode||freeJobsRemaining()>0;}
 
 function readProUsage(){
   try{
@@ -118,7 +167,7 @@ replaceBtn?.addEventListener("click",()=>input?.click());
 
 input?.addEventListener("change",e=>{
   const file=e.target.files?.[0];
-  if(file)loadAudioFile(file);
+  if(file){sourceOrigin="upload";loadAudioFile(file);}
 });
 
 ["dragenter","dragover"].forEach(type=>dropZone?.addEventListener(type,e=>{
@@ -133,8 +182,71 @@ dropZone?.addEventListener("drop",e=>{
   const file=[...(e.dataTransfer?.files||[])].find(f=>
     f.type.startsWith("audio/")||/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(f.name)
   );
-  if(file)loadAudioFile(file);
+  if(file){sourceOrigin="upload";loadAudioFile(file);}
 });
+
+const uploadSourceTab=$("uploadSourceTab");
+const micSourceTab=$("micSourceTab");
+uploadSourceTab?.addEventListener("click",()=>setAudioSourcePane("upload"));
+micSourceTab?.addEventListener("click",()=>setAudioSourcePane("mic"));
+$("startMicBtn")?.addEventListener("click",startMicrophoneRecording);
+$("stopMicBtn")?.addEventListener("click",()=>stopMicrophoneRecording(true));
+$("cancelMicBtn")?.addEventListener("click",()=>stopMicrophoneRecording(false));
+function setAudioSourcePane(mode){
+  const mic=mode==="mic";
+  uploadSourceTab?.classList.toggle("active",!mic); micSourceTab?.classList.toggle("active",mic);
+  uploadSourceTab?.setAttribute("aria-selected",String(!mic)); micSourceTab?.setAttribute("aria-selected",String(mic));
+  $("uploadSourcePane")?.classList.toggle("hidden",mic); $("micSourcePane")?.classList.toggle("hidden",!mic);
+}
+function chooseRecorderMime(){
+  for(const m of ["audio/webm;codecs=opus","audio/ogg;codecs=opus","audio/mp4","audio/webm"]){if(window.MediaRecorder?.isTypeSupported?.(m))return m;} return "";
+}
+function recordingExtension(m){return m.includes("ogg")?"ogg":m.includes("mp4")?"m4a":"webm";}
+function getMicDurationLimit(){return isProPlan()?Math.max(1,Math.min(PRO_DAILY_SECONDS,remainingProSeconds())):FREE_MAX_DURATION_SECONDS;}
+function getActiveFileByteLimit(){return isProPlan()?PRO_MAX_FILE_BYTES:FREE_MAX_FILE_BYTES;}
+async function startMicrophoneRecording(){
+  if(mediaRecorder?.state==="recording")return;
+  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){alert("Microphone recording is not supported by this browser.");return;}
+  if(!canStartAnotherFreeJob()){alert(`Free plan supports ${FREE_DAILY_JOBS} audio enhancements per day.`);return;}
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
+    micChunks=[]; micBytes=0;
+    const mime=chooseRecorderMime();
+    mediaRecorder=mime?new MediaRecorder(micStream,{mimeType:mime,audioBitsPerSecond:128000}):new MediaRecorder(micStream);
+    mediaRecorder.addEventListener("dataavailable",e=>{
+      if(!e.data?.size)return; micChunks.push(e.data); micBytes+=e.data.size;
+      if(micBytes>getActiveFileByteLimit()&&mediaRecorder?.state==="recording"){mediaRecorder._rivaniUseRecording=true;$("micStatus").textContent="Recording reached the plan file-size limit. Finishing…";mediaRecorder.stop();}
+    });
+    mediaRecorder.addEventListener("stop",async()=>{
+      const use=mediaRecorder?._rivaniUseRecording===true; const recordedMime=mediaRecorder?.mimeType||mime||"audio/webm";
+      cleanupMicrophoneHardware();
+      $("startMicBtn")?.classList.remove("hidden"); $("stopMicBtn")?.classList.add("hidden"); $("cancelMicBtn")?.classList.add("hidden"); $("micRecordOrb")?.classList.remove("recording");
+      if(!use){micChunks=[];micBytes=0;$("micTimer").textContent="00:00";$("micStatus").textContent="Recording cancelled.";return;}
+      const blob=new Blob(micChunks,{type:recordedMime});
+      if(blob.size>getActiveFileByteLimit()){alert(isProPlan()?"The recording exceeded the 1 GB Pro file limit.":"The recording exceeded the 500 MB Free file limit.");return;}
+      const stamp=new Date().toISOString().replace(/[:.]/g,"-");
+      const file=new File([blob],`rivani-mic-${stamp}.${recordingExtension(recordedMime)}`,{type:recordedMime,lastModified:Date.now()});
+      sourceOrigin="microphone"; $("micStatus").textContent="Recording captured. Preparing it for RIVANI…"; await loadAudioFile(file);
+    },{once:true});
+    micStartedAt=performance.now(); mediaRecorder.start(1000);
+    $("startMicBtn")?.classList.add("hidden"); $("stopMicBtn")?.classList.remove("hidden"); $("cancelMicBtn")?.classList.remove("hidden"); $("micRecordOrb")?.classList.add("recording"); $("micStatus").textContent="Recording… speak naturally.";
+    startMicTimer(); startMicMeter(micStream);
+  }catch(err){cleanupMicrophoneHardware(); console.error(err); alert(err?.name==="NotAllowedError"?"Microphone permission was not granted.":"RIVANI could not start the microphone on this browser.");}
+}
+function stopMicrophoneRecording(use){
+  if(!mediaRecorder||mediaRecorder.state!=="recording"){cleanupMicrophoneHardware();return;} mediaRecorder._rivaniUseRecording=Boolean(use); $("micStatus").textContent=use?"Finishing recording…":"Cancelling recording…"; mediaRecorder.stop();
+}
+function startMicTimer(){
+  clearInterval(micTimerHandle); const limit=getMicDurationLimit();
+  const update=()=>{const elapsed=Math.max(0,(performance.now()-micStartedAt)/1000);$("micTimer").textContent=formatTime(elapsed); if(elapsed>=limit&&mediaRecorder?.state==="recording"){mediaRecorder._rivaniUseRecording=true;$("micStatus").textContent="Plan recording-time limit reached. Finishing…";mediaRecorder.stop();}};
+  update(); micTimerHandle=setInterval(update,250);
+}
+function startMicMeter(stream){
+  try{micAudioContext=new (window.AudioContext||window.webkitAudioContext)();const src=micAudioContext.createMediaStreamSource(stream);micAnalyser=micAudioContext.createAnalyser();micAnalyser.fftSize=512;micAnalyser.smoothingTimeConstant=.78;src.connect(micAnalyser);const data=new Uint8Array(micAnalyser.frequencyBinCount);const draw=()=>{if(!micAnalyser)return;micAnalyser.getByteFrequencyData(data);let sum=0,stop=Math.min(data.length,110);for(let i=2;i<stop;i++)sum+=data[i];const pct=Math.max(4,Math.min(100,((sum/Math.max(1,stop-2))/105)*100));const fill=$("micLevelFill");if(fill)fill.style.width=`${pct}%`;micLevelRaf=requestAnimationFrame(draw);};draw();}catch{}
+}
+function cleanupMicrophoneHardware(){
+  clearInterval(micTimerHandle);micTimerHandle=null;if(micLevelRaf)cancelAnimationFrame(micLevelRaf);micLevelRaf=0;try{micAnalyser?.disconnect?.();}catch{}micAnalyser=null;try{micAudioContext?.close?.();}catch{}micAudioContext=null;if(micStream){for(const t of micStream.getTracks())t.stop();}micStream=null;const fill=$("micLevelFill");if(fill)fill.style.width="4%";
+}
 
 strength?.addEventListener("input",()=>{
   strengthValue.textContent=`${strength.value}%`;
@@ -176,23 +288,12 @@ document.querySelectorAll("[data-pro-lock]").forEach(btn=>{
 document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const feature=btn.dataset.specialistEngine||"Specialist AI";
-
-    if(feature==="De-Reverb" && audioTestingMode){
-      dereverbEnabled=!dereverbEnabled;
-
-      btn.classList.toggle("lab-active",dereverbEnabled);
-      btn.setAttribute("aria-pressed",String(dereverbEnabled));
-
-      const state=$("dereverbSpecialistState");
-      if(state)state.textContent=dereverbEnabled?"BETA ON":"BETA OFF";
-
-      return;
+    if(audioTestingMode){
+      if(feature==="Background Voices"){backgroundVoicesEnabled=!backgroundVoicesEnabled;renderSpecialistControls();if(backgroundVoicesEnabled)warmupBackgroundVoices();return;}
+      if(feature==="Music Control"){musicControlEnabled=!musicControlEnabled;renderSpecialistControls();if(musicControlEnabled)warmupMusicControl();return;}
+      if(feature==="De-Reverb"){dereverbEnabled=!dereverbEnabled;renderSpecialistControls();return;}
     }
-
-    openProMessage(
-      `${feature} · Next Specialist Test`,
-      `${feature} is intentionally disconnected right now. We are testing De-Reverb first; after it passes, this engine will be connected and tested separately.`
-    );
+    openProMessage(`${feature} · Pro AI`,`${feature} is a specialist RIVANI audio feature.`);
   });
 });
 
@@ -228,6 +329,21 @@ function toggleBuiltProControl(btn){
 document.querySelectorAll("[data-close-pro]").forEach(btn=>{
   btn.addEventListener("click",()=>$("proPreviewModal")?.classList.add("hidden"));
 });
+
+$("speakerModeBtn")?.addEventListener("click",()=>{speakerMode=speakerMode==="auto"?"a":speakerMode==="a"?"b":"auto";renderSpecialistControls();});
+$("musicRemoval")?.addEventListener("input",e=>{musicRemoval=Math.max(.60,Math.min(1,Number(e.target.value||100)/100));$("musicRemovalValue").textContent=`${Math.round(musicRemoval*100)}%`;});
+function renderSpecialistControls(){
+  const bg=$("backgroundVoicesBtn"), music=$("musicControlBtn"), de=$("dereverbSpecialistBtn");
+  bg?.classList.toggle("lab-active",backgroundVoicesEnabled);music?.classList.toggle("lab-active",musicControlEnabled);de?.classList.toggle("lab-active",dereverbEnabled);
+  bg?.setAttribute("aria-pressed",String(backgroundVoicesEnabled));music?.setAttribute("aria-pressed",String(musicControlEnabled));de?.setAttribute("aria-pressed",String(dereverbEnabled));
+  const bs=$("backgroundVoicesState"), ms=$("musicControlState"), ds=$("dereverbSpecialistState");
+  if(bs&&!bs.textContent.includes("PREPARING"))bs.textContent=backgroundVoicesEnabled?"BETA ON":"BETA OFF";
+  if(ms&&!ms.textContent.includes("PREPARING"))ms.textContent=musicControlEnabled?"BETA ON":"BETA OFF";
+  if(ds)ds.textContent=dereverbEnabled?"BETA ON":"BETA OFF";
+  $("backgroundVoiceSettings")?.classList.toggle("hidden",!backgroundVoicesEnabled);$("musicControlSettings")?.classList.toggle("hidden",!musicControlEnabled);
+  const sb=$("speakerModeBtn");if(sb)sb.textContent=speakerMode==="a"?"VOICE A":speakerMode==="b"?"VOICE B":"AUTO";
+}
+
 
 $("exportMp3Btn")?.addEventListener("click",()=>{
   selectedExportFormat="mp3";
@@ -272,94 +388,21 @@ function updateExportFormatUI(){
 }
 
 function renderPlanAccess(){
-  currentAudioPlan=getAudioPlan();
-  const pro=isProPlan();
-
-  const labBanner=$("dereverbLabBanner");
-  const dereverbBtn=$("dereverbSpecialistBtn");
-  const dereverbState=$("dereverbSpecialistState");
-
-  if(labBanner)labBanner.classList.toggle("hidden",!audioTestingMode);
-
-  if(dereverbBtn){
-    dereverbBtn.classList.toggle("lab-ready",audioTestingMode);
-    dereverbBtn.classList.toggle("lab-active",audioTestingMode && dereverbEnabled);
-    dereverbBtn.setAttribute("aria-pressed",String(dereverbEnabled));
-  }
-
-  if(dereverbState){
-    dereverbState.textContent=dereverbEnabled?"BETA ON":"BETA OFF";
-  }
-
+  currentAudioPlan=getAudioPlan(); const pro=isProPlan();
+  renderDailyJobUsage(); renderSpecialistControls();
+  const labBanner=$("dereverbLabBanner");if(labBanner)labBanner.classList.toggle("hidden",!audioTestingMode);
+  const de=$("dereverbSpecialistBtn");if(de)de.classList.add("lab-ready");
   const badge=$("proAudioBadge");
-
   if(audioTestingMode){
     if(badge)badge.textContent="● TESTING";
-
-    document.querySelectorAll("[data-pro-control]").forEach(btn=>{
-      btn.classList.add("pro-entitled","test-ready");
-
-      const key=btn.dataset.proControl;
-      const active=
-        key==="fan" ? fanAssist :
-        key==="traffic" ? trafficAssist :
-        key==="click" ? clickRepair :
-        false;
-
-      btn.classList.toggle("enabled",active);
-      btn.setAttribute("aria-pressed",String(active));
-
-      const em=btn.querySelector("em");
-      if(em)em.textContent=active?"ON":"OFF";
-    });
-
-    const usage=$("proDailyUsage");
-    if(usage)usage.classList.add("hidden");
-
-    // WAV entitlement stays as product-plan behavior.
-    if(!pro && selectedExportFormat==="wav"){
-      selectedExportFormat="mp3";
-    }
-
-    updateExportFormatUI();
-    return;
+    document.querySelectorAll("[data-pro-control]").forEach(btn=>{btn.classList.add("pro-entitled","test-ready");const k=btn.dataset.proControl;const active=k==="fan"?fanAssist:k==="traffic"?trafficAssist:k==="click"?clickRepair:false;btn.classList.toggle("enabled",active);btn.setAttribute("aria-pressed",String(active));const em=btn.querySelector("em");if(em)em.textContent=active?"ON":"OFF";});
+    $("proDailyUsage")?.classList.add("hidden");if(!pro&&selectedExportFormat==="wav")selectedExportFormat="mp3";updateExportFormatUI();return;
   }
-
   if(badge)badge.textContent=pro?"✓ PRO ACTIVE":"🔒 PRO";
-
-  document.querySelectorAll("[data-pro-control]").forEach(btn=>{
-    btn.classList.toggle("pro-entitled",pro);
-    const em=btn.querySelector("em");
-
-    if(!pro){
-      btn.classList.remove("enabled");
-      btn.setAttribute("aria-pressed","false");
-      if(em)em.textContent="PRO 🔒";
-    }else if(em && !btn.classList.contains("enabled")){
-      em.textContent="OFF";
-    }
-  });
-
-  const usage=$("proDailyUsage");
-  if(usage)usage.classList.toggle("hidden",!pro);
-
-  if(pro){
-    const state=readProUsage();
-    const used=Math.min(PRO_DAILY_SECONDS,state.seconds);
-    const pct=Math.min(100,(used/PRO_DAILY_SECONDS)*100);
-
-    const text=$("proUsageText");
-    if(text)text.textContent=`${formatPlanMinutes(used)} / 5 h`;
-
-    const bar=$("proUsageBar");
-    if(bar)bar.style.width=`${pct}%`;
-  }
-
-  if(!pro && selectedExportFormat==="wav"){
-    selectedExportFormat="mp3";
-  }
-
-  updateExportFormatUI();
+  document.querySelectorAll("[data-pro-control]").forEach(btn=>{btn.classList.toggle("pro-entitled",pro);const em=btn.querySelector("em");if(!pro){btn.classList.remove("enabled");btn.setAttribute("aria-pressed","false");if(em)em.textContent="PRO 🔒";}else if(em&&!btn.classList.contains("enabled"))em.textContent="OFF";});
+  const usage=$("proDailyUsage");if(usage)usage.classList.toggle("hidden",!pro);
+  if(pro){const st=readProUsage();const used=Math.min(PRO_DAILY_SECONDS,st.seconds);const pct=Math.min(100,used/PRO_DAILY_SECONDS*100);if($("proUsageText"))$("proUsageText").textContent=`${formatPlanMinutes(used)} / 5 h`;if($("proUsageBar"))$("proUsageBar").style.width=`${pct}%`;}
+  if(!pro&&selectedExportFormat==="wav")selectedExportFormat="mp3";updateExportFormatUI();
 }
 
 window.addEventListener("rivani:auth-context",renderPlanAccess);
@@ -388,6 +431,9 @@ function startAnotherAudio(){
   sourceFile=null;
   sourceBuffer=null;
   sourceUrl=null;
+  sourceOrigin="upload";
+  cleanupMicrophoneHardware();
+  setAudioSourcePane("upload");
   repairedBlob=null;
   repairedUrl=null;
   finalEnhancedBuffer=null;
@@ -499,7 +545,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=21.3");
+    const worker=new Worker("mp3-export-worker.js?v=22");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -549,7 +595,7 @@ async function loadAudioFile(file){
     chooseBtn.disabled=true;
 
     if(!isSupportedAudioFile(file)){
-      throw new Error("Unsupported file type. Use WAV, MP3, M4A, AAC, OGG or FLAC.");
+      throw new Error("Unsupported file type. Use WAV, MP3, M4A, AAC, OGG or FLAC, or record directly with the microphone.");
     }
 
     const maxBytes=isProPlan()?PRO_MAX_FILE_BYTES:FREE_MAX_FILE_BYTES;
@@ -667,7 +713,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=21.3",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=22",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -739,6 +785,7 @@ async function warmupEngine(){
 
 async function repairLocally(){
   if(!sourceBuffer)return;
+  if(!canStartAnotherFreeJob()){alert(`Free plan supports ${FREE_DAILY_JOBS} audio enhancements per day.`);return;}
 
   if(isProPlan()){
     const remaining=remainingProSeconds();
@@ -763,41 +810,25 @@ async function repairLocally(){
 
     const buffer48=await resampleAudioBuffer(sourceBuffer,48000);
     let mono=mixToMono(buffer48);
-
+    const activeSpecialists=[musicControlEnabled?"music":null,backgroundVoicesEnabled?"voices":null,dereverbEnabled?"dereverb":null].filter(Boolean);
+    const preStart=5,preEnd=48,slice=activeSpecialists.length?(preEnd-preStart)/activeSpecialists.length:0;let specialistIndex=0;
+    if(musicControlEnabled){
+      const a=preStart+slice*specialistIndex++,b=a+slice;setStage("model");updateProgress(Math.round(a),"Music Control Beta is separating voice from background music…");
+      const b441=await resampleAudioBuffer(sourceBuffer,44100);const st=getStereoChannels(b441);
+      const vocals=await runMusicControlBeta(st.left,st.right,musicRemoval,(p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t));
+      mono=resampleMonoLinear(vocals,44100,48000);updateProgress(Math.round(b),"Music separation ready.");
+    }
+    if(backgroundVoicesEnabled){
+      const a=preStart+slice*specialistIndex++,b=a+slice;setStage("model");updateProgress(Math.round(a),"Background Voices Beta is separating overlapping speakers…");
+      const mono16=resampleMonoLinear(mono,48000,16000);const sep=await runBackgroundVoicesBeta(mono16,speakerMode,(p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t));
+      mono=resampleMonoLinear(sep.audio,16000,48000);const state=$("backgroundVoicesState");if(state&&speakerMode==="auto")state.textContent=`BETA ON · ${sep.selected}`;updateProgress(Math.round(b),`${sep.selected} isolated.`);
+    }
     if(dereverbEnabled){
-      setStage("model");
-      updateProgress(6,"De-Reverb Beta is analyzing room reflections…");
-
-      mono=await runDereverbBeta(
-        mono,
-        dereverbStrength,
-        (p,text)=>{
-          const mapped=6+Math.round(Number(p||0)*.20);
-          updateProgress(Math.min(26,mapped),text);
-        }
-      );
-
-      updateProgress(27,"Room-reflection cleanup ready. Starting RIVANI AI…");
+      const a=preStart+slice*specialistIndex++,b=a+slice;setStage("model");updateProgress(Math.round(a),"De-Reverb Beta is analyzing room reflections…");
+      mono=await runDereverbBeta(mono,dereverbStrength,(p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t));updateProgress(Math.round(b),"Room-reflection cleanup ready.");
     }
-
-    setStage("model");
-    if(!dereverbEnabled){
-      updateProgress(8,"Preparing RIVANI AI Engine…");
-    }
-
-    const enhanced=await runMossFormer(
-      mono,
-      Number(strength.value)/100,
-      (p,text,providerName)=>{
-        activeProvider=providerName||activeProvider;
-
-        const mapped=dereverbEnabled
-          ? 28+Math.round(p*.52)
-          : 10+Math.round(p*.70);
-
-        updateProgress(Math.min(80,mapped),text);
-      }
-    );
+    const clearStart=activeSpecialists.length?50:8;setStage("model");updateProgress(clearStart,"Starting RIVANI AI Clear Voice…");
+    const enhanced=await runMossFormer(mono,Number(strength.value)/100,(p,text,providerName)=>{activeProvider=providerName||activeProvider;const mapped=clearStart+Math.round(Number(p||0)*((80-clearStart)/100));updateProgress(Math.min(80,mapped),text);});
 
     setStage("restore");
     updateProgress(82,"Applying transparent voice finishing—no dry/wet neural blend…");
@@ -849,9 +880,8 @@ async function repairLocally(){
     repairedUrl=URL.createObjectURL(repairedBlob);
 
     $("afterPlayer").src=repairedUrl;
-    $("afterPresetLabel").textContent=
-      `AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish` +
-      (dereverbEnabled?" · De-Reverb Beta":"");
+    const specialistLabels=[];if(musicControlEnabled)specialistLabels.push("Music Control");if(backgroundVoicesEnabled)specialistLabels.push("Background Voices");if(dereverbEnabled)specialistLabels.push("De-Reverb");
+    $("afterPresetLabel").textContent=`AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish`+(specialistLabels.length?` · ${specialistLabels.join(" + ")}`:"");
 
     const status=$("clearEngineStatus");
     if(status){
@@ -866,6 +896,7 @@ async function repairLocally(){
     result.classList.remove("hidden");
 
     recordProUsage(sourceBuffer.duration);
+    recordCompletedAudioJob();
     renderPlanAccess();
 
     result.scrollIntoView({behavior:"smooth",block:"start"});
@@ -881,10 +912,8 @@ async function repairLocally(){
     }
 
     const detail=String(error?.message||error||"").slice(0,220);
-    alert(
-      `${dereverbEnabled?"De-Reverb Beta / Clear Voice":"Clear Voice"} could not finish. ${detail}\n\n`+
-      `No lower-quality fallback result was generated. Refresh and retry. If the AI engine still cannot prepare, check your internet connection.`
-    );
+    const activeNames=[];if(musicControlEnabled)activeNames.push("Music Control");if(backgroundVoicesEnabled)activeNames.push("Background Voices");if(dereverbEnabled)activeNames.push("De-Reverb");activeNames.push("Clear Voice");
+    alert(`${activeNames.join(" / ")} could not finish. ${detail}\n\n`+`No fake fallback was generated. If a specialist model route says unavailable, deploy the included V22 rivani-models Worker update and retry.`);
   }finally{
     repairBtn.disabled=false;
   }
@@ -893,7 +922,7 @@ async function repairLocally(){
 function getDereverbWorker(){
   if(dereverbWorker)return dereverbWorker;
 
-  dereverbWorker=new Worker("dereverb-worker.js?v=21.3");
+  dereverbWorker=new Worker("dereverb-worker.js?v=22");
   return dereverbWorker;
 }
 
@@ -941,6 +970,20 @@ async function runDereverbBeta(mono,strength,onProgress){
     },[copy.buffer]);
   });
 }
+
+function getStereoChannels(buffer){
+  if(buffer.numberOfChannels===1){const m=new Float32Array(buffer.getChannelData(0));return {left:m,right:new Float32Array(m)};}
+  return {left:new Float32Array(buffer.getChannelData(0)),right:new Float32Array(buffer.getChannelData(1))};
+}
+function resampleMonoLinear(input,fromRate,toRate){
+  if(fromRate===toRate)return new Float32Array(input);if(!input.length)return new Float32Array();const len=Math.max(1,Math.round(input.length*toRate/fromRate)),out=new Float32Array(len),ratio=fromRate/toRate;for(let i=0;i<len;i++){const pos=i*ratio,a=Math.floor(pos),b=Math.min(input.length-1,a+1),t=pos-a;out[i]=(input[a]||0)*(1-t)+(input[b]||0)*t;}return out;
+}
+function getSpeakerWorker(){if(!speakerWorker)speakerWorker=new Worker("speaker-separation-worker.js?v=22",{type:"module"});return speakerWorker;}
+function getMusicWorker(){if(!musicWorker)musicWorker=new Worker("music-separation-worker.js?v=22",{type:"module"});return musicWorker;}
+function warmupBackgroundVoices(){const state=$("backgroundVoicesState"),w=getSpeakerWorker();if(state)state.textContent="PREPARING…";const listener=e=>{const d=e.data||{};if(d.type==="ready"||d.type==="error"){w.removeEventListener("message",listener);if(state)state.textContent=d.type==="ready"?(backgroundVoicesEnabled?"BETA ON":"BETA OFF"):"RETRY";}};w.addEventListener("message",listener);w.postMessage({type:"warmup"});}
+function warmupMusicControl(){const state=$("musicControlState"),w=getMusicWorker();if(state)state.textContent="PREPARING…";const listener=e=>{const d=e.data||{};if(d.type==="ready"||d.type==="error"){w.removeEventListener("message",listener);if(state)state.textContent=d.type==="ready"?(musicControlEnabled?"BETA ON":"BETA OFF"):"RETRY";}};w.addEventListener("message",listener);w.postMessage({type:"warmup"});}
+async function runBackgroundVoicesBeta(mono16,mode,onProgress){const w=getSpeakerWorker(),copy=new Float32Array(mono16);return await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{w.removeEventListener("message",listener);reject(new Error("Background Voices Beta timed out."));},360000);const listener=e=>{const d=e.data||{};if(d.type==="modelProgress"||d.type==="progress"){onProgress?.(Number(d.progress||0),d.text||"Separating speakers…");return;}if(d.type==="error"){clearTimeout(timeout);w.removeEventListener("message",listener);reject(new Error(d.message||"Background Voices Beta failed."));return;}if(d.type==="done"){clearTimeout(timeout);w.removeEventListener("message",listener);resolve({audio:new Float32Array(d.buffer),selected:d.selected||"VOICE A",energyA:Number(d.energyA||0),energyB:Number(d.energyB||0)});}};w.addEventListener("message",listener);w.postMessage({type:"process",mode,buffer:copy.buffer},[copy.buffer]);});}
+async function runMusicControlBeta(left,right,amount,onProgress){const w=getMusicWorker(),l=new Float32Array(left),r=new Float32Array(right);return await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>{w.removeEventListener("message",listener);reject(new Error("Music Control Beta timed out."));},360000);const listener=e=>{const d=e.data||{};if(d.type==="modelProgress"||d.type==="progress"){onProgress?.(Number(d.progress||0),d.text||"Separating music…");return;}if(d.type==="error"){clearTimeout(timeout);w.removeEventListener("message",listener);reject(new Error(d.message||"Music Control Beta failed."));return;}if(d.type==="done"){clearTimeout(timeout);w.removeEventListener("message",listener);resolve(new Float32Array(d.buffer));}};w.addEventListener("message",listener);w.postMessage({type:"process",amount:Math.max(.60,Math.min(1,Number(amount)||1)),left:l.buffer,right:r.buffer},[l.buffer,r.buffer]);});}
 
 async function runMossFormer(mono,strength,onProgress){
   const w=getWorker();
@@ -1650,3 +1693,5 @@ function toDb(x){return 20*Math.log10(Math.max(1e-9,x));}
 function formatTime(sec){const m=Math.floor(sec/60),s=Math.floor(sec%60);return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;}
 function formatBytes(n){if(n<1024*1024)return `${(n/1024).toFixed(0)} KB`;return `${(n/1024/1024).toFixed(1)} MB`;}
 function tick(ms=0){return new Promise(r=>setTimeout(r,ms));}
+
+setTimeout(()=>{renderDailyJobUsage();renderSpecialistControls();},1200);

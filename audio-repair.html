@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=21.3">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -55,15 +55,41 @@
         <div class="audio-workspace">
           <div class="audio-upload-zone" id="audioDropZone">
             <input type="file" id="audioFileInput" accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,audio/wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/flac">
-            <div class="upload-orb">≋</div>
-            <h2>Drop your voice recording here</h2>
-            <p>or choose a file from your device</p>
-            <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
+
+            <div class="audio-source-switch" role="tablist" aria-label="Choose audio source">
+              <button id="uploadSourceTab" class="audio-source-tab active" type="button" role="tab" aria-selected="true"><span>↥</span> Upload Audio</button>
+              <button id="micSourceTab" class="audio-source-tab" type="button" role="tab" aria-selected="false"><span>●</span> Record Microphone</button>
+            </div>
+
+            <div id="uploadSourcePane" class="audio-source-pane">
+              <div class="upload-orb">≋</div>
+              <h2>Drop your voice recording here</h2>
+              <p>or choose a file from your device</p>
+              <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
+            </div>
+
+            <div id="micSourcePane" class="audio-source-pane hidden">
+              <div class="mic-record-shell">
+                <div class="mic-record-orb" id="micRecordOrb"><span>●</span><i></i></div>
+                <span class="section-kicker">LIVE RECORDING</span>
+                <h2>Record directly with your microphone</h2>
+                <p>Record first, then scan and enhance it through the same RIVANI audio workflow.</p>
+                <div class="mic-live-meter" aria-hidden="true"><i id="micLevelFill"></i></div>
+                <div class="mic-record-status"><strong id="micTimer">00:00</strong><span id="micStatus">Microphone is ready when you are.</span></div>
+                <div class="mic-record-actions">
+                  <button class="btn btn-primary" id="startMicBtn" type="button">● Start Recording</button>
+                  <button class="small-ghost-btn hidden" id="stopMicBtn" type="button">■ Stop & Use Recording</button>
+                  <button class="small-ghost-btn hidden" id="cancelMicBtn" type="button">Cancel</button>
+                </div>
+              </div>
+            </div>
+
             <div class="upload-support-info">
-              <div class="support-line"><b>Supported:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
-              <div class="support-line"><b>Free:</b> up to 30 min · 500 MB per file</div>
-              <div class="support-line"><b>Pro:</b> up to 1 GB per file · 5 h processing/day</div>
-              <div class="support-line"><b>Export:</b> MP3 Free · Lossless WAV Pro</div>
+              <div class="support-line"><b>Upload:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
+              <div class="support-line"><b>Free:</b> 30 min · 500 MB · 5 enhancements/day</div>
+              <div class="support-line"><b>Pro:</b> 1 GB/file · 5 h processing/day · unlimited jobs</div>
+              <div class="support-line"><b>Mic:</b> same plan limits as uploaded audio</div>
+              <div class="support-line" id="dailyAudioUsage"><b>TEST MODE:</b> daily job lock temporarily disabled</div>
               <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
             </div>
           </div>
@@ -182,15 +208,15 @@
                 </div>
 
                 <div class="pro-specialist-grid">
-                  <button class="pro-specialist-card specialist-waiting" type="button" data-specialist-engine="Background Voices">
+                  <button class="pro-specialist-card specialist-beta-card" id="backgroundVoicesBtn" type="button" data-specialist-engine="Background Voices" aria-pressed="false">
                     <span class="pro-specialist-icon">◉</span>
-                    <span><b>Background Voices</b><small>Separate overlapping speakers from the main voice.</small></span>
-                    <em>NEXT TEST</em>
+                    <span><b>Background Voices</b><small>Separate two overlapping speakers, then keep the selected primary voice.</small></span>
+                    <em id="backgroundVoicesState">BETA OFF</em>
                   </button>
-                  <button class="pro-specialist-card specialist-waiting" type="button" data-specialist-engine="Music Control">
+                  <button class="pro-specialist-card specialist-beta-card" id="musicControlBtn" type="button" data-specialist-engine="Music Control" aria-pressed="false">
                     <span class="pro-specialist-icon">♫</span>
-                    <span><b>Music Control</b><small>Separate speech from background music before cleanup.</small></span>
-                    <em>NEXT TEST</em>
+                    <span><b>Music Control</b><small>Separate voice from instrumental/background music before Clear Voice.</small></span>
+                    <em id="musicControlState">BETA OFF</em>
                   </button>
                   <button class="pro-specialist-card" id="dereverbSpecialistBtn" type="button" data-specialist-engine="De-Reverb">
                     <span class="pro-specialist-icon">⌁</span>
@@ -200,14 +226,27 @@
                 </div>
 
                 
+                <div class="specialist-settings-grid">
+                  <div class="specialist-setting hidden" id="backgroundVoiceSettings">
+                    <div><span class="specialist-setting-kicker">PRIMARY SPEAKER</span><strong>Which separated voice should RIVANI keep?</strong><small>Auto keeps the more dominant speech stream. Switch to A or B if the wrong speaker is selected.</small></div>
+                    <button class="mini-cycle-btn" id="speakerModeBtn" type="button">AUTO</button>
+                  </div>
+                  <div class="specialist-setting hidden" id="musicControlSettings">
+                    <div class="specialist-setting-range">
+                      <label for="musicRemoval"><span><span class="specialist-setting-kicker">MUSIC REMOVAL</span><strong>How strongly should separated music be removed?</strong></span><b id="musicRemovalValue">100%</b></label>
+                      <input id="musicRemoval" type="range" min="60" max="100" value="100">
+                    </div>
+                  </div>
+                </div>
+
                 <div class="dereverb-lab-banner" id="dereverbLabBanner">
                   <span>DE-REVERB BETA TEST</span>
                   <p>De-Reverb starts ON in this test build. Tap its card to compare BETA ON vs BETA OFF. Pro locking will be added only after the audio quality is approved.</p>
                 </div>
 
                 <div class="pro-validation-note">
-                  <span>ONE-BY-ONE TESTING</span>
-                  <p>De-Reverb is the active specialist test. Background Voices and Music Control stay disconnected until De-Reverb passes A/B testing.</p>
+                  <span>SPECIALIST TEST MODE</span>
+                  <p>Background Voices, Music Control and De-Reverb are separate stages. Test them individually first, then together. Clear Voice remains the stable final speech-cleanup stage.</p>
                 </div>
 
                 <div class="pro-daily-usage hidden" id="proDailyUsage">
@@ -284,7 +323,7 @@
 
         <div class="audio-beta-note">
           <span>FREE BETA LIMITS</span>
-          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: up to 30 minutes and 500 MB per file · MP3 export included. Pro target: up to 1 GB per file, 5 hours processing per day, lossless WAV and advanced audio controls.</p>
+          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free plan target: 30 minutes, 500 MB and 5 enhancements per day · Pro target: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
         </div>
       </div>
     </section>
@@ -311,8 +350,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=21.3"></script>
-  <script type="module" src="auth-nav.js?v=21.3"></script>
-  <script type="module" src="audio-repair.js?v=21.3"></script>
+  <script src="script.js?v=22"></script>
+  <script type="module" src="auth-nav.js?v=22"></script>
+  <script type="module" src="audio-repair.js?v=22"></script>
 </body>
 </html>
