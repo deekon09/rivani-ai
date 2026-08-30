@@ -306,6 +306,7 @@ async function repairAudio() {
   try {
     const s = Number(strength.value) / 100;
     const preset = selectedPreset;
+    let neuralStrength = getNeuralStrength(s, preset, environmentMode);
 
     const cfg = {
       natural: { gateDb: 4.5, highpass:68, presence:0.85, comp:-14, ratio:1.55, humQ:7, bright:0.05, targetSpeechDb:-18.5 },
@@ -339,8 +340,6 @@ async function repairAudio() {
       working = await resampleAudioBuffer(sourceBuffer, 48000);
 
       updateProgress(13, 'RNNoise is separating speech from background noise…');
-      const neuralStrength = getNeuralStrength(s, preset, environmentMode);
-
       try {
         working = await runRnnoiseInWorker(
           working,
@@ -413,7 +412,9 @@ async function repairAudio() {
     if (repairedUrl) URL.revokeObjectURL(repairedUrl);
     repairedUrl = URL.createObjectURL(repairedBlob);
     $('afterPlayer').src = repairedUrl;
-    $('afterPresetLabel').textContent = `${capitalize(preset)} · ${Math.round(neuralStrength*100)}% neural cleanup`;
+    $('afterPresetLabel').textContent = neuralEnabled
+      ? `${capitalize(preset)} · ${Math.round(neuralStrength*100)}% neural cleanup`
+      : `${capitalize(preset)} · local DSP repair`;
 
     const gain = neuralEnabled
       ? (preset === 'natural' ? 9 : preset === 'clean' ? 16 : 22)
@@ -430,7 +431,8 @@ async function repairAudio() {
     console.error('Audio repair failed:', error);
     processing.classList.add('hidden');
     repairPanel.classList.remove('hidden');
-    alert('Audio repair could not finish on this device. Try a shorter file or a modern Chrome/Edge/Safari browser.');
+    const detail = String(error?.message || error || '').slice(0, 120);
+    alert(`Audio repair could not finish. ${detail ? 'Error: ' + detail : 'Try a shorter file or a modern Chrome/Edge/Safari browser.'}`);
   } finally {
     repairBtn.disabled = false;
   }
