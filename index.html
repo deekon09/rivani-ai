@@ -244,6 +244,40 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>V1 concept build</span></div>
   </footer>
 
+
+  <!-- LUKI: RIVANI AI tool assistant -->
+  <button class="luki-launcher" id="lukiLauncher" type="button" aria-label="Open LUKI tool assistant" aria-expanded="false">
+    <span class="luki-launcher-orb">L</span>
+    <span class="luki-launcher-copy"><strong>LUKI</strong><small>Ask about our tools</small></span>
+    <span class="luki-online-dot" aria-hidden="true"></span>
+  </button>
+
+  <aside class="luki-panel" id="lukiPanel" aria-label="LUKI tool assistant" aria-hidden="true">
+    <div class="luki-head">
+      <div class="luki-avatar">L</div>
+      <div><strong>LUKI</strong><span>RIVANI AI Tool Guide</span></div>
+      <button class="luki-close" id="lukiClose" type="button" aria-label="Close LUKI">×</button>
+    </div>
+    <div class="luki-scope">
+      <span>✦</span> I only answer questions about RIVANI AI tools and how they work.
+    </div>
+    <div class="luki-messages" id="lukiMessages" aria-live="polite">
+      <div class="luki-message bot">
+        <div class="luki-bubble">Hi, I’m <b>LUKI</b>. Ask me which RIVANI AI tool you should use, what a tool does, or whether a feature is available.</div>
+      </div>
+    </div>
+    <div class="luki-quick" id="lukiQuick">
+      <button type="button" data-question="What does Audio Repair do?">Audio Repair</button>
+      <button type="button" data-question="Which tools are available?">All tools</button>
+      <button type="button" data-question="How does RIVANI handle my files?">Privacy</button>
+    </div>
+    <form class="luki-form" id="lukiForm">
+      <input id="lukiInput" type="text" maxlength="220" autocomplete="off" placeholder="Ask about a RIVANI tool…" aria-label="Ask LUKI about RIVANI tools" />
+      <button type="submit" aria-label="Send message">➜</button>
+    </form>
+    <div class="luki-foot">Tool questions only · No general AI chat</div>
+  </aside>
+
   <script src="script.js"></script>
 </body>
 </html>
