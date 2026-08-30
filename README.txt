@@ -1,25 +1,10 @@
-RIVANI AI — V1 Website Starter
+RIVANI AI v2
 
-Files:
-- index.html       Main one-page website
-- styles.css       Full responsive theme
-- script.js        Mobile menu, scroll reveal, auto tool slider
-- assets/          RIVANI AI logo
+Upload all files in this folder to your GitHub repository root. Cloudflare Workers/Pages can serve this as a static site.
 
-How to preview:
-Open index.html in a browser.
+SOCIAL LOGIN
+The Google/Facebook buttons are real Firebase Authentication integration code, but they are intentionally inactive until you add your own Firebase web configuration in assets/firebase-config.js and enable providers in Firebase Console. No credentials can be invented safely.
 
-V1 includes:
-- Sticky navigation
-- Hero + dashboard-style visual
-- Feature/benefit cards
-- Auto-sliding tool spotlight
-- Tool grid
-- About section
-- Article/guide previews
-- Policy area placeholders
-- CTA and footer
-- Responsive mobile layout
+For Facebook: create a Meta app, enable Facebook Login, then add the App ID/secret to Firebase Authentication > Sign-in method > Facebook. Add your Cloudflare workers.dev domain to Firebase Authorized domains.
 
-Next recommended build step:
-Create the dedicated AI Audio Repair tool page and make its upload / diagnose / before-after UI functional.
+Legal pages are starter drafts, not legal advice; review them before a commercial launch.
