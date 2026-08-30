@@ -8,3 +8,9 @@ The Google/Facebook buttons are real Firebase Authentication integration code, b
 For Facebook: create a Meta app, enable Facebook Login, then add the App ID/secret to Firebase Authentication > Sign-in method > Facebook. Add your Cloudflare workers.dev domain to Firebase Authorized domains.
 
 Legal pages are starter drafts, not legal advice; review them before a commercial launch.
+
+ACCOUNT AUTH UPDATE
+- Sign up form includes username, email, password, confirm password and Terms acceptance.
+- Login form supports email + password.
+- Google and Facebook sign-in buttons remain available.
+- In Firebase Authentication, enable Email/Password, Google and Facebook providers.

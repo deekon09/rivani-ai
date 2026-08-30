@@ -1,12 +1,95 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030616"><meta name="description" content="Sign in to RIVANI AI with Google or Facebook."><title>Log in or Sign up — RIVANI AI</title><link rel="stylesheet" href="styles.css"></head><body>
-    <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div><header class="site-header"><div class="container nav-wrap">
-      <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI" /></a>
-      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
-      <nav class="main-nav" id="mainNav" aria-label="Primary navigation"><a class="" href="index.html">Home</a><a class="" href="index.html#tools">Tools</a><a class="" href="features.html">Features</a><a class="" href="about.html">About</a><a class="" href="articles.html">Articles</a><a class="" href="privacy.html">Policies</a></nav>
-      <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
-    </div></header><main><section class="auth-section section"><div class="container auth-grid"><div class="auth-copy reveal"><span class="section-kicker">RIVANI ACCOUNT</span><h1>Sign in with the account you already use.</h1><p>RIVANI AI is prepared for Google and Facebook authentication through Firebase Authentication. No password form is added here, keeping the flow simple.</p><img src="assets/about.svg" alt="RIVANI account illustration"></div><div class="auth-card reveal delay-1"><div class="auth-tabs"><button id="loginTab" type="button">Log in</button><button id="signupTab" type="button">Sign up</button></div><div class="auth-card-head"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><h2 id="authTitle">Welcome back</h2><p id="authSubtitle">Continue to RIVANI AI with Google or Facebook.</p></div><div id="authNotice" class="auth-notice">Social sign-in needs one-time Firebase setup before these buttons can create real accounts.</div><button class="social-btn google" id="googleAuth" type="button"><span class="social-g">G</span><b>Continue with Google</b></button><button class="social-btn facebook" id="facebookAuth" type="button"><span class="social-f">f</span><b>Continue with Facebook</b></button><div class="auth-status" id="authStatus" aria-live="polite"></div><button class="signout-btn" id="signOutBtn" type="button" hidden>Sign out</button><p class="auth-legal">By continuing, you agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p><details class="setup-details"><summary>Developer setup note</summary><ol><li>Create a Firebase project on the free Spark plan.</li><li>Enable Authentication → Google provider.</li><li>For Facebook, create a Meta app, then add its App ID and secret in Firebase’s Facebook provider.</li><li>Add your <code>workers.dev</code> domain to Firebase Authentication → Authorized domains.</li><li>Copy the Firebase web configuration into <code>assets/firebase-config.js</code>.</li></ol></details></div></div></section></main><footer class="site-footer"><div class="container footer-grid">
-      <div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI" /><p>Smarter tools. Better results.</p></div>
-      <div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
-      <div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div>
-      <div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
-    </div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer><script src="script.js"></script><script type="module" src="auth-nav.js"></script><script type="module" src="auth.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030616">
+  <meta name="description" content="Create or sign in to your RIVANI AI account with email, Google, or Facebook.">
+  <title>Log in or Sign up — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+  <header class="site-header"><div class="container nav-wrap">
+    <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav class="main-nav" id="mainNav" aria-label="Primary navigation"><a href="index.html">Home</a><a href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a></nav>
+    <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+  </div></header>
+
+  <main><section class="auth-section section"><div class="container auth-grid">
+    <div class="auth-copy reveal">
+      <span class="section-kicker">RIVANI ACCOUNT</span>
+      <h1>Your tools, one secure account.</h1>
+      <p>Create a RIVANI AI account with email and password, or continue with Google or Facebook. Your account will later keep your preferences, saved tools, and account settings together.</p>
+      <img src="assets/about.svg" alt="RIVANI account illustration">
+    </div>
+
+    <div class="auth-card reveal delay-1">
+      <div class="auth-tabs"><button id="loginTab" type="button">Log in</button><button id="signupTab" type="button">Sign up</button></div>
+      <div class="auth-card-head"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><h2 id="authTitle">Welcome back</h2><p id="authSubtitle">Sign in to continue to RIVANI AI.</p></div>
+
+      <div id="authNotice" class="auth-notice">Account authentication needs one-time Firebase setup before real accounts can be created.</div>
+
+      <form id="emailAuthForm" class="auth-form" novalidate>
+        <div class="signup-only auth-field">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" maxlength="40" autocomplete="username" placeholder="Choose a username">
+          <small>2–40 characters. This will be your display name.</small>
+        </div>
+
+        <div class="auth-field">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+        </div>
+
+        <div class="auth-field">
+          <label for="password">Password</label>
+          <div class="password-wrap"><input id="password" name="password" type="password" minlength="6" autocomplete="current-password" placeholder="Enter your password" required><button class="password-toggle" type="button" data-toggle-password="password" aria-label="Show password">Show</button></div>
+          <small class="signup-only">Use at least 6 characters. A longer unique password is recommended.</small>
+        </div>
+
+        <div class="signup-only auth-field">
+          <label for="confirmPassword">Confirm password</label>
+          <div class="password-wrap"><input id="confirmPassword" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Enter the same password again"><button class="password-toggle" type="button" data-toggle-password="confirmPassword" aria-label="Show confirm password">Show</button></div>
+        </div>
+
+        <label class="signup-only terms-check" for="acceptTerms">
+          <input id="acceptTerms" type="checkbox">
+          <span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms &amp; Conditions</a> and acknowledge the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+        </label>
+
+        <button id="emailSubmit" class="email-submit" type="submit">Log in</button>
+      </form>
+
+      <div class="auth-divider"><span>or continue with</span></div>
+      <button class="social-btn google" id="googleAuth" type="button"><span class="social-g">G</span><b>Continue with Google</b></button>
+      <button class="social-btn facebook" id="facebookAuth" type="button"><span class="social-f">f</span><b>Continue with Facebook</b></button>
+
+      <div class="auth-status" id="authStatus" aria-live="polite"></div>
+      <button class="signout-btn" id="signOutBtn" type="button" hidden>Sign out</button>
+      <p class="auth-legal">Social sign-in also means you agree to our <a href="terms.html">Terms</a> and acknowledge our <a href="privacy.html">Privacy Policy</a>.</p>
+
+      <details class="setup-details"><summary>Developer setup note</summary><ol>
+        <li>Create a Firebase project on the Spark plan and add a Web app.</li>
+        <li>Enable Authentication → Sign-in method → <b>Email/Password</b>.</li>
+        <li>Enable the <b>Google</b> provider.</li>
+        <li>For Facebook, create a Meta app and add its App ID and secret to Firebase’s Facebook provider.</li>
+        <li>Add your <code>rivani-ai.rivani.workers.dev</code> domain to Authentication → Settings → Authorized domains.</li>
+        <li>Copy the Firebase web configuration into <code>assets/firebase-config.js</code>.</li>
+      </ol></details>
+    </div>
+  </div></section></main>
+
+  <footer class="site-footer"><div class="container footer-grid">
+    <div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div>
+    <div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
+    <div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div>
+    <div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
+  </div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
+
+  <script src="script.js"></script>
+  <script type="module" src="auth-nav.js"></script>
+  <script type="module" src="auth.js"></script>
+</body>
+</html>
