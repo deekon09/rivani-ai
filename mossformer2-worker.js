@@ -55,6 +55,10 @@ self.onmessage = async (event) => {
 
     const input = new Float32Array(data.buffer);
     const strength = Math.max(0.25, Math.min(1, Number(data.strength || 0.85)));
+    const assists = {
+      fanAssist:Boolean(data.fanAssist),
+      trafficAssist:Boolean(data.trafficAssist)
+    };
 
     await ensureSession();
     self.postMessage({
@@ -64,7 +68,7 @@ self.onmessage = async (event) => {
     });
 
     const started = performance.now();
-    const output = await denoiseLong(input, strength);
+    const output = await denoiseLong(input, strength, assists);
     const elapsedMs = performance.now() - started;
 
     self.postMessage({
@@ -330,7 +334,7 @@ function validateModelBlob(blob, sourceName, contentType) {
 // MossFormer2 pipeline
 // ---------------------------------------------------------------------------
 
-async function denoiseLong(input, strength) {
+async function denoiseLong(input, strength, assists={}) {
   const x = sanitize(input);
   if (!x.length) return x;
 
@@ -342,7 +346,7 @@ async function denoiseLong(input, strength) {
 
   if (x.length <= windowSamples) {
     const padded = padSegmentReflect(x, windowSamples);
-    const enhanced = await enhanceSegment(padded, strength);
+    const enhanced = await enhanceSegment(padded, strength, assists);
     return enhanced.subarray(0, x.length);
   }
 
@@ -370,7 +374,7 @@ async function denoiseLong(input, strength) {
       text:`AI enhancing segment ${s+1} of ${positions.length}…`
     });
 
-    const enhanced = await enhanceSegment(seg, strength);
+    const enhanced = await enhanceSegment(seg, strength, assists);
 
     for (let i=0; i<valid; i++) {
       const oi = pos + i;
@@ -461,7 +465,7 @@ function smoothRareDiscontinuities(audio) {
   }
 }
 
-async function enhanceSegment(input, strength) {
+async function enhanceSegment(input, strength, assists={}) {
   const scaled = new Float64Array(input.length);
   for (let i=0;i<input.length;i++) scaled[i] = input[i] * MAX_WAV;
 
@@ -480,7 +484,7 @@ async function enhanceSegment(input, strength) {
   try { resultTensor.dispose?.(); } catch {}
   try { tensor.dispose?.(); } catch {}
 
-  const enhancedScaled = applyMaskISTFT(scaled, mask, frames, strength);
+  const enhancedScaled = applyMaskISTFT(scaled, mask, frames, strength, assists);
   const out = new Float32Array(input.length);
 
   for (let i=0;i<out.length;i++) {
@@ -565,7 +569,7 @@ function computeFeatures(scaled) {
   return {features, frames};
 }
 
-function applyMaskISTFT(scaled, mask, featureFrames, strength) {
+function applyMaskISTFT(scaled, mask, featureFrames, strength, assists={}) {
   const nFrames = Math.min(
     1 + Math.floor((scaled.length - WIN) / HOP),
     featureFrames,
@@ -654,7 +658,21 @@ function applyMaskISTFT(scaled, mask, featureFrames, strength) {
 
       let effective=m;
       if (m<1) {
-        effective=Math.max(maskFloor,Math.pow(m,gamma));
+        let localGamma=gamma;
+        const hz=f*SR/WIN;
+
+        // These assists strengthen only frequencies that the main AI already
+        // predicts should be attenuated. They do not independently classify
+        // or fabricate a removed source.
+        if(assists.fanAssist && hz>=70 && hz<=1400){
+          localGamma+=.055;
+        }
+
+        if(assists.trafficAssist && hz>=55 && hz<=650){
+          localGamma+=.045;
+        }
+
+        effective=Math.max(maskFloor,Math.pow(m,localGamma));
       }
 
       re[f]*=effective;

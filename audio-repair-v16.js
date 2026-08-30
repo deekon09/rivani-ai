@@ -27,6 +27,9 @@ let warmupStarted=false;
 let modelReady=false;
 let activeProvider="";
 let studioFinish=true;
+let fanAssist=false;
+let trafficAssist=false;
+let clickRepair=true;
 
 chooseBtn?.addEventListener("click",()=>input?.click());
 replaceBtn?.addEventListener("click",()=>input?.click());
@@ -63,6 +66,26 @@ studioFinishBtn?.addEventListener("click",()=>{
   const state=$("studioFinishState");
   if(state)state.textContent=studioFinish?"ON":"OFF";
 });
+
+bindAdvancedToggle("fanAssistToggle", value => fanAssist=value);
+bindAdvancedToggle("trafficAssistToggle", value => trafficAssist=value);
+bindAdvancedToggle("clickRepairToggle", value => clickRepair=value);
+
+function bindAdvancedToggle(id,onChange){
+  const btn=$(id);
+  if(!btn)return;
+
+  btn.addEventListener("click",()=>{
+    const active=!btn.classList.contains("active");
+    btn.classList.toggle("active",active);
+    btn.setAttribute("aria-pressed",String(active));
+
+    const state=btn.querySelector("[data-toggle-state]");
+    if(state)state.textContent=active?"ON":"OFF";
+
+    onChange(active);
+  });
+}
 
 document.querySelectorAll("[data-pro-preview]").forEach(btn=>{
   btn.addEventListener("click",()=>$("proPreviewModal")?.classList.remove("hidden"));
@@ -187,7 +210,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("mossformer2-worker.js?v=17.1",{type:"module"});
+  worker=new Worker("mossformer2-worker.js?v=18",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -291,6 +314,19 @@ async function repairLocally(){
 
     let repaired48=rebuildFromMono(buffer48,enhanced);
 
+    if(clickRepair){
+      updateProgress(82,"Repairing isolated clicks and impulse spikes…");
+      repairClicksInPlace(repaired48);
+    }
+
+    if(fanAssist || trafficAssist){
+      updateProgress(83,"Applying selected advanced cleanup…");
+      repaired48=await applyAdvancedCleanup(repaired48,{
+        fanAssist,
+        trafficAssist
+      });
+    }
+
     if(studioFinish){
       updateProgress(84,"Applying Studio Finish for smoother, more balanced voice…");
       repaired48=await applyStudioFinish(repaired48);
@@ -320,8 +356,14 @@ async function repairLocally(){
     repairedUrl=URL.createObjectURL(repairedBlob);
 
     $("afterPlayer").src=repairedUrl;
+    const extras=[];
+    if(fanAssist)extras.push("Fan/AC");
+    if(trafficAssist)extras.push("Traffic");
+    if(clickRepair)extras.push("Click Repair");
+
     $("afterPresetLabel").textContent=
-      `Clear Voice · ${strength.value}% · AI Powered`;
+      `AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish` +
+      (extras.length?` · ${extras.join(" + ")}`:"");
 
     const status=$("clearEngineStatus");
     if(status){
@@ -401,9 +443,153 @@ async function runMossFormer(mono,strength,onProgress){
     w.postMessage({
       type:"process",
       strength,
+      fanAssist,
+      trafficAssist,
       buffer:copy.buffer
     },[copy.buffer]);
   });
+}
+
+async function applyAdvancedCleanup(buffer,opts){
+  const offline=new OfflineAudioContext(
+    buffer.numberOfChannels,
+    buffer.length,
+    buffer.sampleRate
+  );
+
+  const src=offline.createBufferSource();
+  src.buffer=buffer;
+  let node=src;
+
+  if(opts.fanAssist){
+    const mains=detectMainsHum(buffer);
+
+    // Auto-selected 50/60 Hz family + restrained harmonics.
+    for(const hz of [mains,mains*2,mains*3,mains*4]){
+      if(hz>=buffer.sampleRate/2-100)continue;
+
+      const notch=offline.createBiquadFilter();
+      notch.type="notch";
+      notch.frequency.value=hz;
+      notch.Q.value=18;
+
+      node.connect(notch);
+      node=notch;
+    }
+
+    // Steady fan/AC beds often occupy broad low/mid energy too.
+    const fanLow=offline.createBiquadFilter();
+    fanLow.type="peaking";
+    fanLow.frequency.value=180;
+    fanLow.Q.value=.65;
+    fanLow.gain.value=-.75;
+    node.connect(fanLow);
+    node=fanLow;
+
+    const fanMid=offline.createBiquadFilter();
+    fanMid.type="peaking";
+    fanMid.frequency.value=620;
+    fanMid.Q.value=.75;
+    fanMid.gain.value=-.35;
+    node.connect(fanMid);
+    node=fanMid;
+  }
+
+  if(opts.trafficAssist){
+    // Deliberately mild because traffic overlaps male voice fundamentals/body.
+    const hp=offline.createBiquadFilter();
+    hp.type="highpass";
+    hp.frequency.value=78;
+    hp.Q.value=.58;
+    node.connect(hp);
+    node=hp;
+
+    const road=offline.createBiquadFilter();
+    road.type="peaking";
+    road.frequency.value=310;
+    road.Q.value=.62;
+    road.gain.value=-.65;
+    node.connect(road);
+    node=road;
+  }
+
+  node.connect(offline.destination);
+  src.start();
+  return await offline.startRendering();
+}
+
+function detectMainsHum(buffer){
+  const mono=mixToMono(buffer);
+  const sr=buffer.sampleRate;
+  const max=Math.min(mono.length,Math.floor(sr*20));
+
+  const e50=
+    goertzelPower(mono,max,sr,50) +
+    .55*goertzelPower(mono,max,sr,100) +
+    .35*goertzelPower(mono,max,sr,150);
+
+  const e60=
+    goertzelPower(mono,max,sr,60) +
+    .55*goertzelPower(mono,max,sr,120) +
+    .35*goertzelPower(mono,max,sr,180);
+
+  return e60>e50?60:50;
+}
+
+function goertzelPower(data,length,sr,freq){
+  const omega=2*Math.PI*freq/sr;
+  const coeff=2*Math.cos(omega);
+  let s0=0,s1=0,s2=0;
+
+  const stride=Math.max(1,Math.floor(length/240000));
+
+  for(let i=0;i<length;i+=stride){
+    s0=data[i]+coeff*s1-s2;
+    s2=s1;
+    s1=s0;
+  }
+
+  return Math.max(0,s1*s1+s2*s2-coeff*s1*s2);
+}
+
+function repairClicksInPlace(buffer){
+  // Real impulse repair: only isolated waveform jumps far larger than the
+  // immediate neighborhood are interpolated. Normal speech attacks remain.
+  for(let c=0;c<buffer.numberOfChannels;c++){
+    const d=buffer.getChannelData(c);
+    if(d.length<16)continue;
+
+    for(let i=4;i<d.length-4;i++){
+      const prev=
+        Math.abs(d[i-1]-d[i-2])+
+        Math.abs(d[i-2]-d[i-3]);
+
+      const next=
+        Math.abs(d[i+2]-d[i+1])+
+        Math.abs(d[i+3]-d[i+2]);
+
+      const local=(prev+next)*.25+1e-6;
+
+      const jumpIn=Math.abs(d[i]-d[i-1]);
+      const jumpOut=Math.abs(d[i+1]-d[i]);
+
+      if(
+        jumpIn>.10 &&
+        jumpOut>.10 &&
+        jumpIn>local*8 &&
+        jumpOut>local*8
+      ){
+        const left=d[i-2];
+        const right=d[i+2];
+
+        d[i-1]=left+(right-left)*.25;
+        d[i]=left+(right-left)*.50;
+        d[i+1]=left+(right-left)*.75;
+
+        i+=2;
+      }
+    }
+  }
 }
 
 async function applyNaturalFinish(buffer){

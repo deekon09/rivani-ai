@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=17.1.1.1f">
+  <link rel="stylesheet" href="styles.css?v=18.1.1f">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -147,18 +147,67 @@
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
 
-              <section class="pro-noise-mixer" aria-label="Future Pro Noise Mixer preview">
+              <section class="pro-noise-mixer advanced-controls-panel" aria-label="Advanced audio controls">
                 <div class="pro-mixer-head">
                   <div>
-                    <div class="pro-title-row"><span class="pro-chip">PRO</span><h3>Noise Mixer</h3></div>
-                    <p>Advanced controls unlock only when their dedicated AI processing is connected—no fake sliders.</p>
+                    <div class="pro-title-row">
+                      <span class="pro-chip">ADVANCED</span>
+                      <h3>Noise Controls</h3>
+                    </div>
+                    <p>Use an extra control only when that sound is actually present.</p>
                   </div>
-                  <button class="pro-unlock-btn" type="button" data-pro-preview><span>🔒</span> Pro preview</button>
+                  <span class="advanced-live-badge">REAL PROCESSING</span>
                 </div>
-                <div class="pro-feature-strip">
-                  <span>✓ Overall Noise</span><span>🔒 Fan / AC</span><span>🔒 Traffic</span><span>🔒 Background Voices</span>
-                  <span>🔒 Music Control</span><span>🔒 De-Reverb</span><span>🔒 Click Repair</span>
+
+                <div class="advanced-control-grid">
+                  <div class="advanced-control active-static">
+                    <div>
+                      <strong>Overall Noise</strong>
+                      <small>Controlled by the AI Enhancement slider above.</small>
+                    </div>
+                    <span class="working-chip">ON</span>
+                  </div>
+
+                  <div class="advanced-control">
+                    <div>
+                      <strong>Fan / AC Assist</strong>
+                      <small>Steady low/mid cleanup plus automatic hum-frequency control.</small>
+                    </div>
+                    <button id="fanAssistToggle" class="mini-toggle" type="button" aria-pressed="false">
+                      <i></i><span data-toggle-state>OFF</span>
+                    </button>
+                  </div>
+
+                  <div class="advanced-control">
+                    <div>
+                      <strong>Traffic Assist</strong>
+                      <small>Extra road/engine-band cleanup. Keep OFF if traffic is not present.</small>
+                    </div>
+                    <button id="trafficAssistToggle" class="mini-toggle" type="button" aria-pressed="false">
+                      <i></i><span data-toggle-state>OFF</span>
+                    </button>
+                  </div>
+
+                  <div class="advanced-control">
+                    <div>
+                      <strong>Click Repair</strong>
+                      <small>Repairs isolated keyboard/mouth-style impulse spikes.</small>
+                    </div>
+                    <button id="clickRepairToggle" class="mini-toggle active" type="button" aria-pressed="true">
+                      <i></i><span data-toggle-state>ON</span>
+                    </button>
+                  </div>
                 </div>
+
+                <div class="locked-specialist-row">
+                  <span>🔒 Background Voices</span>
+                  <span>🔒 Music Control</span>
+                  <span>🔒 De-Reverb</span>
+                </div>
+
+                <p class="advanced-honesty-note">
+                  Locked controls need their own specialist AI engine and will not be faked.
+                </p>
               </section>
             </div>
 
@@ -239,8 +288,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=17.1.1.1f"></script>
-  <script type="module" src="auth-nav.js?v=17.1.1.1f"></script>
-  <script type="module" src="audio-repair-v16.js?v=17.1"></script>
+  <script src="script.js?v=18.1.1f"></script>
+  <script type="module" src="auth-nav.js?v=18.1.1f"></script>
+  <script type="module" src="audio-repair-v16.js?v=18"></script>
 </body>
 </html>

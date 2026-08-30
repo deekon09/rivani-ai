@@ -356,3 +356,71 @@
   .studio-finish-card{align-items:flex-start}
   .studio-toggle{min-width:76px}
 }
+
+
+/* ===== RIVANI V18 · Real Advanced Controls ===== */
+.advanced-live-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:7px 10px;border-radius:999px;
+  border:1px solid rgba(66,212,174,.24);
+  background:rgba(24,153,119,.10);
+  color:#83edcf;font-size:8px;font-weight:900;letter-spacing:1px
+}
+.advanced-control-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;margin-top:14px
+}
+.advanced-control{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:14px;border-radius:14px;
+  border:1px solid rgba(79,107,170,.17);
+  background:rgba(5,10,27,.58)
+}
+.advanced-control.active-static{
+  border-color:rgba(58,196,169,.20);
+  background:linear-gradient(120deg,rgba(18,123,104,.09),rgba(5,10,27,.58))
+}
+.advanced-control strong{display:block;font-size:11px;color:#eaf2ff}
+.advanced-control small{
+  display:block;margin-top:4px;max-width:330px;
+  color:#75839d;font-size:8.7px;line-height:1.45
+}
+.working-chip{
+  flex:0 0 auto;padding:5px 7px;border-radius:999px;
+  background:rgba(33,177,139,.13);
+  border:1px solid rgba(54,208,170,.22);
+  color:#89efd3;font-size:8px;font-weight:900
+}
+.mini-toggle{
+  flex:0 0 auto;width:67px;height:31px;
+  display:flex;align-items:center;justify-content:space-between;gap:5px;
+  padding:4px 7px 4px 4px;border-radius:999px;
+  border:1px solid rgba(91,107,149,.22);
+  background:rgba(10,15,31,.86);
+  color:#6f7b92;cursor:pointer;transition:.2s ease
+}
+.mini-toggle i{
+  display:block;width:22px;height:22px;border-radius:50%;
+  background:#414c63;transition:.2s ease
+}
+.mini-toggle span{font-size:7.5px;font-weight:900;letter-spacing:.4px}
+.mini-toggle.active{
+  color:#b4efff;
+  border-color:rgba(64,169,255,.30);
+  background:linear-gradient(90deg,rgba(10,125,191,.18),rgba(87,60,210,.18))
+}
+.mini-toggle.active i{
+  background:linear-gradient(145deg,#1dd1d4,#596cff);
+  box-shadow:0 0 13px rgba(60,181,255,.28)
+}
+.locked-specialist-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.locked-specialist-row span{
+  padding:7px 9px;border-radius:999px;
+  border:1px solid rgba(93,103,133,.16);
+  background:rgba(11,14,26,.62);
+  color:#5f687c;font-size:8px;font-weight:800
+}
+.advanced-honesty-note{margin:8px 0 0;color:#606b81;font-size:8.5px}
+@media(max-width:720px){
+  .advanced-control-grid{grid-template-columns:1fr}
+}
