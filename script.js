@@ -136,3 +136,49 @@ lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')
     start();
   }
 })();
+
+
+/* ==========================================================
+   RIVANI V21 · Real logo shine
+   Wraps each existing RIVANI wordmark image with a precise shine shell.
+   ========================================================== */
+(function installRivaniLogoShine(){
+  function wrapLogos(root=document){
+    root.querySelectorAll?.('img[src*="assets/rivani-ai-logo.png"]').forEach(img=>{
+      if(img.closest(".rivani-logo-shine-shell"))return;
+
+      const shell=document.createElement("span");
+      shell.className="rivani-logo-shine-shell";
+      shell.setAttribute("aria-hidden","true");
+
+      img.parentNode.insertBefore(shell,img);
+      shell.appendChild(img);
+    });
+  }
+
+  function start(){
+    wrapLogos(document);
+
+    const observer=new MutationObserver(mutations=>{
+      for(const mutation of mutations){
+        mutation.addedNodes.forEach(node=>{
+          if(node.nodeType!==Node.ELEMENT_NODE)return;
+
+          if(node.matches?.('img[src*="assets/rivani-ai-logo.png"]')){
+            wrapLogos(node.parentElement||document);
+          }else{
+            wrapLogos(node);
+          }
+        });
+      }
+    });
+
+    observer.observe(document.body,{subtree:true,childList:true});
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",start,{once:true});
+  }else{
+    start();
+  }
+})();

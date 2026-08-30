@@ -48,6 +48,13 @@ let mp3BlobCache=null;
 
 let currentAudioPlan="free";
 
+const dereverbLabMode=
+  new URLSearchParams(window.location.search).get("lab")==="1";
+
+let dereverbEnabled=false;
+let dereverbStrength=.58;
+let dereverbWorker=null;
+
 function normalizePlan(value){
   return String(value||"free").trim().toLowerCase();
 }
@@ -162,6 +169,19 @@ document.querySelectorAll("[data-pro-lock]").forEach(btn=>{
 document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const feature=btn.dataset.specialistEngine||"Specialist AI";
+
+    if(feature==="De-Reverb" && dereverbLabMode){
+      dereverbEnabled=!dereverbEnabled;
+
+      btn.classList.toggle("lab-active",dereverbEnabled);
+      btn.setAttribute("aria-pressed",String(dereverbEnabled));
+
+      const state=$("dereverbSpecialistState");
+      if(state)state.textContent=dereverbEnabled?"BETA ON":"BETA OFF";
+
+      return;
+    }
+
     openProMessage(
       `${feature} · Pro AI`,
       `${feature} uses a separate specialist AI engine. It is listed in Pro, but this stable build will not route your approved Clear Voice through an unvalidated model.`
@@ -247,6 +267,21 @@ function updateExportFormatUI(){
 function renderPlanAccess(){
   currentAudioPlan=getAudioPlan();
   const pro=isProPlan();
+
+  const labBanner=$("dereverbLabBanner");
+  const dereverbBtn=$("dereverbSpecialistBtn");
+  const dereverbState=$("dereverbSpecialistState");
+
+  if(labBanner)labBanner.classList.toggle("hidden",!dereverbLabMode);
+
+  if(dereverbBtn){
+    dereverbBtn.classList.toggle("lab-ready",dereverbLabMode);
+    dereverbBtn.classList.toggle("lab-active",dereverbLabMode && dereverbEnabled);
+  }
+
+  if(dereverbState && dereverbLabMode){
+    dereverbState.textContent=dereverbEnabled?"BETA ON":"BETA OFF";
+  }
 
   const badge=$("proAudioBadge");
   if(badge)badge.textContent=pro?"✓ PRO ACTIVE":"🔒 PRO";
@@ -423,7 +458,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=20");
+    const worker=new Worker("mp3-export-worker.js?v=21");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -591,7 +626,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=20",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=21",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -686,17 +721,39 @@ async function repairLocally(){
     updateProgress(3,"Preparing the recording locally. Your audio is not uploaded to a RIVANI GPU server…");
 
     const buffer48=await resampleAudioBuffer(sourceBuffer,48000);
-    const mono=mixToMono(buffer48);
+    let mono=mixToMono(buffer48);
+
+    if(dereverbEnabled){
+      setStage("model");
+      updateProgress(6,"De-Reverb Beta is analyzing room reflections…");
+
+      mono=await runDereverbBeta(
+        mono,
+        dereverbStrength,
+        (p,text)=>{
+          const mapped=6+Math.round(Number(p||0)*.20);
+          updateProgress(Math.min(26,mapped),text);
+        }
+      );
+
+      updateProgress(27,"Room-reflection cleanup ready. Starting RIVANI AI…");
+    }
 
     setStage("model");
-    updateProgress(8,"Preparing RIVANI AI Engine…");
+    if(!dereverbEnabled){
+      updateProgress(8,"Preparing RIVANI AI Engine…");
+    }
 
     const enhanced=await runMossFormer(
       mono,
       Number(strength.value)/100,
       (p,text,providerName)=>{
         activeProvider=providerName||activeProvider;
-        const mapped=10+Math.round(p*.70);
+
+        const mapped=dereverbEnabled
+          ? 28+Math.round(p*.52)
+          : 10+Math.round(p*.70);
+
         updateProgress(Math.min(80,mapped),text);
       }
     );
@@ -752,7 +809,8 @@ async function repairLocally(){
 
     $("afterPlayer").src=repairedUrl;
     $("afterPresetLabel").textContent=
-      `AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish`;
+      `AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish` +
+      (dereverbEnabled?" · De-Reverb Beta":"");
 
     const status=$("clearEngineStatus");
     if(status){
@@ -783,12 +841,64 @@ async function repairLocally(){
 
     const detail=String(error?.message||error||"").slice(0,220);
     alert(
-      `Clear Voice X could not finish. ${detail}\n\n`+
+      `${dereverbEnabled?"De-Reverb Beta / Clear Voice":"Clear Voice"} could not finish. ${detail}\n\n`+
       `No lower-quality fallback result was generated. Refresh and retry. If the AI engine still cannot prepare, check your internet connection.`
     );
   }finally{
     repairBtn.disabled=false;
   }
+}
+
+function getDereverbWorker(){
+  if(dereverbWorker)return dereverbWorker;
+
+  dereverbWorker=new Worker("dereverb-worker.js?v=21");
+  return dereverbWorker;
+}
+
+async function runDereverbBeta(mono,strength,onProgress){
+  const w=getDereverbWorker();
+  const copy=new Float32Array(mono);
+
+  return await new Promise((resolve,reject)=>{
+    const timeout=setTimeout(()=>{
+      w.removeEventListener("message",listener);
+      reject(new Error("De-Reverb Beta timed out."));
+    },180000);
+
+    const listener=event=>{
+      const d=event.data||{};
+
+      if(d.type==="phase" || d.type==="progress"){
+        onProgress?.(
+          Number(d.progress||0),
+          d.text||"Reducing room reflections…"
+        );
+        return;
+      }
+
+      if(d.type==="error"){
+        clearTimeout(timeout);
+        w.removeEventListener("message",listener);
+        reject(new Error(d.message||"De-Reverb Beta failed."));
+        return;
+      }
+
+      if(d.type==="done"){
+        clearTimeout(timeout);
+        w.removeEventListener("message",listener);
+        resolve(new Float32Array(d.buffer));
+      }
+    };
+
+    w.addEventListener("message",listener);
+
+    w.postMessage({
+      type:"process",
+      strength,
+      buffer:copy.buffer
+    },[copy.buffer]);
+  });
 }
 
 async function runMossFormer(mono,strength,onProgress){

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=20.1">
+  <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -199,11 +199,17 @@
                     <span><b>Music Control</b><small>Separate speech from background music before cleanup.</small></span>
                     <em>PRO AI</em>
                   </button>
-                  <button class="pro-specialist-card" type="button" data-specialist-engine="De-Reverb">
+                  <button class="pro-specialist-card" id="dereverbSpecialistBtn" type="button" data-specialist-engine="De-Reverb">
                     <span class="pro-specialist-icon">⌁</span>
-                    <span><b>De-Reverb</b><small>Dedicated room-echo and reverberation restoration.</small></span>
-                    <em>PRO AI</em>
+                    <span><b>De-Reverb</b><small>Dedicated room-echo and late-reflection reduction.</small></span>
+                    <em id="dereverbSpecialistState">PRO AI</em>
                   </button>
+                </div>
+
+                
+                <div class="dereverb-lab-banner hidden" id="dereverbLabBanner">
+                  <span>OWNER LAB</span>
+                  <p>De-Reverb Beta testing is enabled for this page. Click the De-Reverb card to switch the separate room-reflection engine ON/OFF. This lab switch will be removed or Pro-locked after A/B validation.</p>
                 </div>
 
                 <div class="pro-validation-note">
@@ -312,8 +318,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=20.1"></script>
-  <script type="module" src="auth-nav.js?v=20.1"></script>
-  <script type="module" src="audio-repair.js?v=20.1"></script>
+  <script src="script.js?v=21"></script>
+  <script type="module" src="auth-nav.js?v=21"></script>
+  <script type="module" src="audio-repair.js?v=21"></script>
 </body>
 </html>
