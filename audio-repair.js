@@ -813,7 +813,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23.6",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.7",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -1278,7 +1278,7 @@ function createDereverbWorker(useEmbedded=false){
   }else{
     // Resolve against this module instead of the document URL.
     const url=new URL(
-      "./dereverb-worker.js?v=23.6",
+      "./dereverb-worker.js?v=23.7",
       import.meta.url
     );
     dereverbWorker=new Worker(url);

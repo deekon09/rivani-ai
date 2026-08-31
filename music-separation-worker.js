@@ -3,22 +3,22 @@ const ORT_VERSION="1.29.0";
 const ORT_WEBGPU_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
 const ORT_WASM_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
 const ORT_WASM_BASE=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
-const MODEL_PROXY="https://rivani-models.rivani.workers.dev/music-vocals.onnx";
+const MODEL_PROXY="https://rivani-models.rivani.workers.dev/music-vocals-ft.onnx";
 const MODEL_DIRECT="https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR_MDXNET_9482.onnx";
 const CACHE_NAME="rivani-specialist-models-v22";
-// UVR_MDXNET_9482 metadata used by sherpa-onnx:
-// sample_rate=44100, n_fft=4096, center=1, hann(periodic),
-// hop_length=1024, dim_t=256, dim_f=2048, dim_c=4.
-// The values below mirror sherpa-onnx OfflineSourceSeparationUvrImpl.
+// RIVANI V23.7: vocal fine-tuned UVR model geometry.
+// UVR-MDX-NET-Voc_FT:
+// sample_rate=44100, n_fft=6144, hop=1024,
+// dim_t=256, dim_f=3072, dim_c=4, target=vocals.
 const SR=44100;
-const NFFT=4096;
+const NFFT=6144;
 const HOP=1024;
-const DIM_F=2048;
+const DIM_F=3072;
 const DIM_T=256;
 const DIM_C=4;
 const TRIM=NFFT>>1;
 const FRAME_SPAN=HOP*(DIM_T-1);   // 261120
-const GEN_SIZE=FRAME_SPAN-2*TRIM; // 257024
+const GEN_SIZE=FRAME_SPAN-2*TRIM; // 254976
 const LONG_CHUNK=15*SR;
 const MARGIN=SR;
 
