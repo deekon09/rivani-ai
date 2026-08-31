@@ -47,7 +47,7 @@
           <span class="section-kicker">RIVANI IMAGE ENGINE</span>
           <h1>Sharper, <span>not different.</span></h1>
           <p>
-            Real AI upscaling with a built-in Fidelity Guard that checks structure,
+            Real AI upscaling plus RIVANI HD Finish, with a built-in Fidelity Guard that checks structure,
             color and edge behavior before RIVANI gives you the final result.
           </p>
           <div class="image-hero-points">
@@ -101,6 +101,24 @@
               <div class="image-scale-options" id="imageScaleGroup">
                 <button class="active" data-image-scale="2" type="button"><b>2×</b><small>Fast + clean</small></button>
                 <button data-image-scale="4" type="button"><b>4×</b><small>Maximum detail</small></button>
+              </div>
+            </div>
+
+            <div class="image-control-block image-hd-finish-block">
+              <label>RIVANI HD Finish</label>
+
+              <button class="image-toggle-row enabled" id="hdFinishToggle" type="button" aria-pressed="true">
+                <span>
+                  <b>HD Finish</b>
+                  <small>Clarity, vibrance and dimensional contrast after AI enhancement</small>
+                </span>
+                <i></i>
+              </button>
+
+              <div class="image-finish-strength">
+                <div><span>Finish strength</span><b id="hdFinishStrengthValue">70%</b></div>
+                <input id="hdFinishStrength" type="range" min="0" max="100" step="5" value="70" aria-label="HD Finish strength">
+                <small>Same finish engine on mobile and PC. Strong mode adds the most visible punch without changing identity or geometry.</small>
               </div>
             </div>
 
@@ -296,6 +314,7 @@
                   <span id="imageOutputMegapixels">— MP</span>
                   <span id="imageOutputFormat">—</span>
                   <span id="imageOutputFileSize">—</span>
+                  <span id="imageHdFinishMeta">HD Finish —</span>
                   <span id="imageProtectedMeta" class="hidden">—</span>
                 </div>
                 <p class="image-export-size-note" id="imageExportSizeNote">Exact export size appears after encoding.</p>
@@ -344,7 +363,7 @@
           </article>
           <article>
             <span>03</span>
-            <div><b>Safe Result</b><small>If the model becomes unreliable, RIVANI falls back toward the original instead of forcing artifacts.</small></div>
+            <div><b>HD Finish + Safe Result</b><small>Clarity, vibrance and dimensional contrast are added after AI, while unsafe changes still fall back toward the original.</small></div>
           </article>
         </section>
       </div>
@@ -377,7 +396,7 @@
   </footer>
 
   <script src="script.js?v=25.2-image"></script>
-  <script src="image-enhancer.js?v=25.9-image"></script>
+  <script src="image-enhancer.js?v=25.10-image"></script>
   <script type="module" src="auth-nav.js?v=25.2-image"></script>
 </body>
 </html>

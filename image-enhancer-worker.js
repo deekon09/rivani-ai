@@ -1,5 +1,5 @@
-// RIVANI AI · Image Enhancer V25.9
-// Adaptive desktop flagship + Mobile Selective AI browser-side inference.
+// RIVANI AI · Image Enhancer V25.10
+// Adaptive desktop flagship + Mobile Selective AI + shared RIVANI HD Finish.
 // Desktop keeps the flagship full-image model path. Mobile uses a bounded number
 // of efficient-model tiles over a source-preserving resize so mid-range phones
 // can finish instead of timing out after hundreds of model calls.
@@ -44,6 +44,8 @@ let inputName="";
 let outputName="";
 let performanceProfile="balanced";
 let imageMode="natural";
+let hdFinishEnabled=true;
+let hdFinishStrength=70;
 let uiPressure=0;
 const modelBytesCache=new Map();
 
@@ -62,6 +64,8 @@ self.onmessage=async event=>{
     const pixels=new Uint8ClampedArray(msg.rgba);
     performanceProfile=normalizeProfile(msg.performanceProfile);
     imageMode=normalizeMode(msg.imageMode);
+    hdFinishEnabled=msg.hdFinishEnabled!==false;
+    hdFinishStrength=Math.max(0,Math.min(100,Number(msg.hdFinishStrength)||0));
     uiPressure=0;
 
     if(!width||!height||pixels.length!==width*height*4){
@@ -72,6 +76,15 @@ self.onmessage=async event=>{
       ?await enhanceMobileHybrid(pixels,width,height,targetScale)
       :await enhanceDesktop(pixels,width,height,targetScale);
 
+    if(hdFinishEnabled&&hdFinishStrength>0){
+      self.postMessage({
+        type:"status",progress:98,
+        text:"Applying RIVANI HD Finish…",
+        provider:result.provider||provider
+      });
+      applyRivaniHdFinish(result.rgba,result.width,result.height,imageMode,hdFinishStrength);
+    }
+
     self.postMessage({
       type:"done",
       width:result.width,
@@ -80,7 +93,9 @@ self.onmessage=async event=>{
       provider:result.provider||provider,
       performanceProfile,
       mobileRefineTiles:result.mobileRefineTiles||0,
-      mobileTotalTiles:result.mobileTotalTiles||0
+      mobileTotalTiles:result.mobileTotalTiles||0,
+      hdFinishApplied:Boolean(hdFinishEnabled&&hdFinishStrength>0),
+      hdFinishStrength:hdFinishEnabled?hdFinishStrength:0
     },[result.rgba.buffer]);
   }catch(error){
     self.postMessage({type:"error",message:error?.message||"Image enhancement failed."});
@@ -427,6 +442,93 @@ async function runTile(input){
     self.postMessage({type:"status",progress:2,text:"GPU path adjusted for this device…",provider:"RIVANI AI Engine"});
     await createWasmSession(bytes,modelKind);
     return await execute();
+  }
+}
+
+// V25.10: lightweight full-frame finishing pass shared by desktop and mobile.
+// This is intentionally not marketed as another neural model. It adds controlled
+// local contrast, vibrance and micro-detail after AI reconstruction. The pass is
+// in-place and keeps only three luminance rows, so mobile memory stays bounded.
+function applyRivaniHdFinish(rgba,width,height,mode,strength){
+  const power=Math.max(0,Math.min(1,Number(strength)||0)/100);
+  if(power<=0||width<3||height<3)return;
+
+  const params=mode==="strong"
+    ?{contrast:.080,vibrance:.180,detail:.480,lift:.012}
+    :mode==="restore"
+      ?{contrast:.055,vibrance:.105,detail:.350,lift:.007}
+      :{contrast:.045,vibrance:.105,detail:.250,lift:.006};
+
+  const contrast=params.contrast*power;
+  const vibrance=params.vibrance*power;
+  const detailAmount=params.detail*power;
+  const lift=params.lift*power;
+
+  let prev=new Float32Array(width);
+  let curr=new Float32Array(width);
+  let next=new Float32Array(width);
+
+  const fillLum=(y,row)=>{
+    const base=y*width*4;
+    for(let x=0;x<width;x++){
+      const i=base+x*4;
+      row[x]=(rgba[i]*.2126+rgba[i+1]*.7152+rgba[i+2]*.0722)/255;
+    }
+  };
+
+  fillLum(0,curr);
+  prev.set(curr);
+  fillLum(Math.min(1,height-1),next);
+
+  for(let y=0;y<height;y++){
+    const rowBase=y*width*4;
+    for(let x=0;x<width;x++){
+      const i=rowBase+x*4;
+      if(rgba[i+3]<8)continue;
+
+      const lum=curr[x];
+      const left=curr[x>0?x-1:x];
+      const right=curr[x<width-1?x+1:x];
+      const localAvg=(prev[x]+next[x]+left+right)*.25;
+      const rawDetail=Math.max(-.085,Math.min(.085,lum-localAvg));
+      const detailGate=Math.min(1,.18+Math.abs(rawDetail)*18);
+      const micro=rawDetail*detailAmount*detailGate;
+
+      const centered=lum-.5;
+      const curve=centered*(1-Math.min(1,4*centered*centered));
+      const dimensional=curve*contrast;
+      const midPresence=lift*Math.max(0,1-Math.abs(lum-.55)/.55)*(lum<.94?1:0);
+      const targetLum=Math.max(0,Math.min(1,lum+micro+dimensional+midPresence));
+      const delta=targetLum-lum;
+
+      let r=Math.max(0,Math.min(1,rgba[i]/255+delta));
+      let g=Math.max(0,Math.min(1,rgba[i+1]/255+delta));
+      let b=Math.max(0,Math.min(1,rgba[i+2]/255+delta));
+
+      const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+      const sat=mx>1e-5?(mx-mn)/mx:0;
+      let vib=vibrance*(1-sat*.72);
+
+      // Keep skin from becoming orange/red while still allowing clothing and
+      // scenery to gain visible color presence.
+      const skin=r>.28&&g>.16&&b>.08&&r>g&&g>b&&(r-b)>.075&&(r-g)<.30;
+      if(skin)vib*=.42;
+      if(targetLum>.90)vib*=.55;
+
+      const l=r*.2126+g*.7152+b*.0722;
+      r=l+(r-l)*(1+vib);
+      g=l+(g-l)*(1+vib);
+      b=l+(b-l)*(1+vib);
+
+      rgba[i]=clampByte(r*255);
+      rgba[i+1]=clampByte(g*255);
+      rgba[i+2]=clampByte(b*255);
+    }
+
+    if(y<height-1){
+      const tmp=prev; prev=curr; curr=next; next=tmp;
+      fillLum(Math.min(height-1,y+2),next);
+    }
   }
 }
 

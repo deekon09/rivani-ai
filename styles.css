@@ -3252,3 +3252,19 @@ body.image-mobile-processing .image-processing-orb::after{
   0%,100%{transform:scale(1)}
   50%{transform:scale(1.025)}
 }
+
+
+/* V25.10 · RIVANI HD Finish */
+.image-hd-finish-block .image-toggle-row{margin-bottom:9px}
+.image-finish-strength{
+  padding:11px 12px;
+  border:1px solid rgba(79,153,255,.12);
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(20,70,126,.08),rgba(97,50,175,.055));
+}
+.image-finish-strength>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.image-finish-strength span{color:#9fadc4;font-size:8.5px;font-weight:800}
+.image-finish-strength b{color:#8edfff;font-size:9px}
+.image-finish-strength input[type="range"]{width:100%;margin:10px 0 6px;accent-color:#59c9ff}
+.image-finish-strength small{display:block;color:#667791;font-size:7.5px;line-height:1.45}
+.image-finish-strength.is-disabled{opacity:.42;pointer-events:none}

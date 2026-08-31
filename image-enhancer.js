@@ -1,6 +1,6 @@
 (()=>{"use strict";
 
-// RIVANI Image Enhancer V25.7 · mobile-safe responsive inference + smart export
+// RIVANI Image Enhancer V25.10 · mobile completion + shared HD Finish
 
 const $=id=>document.getElementById(id);
 
@@ -47,6 +47,10 @@ const protectedMeta=$("imageProtectedMeta");
 const imageProModal=$("imageProModal");
 const imageProModalTitle=$("imageProModalTitle");
 const imageProModalCopy=$("imageProModalCopy");
+const hdFinishToggle=$("hdFinishToggle");
+const hdFinishStrengthInput=$("hdFinishStrength");
+const hdFinishStrengthValue=$("hdFinishStrengthValue");
+const hdFinishMeta=$("imageHdFinishMeta");
 
 const DEFAULT_OUTPUT_PIXELS=36_000_000;
 const DEFAULT_OUTPUT_EDGE=9000;
@@ -64,6 +68,8 @@ let requestedScale=2;
 let fidelityGuard=true;
 let textLogoSafe=true;
 let colorLock=true;
+let hdFinish=true;
+let hdFinishStrength=70;
 let busy=false;
 let currentScan=null;
 let currentImagePlan="free";
@@ -135,6 +141,15 @@ document.querySelectorAll("[data-image-scale]").forEach(btn=>{
 bindToggle("fidelityGuardToggle",value=>fidelityGuard=value);
 bindToggle("textSafeToggle",value=>textLogoSafe=value);
 bindToggle("colorLockToggle",value=>colorLock=value);
+bindToggle("hdFinishToggle",value=>{
+  hdFinish=value;
+  document.querySelector(".image-finish-strength")?.classList.toggle("is-disabled",!value);
+});
+
+hdFinishStrengthInput?.addEventListener("input",()=>{
+  hdFinishStrength=Math.max(0,Math.min(100,Number(hdFinishStrengthInput.value)||0));
+  if(hdFinishStrengthValue)hdFinishStrengthValue.textContent=`${hdFinishStrength}%`;
+});
 
 enhanceBtn?.addEventListener("click",enhanceCurrentImage);
 againBtn?.addEventListener("click",()=>{
@@ -529,7 +544,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.9-image",
+      "image-enhancer-worker.js?v=25.10-image",
       {type:"module"}
     );
 
@@ -541,7 +556,9 @@ async function enhanceCurrentImage(){
       prep.height,
       prep.workerScale,
       getImagePerformanceProfile(),
-      imageMode
+      imageMode,
+      hdFinish,
+      hdFinishStrength
     );
     const runtimeMs=performance.now()-runtimeStarted;
 
@@ -661,6 +678,12 @@ async function enhanceCurrentImage(){
       enhancedFormat,
       enhancedFileBytes
     );
+
+    if(hdFinishMeta){
+      hdFinishMeta.textContent=hdFinish&&response.hdFinishApplied
+        ?`HD Finish ${Math.round(response.hdFinishStrength||hdFinishStrength)}%`
+        :"HD Finish off";
+    }
 
     processing.classList.add("hidden");
     resultPanel.classList.remove("hidden");
@@ -875,7 +898,7 @@ function startImageUiPressureMonitor(worker,performanceProfile){
   };
 }
 
-function runWorker(worker,imageData,width,height,targetScale,performanceProfile,imageMode){
+function runWorker(worker,imageData,width,height,targetScale,performanceProfile,imageMode,hdFinishEnabled,hdFinishAmount){
   return new Promise((resolve,reject)=>{
     const stopUiMonitor=startImageUiPressureMonitor(worker,performanceProfile);
     const mobile=performanceProfile==="mobile";
@@ -945,7 +968,9 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile,
           provider:msg.provider||"RIVANI AI Engine",
           performanceProfile:msg.performanceProfile||performanceProfile||"balanced",
           mobileRefineTiles:Number(msg.mobileRefineTiles)||0,
-          mobileTotalTiles:Number(msg.mobileTotalTiles)||0
+          mobileTotalTiles:Number(msg.mobileTotalTiles)||0,
+          hdFinishApplied:Boolean(msg.hdFinishApplied),
+          hdFinishStrength:Number(msg.hdFinishStrength)||0
         });
         return;
       }
@@ -968,6 +993,8 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile,
       targetScale,
       performanceProfile,
       imageMode:imageMode||"natural",
+      hdFinishEnabled:Boolean(hdFinishEnabled),
+      hdFinishStrength:Math.max(0,Math.min(100,Number(hdFinishAmount)||0)),
       rgba:inputBuffer
     },[inputBuffer]);
   });
