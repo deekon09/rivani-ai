@@ -6,8 +6,27 @@ const ORT_WASM_BASE=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}
 const MODEL_PROXY="https://rivani-models.rivani.workers.dev/music-vocals.onnx";
 const MODEL_DIRECT="https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR_MDXNET_9482.onnx";
 const CACHE_NAME="rivani-specialist-models-v22";
-const SR=44100,NFFT=4096,HOP=1024,DIM_F=2048,DIM_T=256,CHUNK=HOP*(DIM_T-1),OVERLAP=Math.round(CHUNK*.10),STRIDE=CHUNK-OVERLAP,PAD=NFFT>>1;
-const WINDOW=new Float64Array(NFFT);for(let n=0;n<NFFT;n++)WINDOW[n]=.5-.5*Math.cos(2*Math.PI*n/NFFT);
+// UVR_MDXNET_9482 metadata used by sherpa-onnx:
+// sample_rate=44100, n_fft=4096, center=1, hann(periodic),
+// hop_length=1024, dim_t=256, dim_f=2048, dim_c=4.
+// The values below mirror sherpa-onnx OfflineSourceSeparationUvrImpl.
+const SR=44100;
+const NFFT=4096;
+const HOP=1024;
+const DIM_F=2048;
+const DIM_T=256;
+const DIM_C=4;
+const TRIM=NFFT>>1;
+const FRAME_SPAN=HOP*(DIM_T-1);   // 261120
+const GEN_SIZE=FRAME_SPAN-2*TRIM; // 257024
+const LONG_CHUNK=15*SR;
+const MARGIN=SR;
+
+const WINDOW=new Float64Array(NFFT);
+for(let n=0;n<NFFT;n++){
+  // kaldi-native-fbank "hann" assumes periodic=true.
+  WINDOW[n]=.5-.5*Math.cos(2*Math.PI*n/NFFT);
+}
 let ort=null,session=null,sessionPromise=null;
 let deviceProfile={lowPower:false,preferWebGPU:false};
 
@@ -105,47 +124,119 @@ function chooseWasmThreads(){
 }
 async function getModelBytes(){const cache=await caches.open(CACHE_NAME),key=new Request(MODEL_PROXY),cached=await cache.match(key);if(cached){const ab=await cached.arrayBuffer();if(ab.byteLength>20000000)return ab;}let last;for(const url of [MODEL_PROXY,MODEL_DIRECT]){try{const res=await fetch(url,{mode:"cors",cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);const total=Number(res.headers.get("content-length")||0),reader=res.body?.getReader();let ab;if(reader){let loaded=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;self.postMessage({type:"modelProgress",progress:total?Math.min(94,Math.round(loaded/total*94)):25,text:total?`Preparing Music Control AI ${Math.round(loaded/total*100)}%…`:"Preparing Music Control AI…"});}ab=concatChunks(chunks,loaded);}else ab=await res.arrayBuffer();if(ab.byteLength<20000000)throw new Error("Music model download was incomplete.");try{await cache.put(key,new Response(ab.slice(0),{headers:{"content-type":"application/octet-stream"}}));}catch{}return ab;}catch(err){last=err;}}throw new Error(`Music Control model could not load. Deploy the V22 rivani-models Worker update. ${last?.message||""}`);}
 async function separateLong(left,right,amount){
-  if(!left.length)return {audio:new Float32Array(),safetyFallback:false,retentionDb:0};
+  if(!left.length){
+    return {
+      audio:new Float32Array(),
+      safetyFallback:false,
+      retentionDb:0
+    };
+  }
 
-  const sum=new Float64Array(left.length),wgt=new Float64Array(left.length),rawMono=new Float32Array(left.length),pos=[];
-  for(let i=0;i<rawMono.length;i++)rawMono[i]=(left[i]+right[i])*.5;
-  for(let p=0;p<left.length;p+=STRIDE){pos.push(p);if(p+CHUNK>=left.length)break;}
+  const rawMono=new Float32Array(left.length);
+  for(let i=0;i<rawMono.length;i++){
+    rawMono[i]=(left[i]+right[i])*.5;
+  }
 
-  for(let ci=0;ci<pos.length;ci++){
-    const p=pos[ci],valid=Math.min(CHUNK,left.length-p);
-    const l=reflectPad(left.subarray(p,p+valid),CHUNK),r=reflectPad(right.subarray(p,p+valid),CHUNK);
-    self.postMessage({type:"progress",progress:Math.round(ci/Math.max(1,pos.length)*100),text:`Separating voice from music ${ci+1} of ${pos.length}…`});
-    const stem=await runChunk(l,r);
+  // sherpa-onnx splits long audio into 15 s chunks with 1 s context margins.
+  const chunkRanges=splitLongRanges(left.length);
+  const vocalL=[];
+  const vocalR=[];
+  let written=0;
 
-    for(let i=0;i<valid;i++){
-      const oi=p+i;let w=1;
-      if(ci>0&&i<OVERLAP){const t=i/(OVERLAP-1);w*=.5-.5*Math.cos(Math.PI*t);}
-      if(ci<pos.length-1&&i>=STRIDE){const t=(i-STRIDE)/(OVERLAP-1);w*=.5+.5*Math.cos(Math.PI*t);}
-      const mix=(l[i]+r[i])*.5,voc=(stem.left[i]+stem.right[i])*.5;
-      sum[oi]+=(mix*(1-amount)+voc*amount)*w;wgt[oi]+=w;
+  for(let ci=0;ci<chunkRanges.length;ci++){
+    const range=chunkRanges[ci];
+
+    self.postMessage({
+      type:"progress",
+      progress:Math.round(
+        ci/Math.max(1,chunkRanges.length)*92
+      ),
+      text:`Separating voice from music ${ci+1} of ${chunkRanges.length}…`
+    });
+
+    const chunkLeft=new Float32Array(
+      left.subarray(range.start,range.end)
+    );
+    const chunkRight=new Float32Array(
+      right.subarray(range.start,range.end)
+    );
+
+    const processed=await processReferenceChunk(
+      chunkLeft,
+      chunkRight,
+      range.isFirst,
+      range.isLast
+    );
+
+    vocalL.push(processed.left);
+    vocalR.push(processed.right);
+    written+=processed.left.length;
+  }
+
+  const vocalsLeft=concatFloat32(vocalL,written);
+  const vocalsRight=concatFloat32(vocalR,written);
+
+  // Guard against any small off-by-one difference from chunk trimming.
+  const finalLength=Math.min(
+    rawMono.length,
+    vocalsLeft.length,
+    vocalsRight.length
+  );
+
+  const candidate=new Float32Array(rawMono.length);
+
+  for(let i=0;i<rawMono.length;i++){
+    if(i<finalLength){
+      const vocal=
+        (vocalsLeft[i]+vocalsRight[i])*.5;
+
+      candidate[i]=clamp(
+        rawMono[i]*(1-amount)+
+        vocal*amount,
+        -1,
+        1
+      );
+    }else{
+      candidate[i]=rawMono[i];
     }
   }
 
-  const candidate=new Float32Array(left.length);
-  for(let i=0;i<candidate.length;i++)candidate[i]=clamp(wgt[i]>1e-9?sum[i]/wgt[i]:rawMono[i],-1,1);
+  const rawRms=rmsSignal(rawMono);
+  const candidateRms=rmsSignal(candidate);
 
-  const rawRms=rmsSignal(rawMono),candidateRms=rmsSignal(candidate);
-  const ratio=rawRms>1e-8?candidateRms/rawRms:1;
-  const retentionDb=20*Math.log10(Math.max(1e-8,ratio));
-  const catastrophic=!Number.isFinite(ratio)||ratio<.018;
+  const ratio=
+    rawRms>1e-8
+      ?candidateRms/rawRms
+      :1;
+
+  const retentionDb=
+    20*Math.log10(
+      Math.max(1e-8,ratio)
+    );
+
+  const catastrophic=
+    !Number.isFinite(ratio)||
+    ratio<.018;
 
   if(catastrophic){
-    const guarded=speechPreservationFallback(rawMono,candidate);
-    self.postMessage({type:"progress",progress:100,text:"Music model became over-aggressive — speech-preservation guard protected the voice."});
-    return {audio:guarded,safetyFallback:true,retentionDb};
+    self.postMessage({
+      type:"progress",
+      progress:100,
+      text:"Music separation became over-aggressive — Safe Pass protected the voice."
+    });
+
+    return {
+      audio:new Float32Array(rawMono),
+      safetyFallback:true,
+      retentionDb
+    };
   }
 
-  applyLocalSpeechRetentionGuard(rawMono,candidate);
-
-  // A model run can technically succeed but still sound weak or phasey.
-  // Never expose such a stem as a successful user result.
+  // Product quality gate.
+  // Validate the model stem; do not repair a bad stem by mixing raw music back.
   const anchor=speechBandAnchor(rawMono);
   const candidateSpeech=speechBandAnchor(candidate);
+
   const anchorRms=rmsSignal(anchor);
   const speechRms=rmsSignal(candidateSpeech);
 
@@ -161,8 +252,8 @@ async function separateLong(left,right,amount){
 
   const unreliable=
     !Number.isFinite(speechRetention)||
-    speechRetention<.11||
-    corr<.08;
+    speechRetention<.10||
+    corr<.06;
 
   if(unreliable){
     self.postMessage({
@@ -178,15 +269,15 @@ async function separateLong(left,right,amount){
     };
   }
 
-  // Recover only the valid vocal stem level. No raw/background music is mixed
-  // back here; peak protection happens in the main pipeline.
-  const targetRetention=.42;
+  // Valid vocal stem can receive restrained level recovery only.
+  // No dry/background music is mixed back.
+  const targetRetention=.46;
 
   if(speechRetention<targetRetention){
     const gain=clamp(
       targetRetention/Math.max(.01,speechRetention),
       1,
-      2.35
+      2.15
     );
 
     for(let i=0;i<candidate.length;i++){
@@ -201,7 +292,7 @@ async function separateLong(left,right,amount){
   self.postMessage({
     type:"progress",
     progress:100,
-    text:"Music separation ready with voice-quality protection."
+    text:"Music separation ready with reference reconstruction."
   });
 
   return {
@@ -209,6 +300,457 @@ async function separateLong(left,right,amount){
     safetyFallback:false,
     retentionDb
   };
+}
+
+function splitLongRanges(length){
+  if(!length)return [];
+
+  const ranges=[];
+  const chunkSize=Math.min(LONG_CHUNK,length);
+
+  for(let i=0;i<length;i+=chunkSize){
+    const start=Math.max(
+      0,
+      i-MARGIN
+    );
+
+    const end=Math.min(
+      i+chunkSize+MARGIN,
+      length
+    );
+
+    if(start>=end)break;
+
+    ranges.push({
+      start,
+      end,
+      isFirst:i===0,
+      isLast:end===length
+    });
+
+    if(end===length)break;
+  }
+
+  return ranges;
+}
+
+async function processReferenceChunk(
+  left,
+  right,
+  isFirstChunk,
+  isLastChunk
+){
+  const preparedL=computeReferenceStft(left);
+  const preparedR=computeReferenceStft(right);
+
+  if(preparedL.segments.length!==preparedR.segments.length){
+    throw new Error(
+      "Music Control reference STFT channel mismatch."
+    );
+  }
+
+  const count=preparedL.segments.length;
+
+  if(!count){
+    return {
+      left:new Float32Array(),
+      right:new Float32Array()
+    };
+  }
+
+  // Official sherpa runtime batches all internal 256-frame segments from the
+  // current long chunk in one model call.
+  const input=new Float32Array(
+    count*DIM_C*DIM_F*DIM_T
+  );
+
+  let cursor=0;
+
+  for(let i=0;i<count;i++){
+    cursor=writeSegmentToTensor(
+      input,
+      cursor,
+      preparedL.segments[i],
+      preparedR.segments[i]
+    );
+  }
+
+  const tensor=new ort.Tensor(
+    "float32",
+    input,
+    [count,DIM_C,DIM_F,DIM_T]
+  );
+
+  const inputName=session.inputNames[0];
+
+  const outputs=await session.run({
+    [inputName]:tensor
+  });
+
+  const output=outputs[session.outputNames[0]];
+
+  const expected=
+    count*DIM_C*DIM_F*DIM_T;
+
+  if(!output?.data||output.data.length<expected){
+    throw new Error(
+      `Unexpected Music Control output shape [${output?.dims?.join(", ")||"none"}].`
+    );
+  }
+
+  let outputCursor=0;
+
+  for(let i=0;i<count;i++){
+    outputCursor=applyPredictedSpectrum(
+      output.data,
+      outputCursor,
+      preparedL.segments[i],
+      preparedR.segments[i]
+    );
+  }
+
+  const leftSamples=computeReferenceInverse(
+    preparedL,
+    isFirstChunk,
+    isLastChunk
+  );
+
+  const rightSamples=computeReferenceInverse(
+    preparedR,
+    isFirstChunk,
+    isLastChunk
+  );
+
+  const n=Math.min(
+    leftSamples.length,
+    rightSamples.length
+  );
+
+  return {
+    left:leftSamples.subarray(0,n),
+    right:rightSamples.subarray(0,n)
+  };
+}
+
+function computeReferenceStft(chunk){
+  const numSamples=chunk.length;
+
+  // Exact sherpa-onnx behavior: even an exact multiple receives one full
+  // GEN_SIZE of padding.
+  const remainder=numSamples%GEN_SIZE;
+  const pad=GEN_SIZE-remainder;
+
+  const padded=new Float32Array(
+    TRIM+
+    numSamples+
+    pad+
+    TRIM
+  );
+
+  padded.set(chunk,TRIM);
+
+  const segments=[];
+
+  for(let i=0;i<numSamples+pad;i+=GEN_SIZE){
+    const segmentWave=
+      padded.subarray(
+        i,
+        i+FRAME_SPAN
+      );
+
+    segments.push(
+      stftCenterReflect(segmentWave)
+    );
+  }
+
+  return {
+    segments,
+    pad
+  };
+}
+
+function stftCenterReflect(wave){
+  // kaldi-native-fbank Stft(center=true, pad_mode="reflect")
+  // adds NFFT/2 reflection on both sides before framing.
+  const centered=reflectCenterPad(
+    wave,
+    TRIM
+  );
+
+  const frames=1+
+    Math.floor(
+      (centered.length-NFFT)/HOP
+    );
+
+  if(frames!==DIM_T){
+    throw new Error(
+      `Music Control reference STFT expected ${DIM_T} frames, got ${frames}.`
+    );
+  }
+
+  const real=new Float32Array(
+    DIM_T*(NFFT/2+1)
+  );
+
+  const imag=new Float32Array(
+    DIM_T*(NFFT/2+1)
+  );
+
+  const re=new Float64Array(NFFT);
+  const im=new Float64Array(NFFT);
+
+  for(let t=0;t<DIM_T;t++){
+    const start=t*HOP;
+
+    re.fill(0);
+    im.fill(0);
+
+    for(let n=0;n<NFFT;n++){
+      re[n]=
+        centered[start+n]*
+        WINDOW[n];
+    }
+
+    fftInPlace(re,im,false);
+
+    const base=t*(NFFT/2+1);
+
+    for(let b=0;b<=NFFT/2;b++){
+      real[base+b]=re[b];
+      imag[base+b]=
+        (b===0||b===NFFT/2)
+          ?0
+          :im[b];
+    }
+  }
+
+  return {
+    real,
+    imag,
+    numFrames:DIM_T
+  };
+}
+
+function reflectCenterPad(input,pad){
+  const out=new Float32Array(
+    input.length+
+    2*pad
+  );
+
+  out.set(input,pad);
+
+  if(!input.length)return out;
+
+  // Match kaldi-native-fbank:
+  // left receives reverse(data[1 : 1+pad])
+  // right receives reverse(data[n-pad-1 : n-1])
+  for(let i=0;i<pad;i++){
+    const li=Math.min(
+      input.length-1,
+      1+i
+    );
+
+    out[pad-1-i]=
+      input[li]??0;
+
+    const ri=Math.max(
+      0,
+      input.length-pad-1+i
+    );
+
+    out[pad+input.length+i]=
+      input[ri]??0;
+  }
+
+  return out;
+}
+
+function writeSegmentToTensor(
+  target,
+  cursor,
+  left,
+  right
+){
+  const bins=NFFT/2+1;
+
+  const writePlane=(array)=>{
+    for(let f=0;f<DIM_F;f++){
+      for(let t=0;t<DIM_T;t++){
+        target[cursor++]=
+          array[t*bins+f]||0;
+      }
+    }
+  };
+
+  writePlane(left.real);
+  writePlane(left.imag);
+  writePlane(right.real);
+  writePlane(right.imag);
+
+  return cursor;
+}
+
+function applyPredictedSpectrum(
+  source,
+  cursor,
+  left,
+  right
+){
+  const bins=NFFT/2+1;
+
+  const readPlane=(array)=>{
+    for(let f=0;f<DIM_F;f++){
+      for(let t=0;t<DIM_T;t++){
+        array[t*bins+f]=
+          source[cursor++]||0;
+      }
+    }
+  };
+
+  readPlane(left.real);
+  readPlane(left.imag);
+  readPlane(right.real);
+  readPlane(right.imag);
+
+  // Official runtime zeros bins outside dim_f before iSTFT.
+  for(let t=0;t<DIM_T;t++){
+    const base=t*bins;
+
+    for(let f=DIM_F;f<bins;f++){
+      left.real[base+f]=0;
+      left.imag[base+f]=0;
+      right.real[base+f]=0;
+      right.imag[base+f]=0;
+    }
+  }
+
+  return cursor;
+}
+
+function computeReferenceInverse(
+  prepared,
+  isFirstChunk,
+  isLastChunk
+){
+  const pieces=[];
+  let total=0;
+
+  for(const segment of prepared.segments){
+    const wave=istftCenter(segment);
+
+    // OfflineSourceSeparationUvrImpl trims NFFT/2 again after centered iSTFT.
+    const trimmed=
+      wave.subarray(
+        TRIM,
+        Math.max(TRIM,wave.length-TRIM)
+      );
+
+    pieces.push(trimmed);
+    total+=trimmed.length;
+  }
+
+  const joined=concatFloat32(
+    pieces,
+    total
+  );
+
+  const start=
+    isFirstChunk
+      ?0
+      :MARGIN;
+
+  const end=Math.max(
+    start,
+    joined.length-
+    prepared.pad-
+    (isLastChunk?0:MARGIN)
+  );
+
+  return new Float32Array(
+    joined.subarray(start,end)
+  );
+}
+
+function istftCenter(stft){
+  const numSamples=
+    NFFT+
+    (stft.numFrames-1)*HOP;
+
+  const sum=new Float64Array(numSamples);
+  const denominator=new Float64Array(numSamples);
+
+  const re=new Float64Array(NFFT);
+  const im=new Float64Array(NFFT);
+
+  const bins=NFFT/2+1;
+
+  for(let t=0;t<stft.numFrames;t++){
+    re.fill(0);
+    im.fill(0);
+
+    const base=t*bins;
+
+    for(let b=0;b<=NFFT/2;b++){
+      re[b]=stft.real[base+b]||0;
+      im[b]=
+        (b===0||b===NFFT/2)
+          ?0
+          :(stft.imag[base+b]||0);
+    }
+
+    for(let b=1;b<NFFT/2;b++){
+      re[NFFT-b]=re[b];
+      im[NFFT-b]=-im[b];
+    }
+
+    fftInPlace(re,im,true);
+
+    const start=t*HOP;
+
+    for(let n=0;n<NFFT;n++){
+      const w=WINDOW[n];
+      const index=start+n;
+
+      sum[index]+=
+        re[n]*w;
+
+      denominator[index]+=
+        w*w;
+    }
+  }
+
+  const full=new Float32Array(numSamples);
+
+  for(let i=0;i<numSamples;i++){
+    full[i]=
+      denominator[i]>1e-12
+        ?clamp(
+            sum[i]/denominator[i],
+            -1,
+            1
+          )
+        :0;
+  }
+
+  // IStft(center=true) removes NFFT/2 at both ends.
+  return new Float32Array(
+    full.subarray(
+      TRIM,
+      full.length-TRIM
+    )
+  );
+}
+
+function concatFloat32(chunks,total){
+  const out=new Float32Array(total);
+  let offset=0;
+
+  for(const chunk of chunks){
+    out.set(chunk,offset);
+    offset+=chunk.length;
+  }
+
+  return out;
 }
 
 function normalizedCorrelation(a,b){
@@ -232,92 +774,21 @@ function normalizedCorrelation(a,b){
 }
 
 function rmsSignal(x){
-  let s=0,n=0;for(let i=0;i<x.length;i+=4){const v=x[i];s+=v*v;n++;}
-  return Math.sqrt(s/Math.max(1,n));
-}
+  let s=0;
+  let n=0;
 
-function speechPreservationFallback(raw,candidate){
-  const out=new Float32Array(raw.length);
-  const speechAnchor=speechBandAnchor(raw);
-  const rr=rmsSignal(raw);
-  const cr=rmsSignal(candidate);
-  const candidateUsable=cr>rr*.006;
-
-  // Never put full-band raw audio back into a music-removal result.
-  // The old fallback protected speech but also reintroduced the music.
-  // Keep only a controlled voice-band anchor, then Clear Voice runs next.
-  for(let i=0;i<out.length;i++){
-    out[i]=clamp(
-      (candidateUsable?candidate[i]*.48:0)+
-      speechAnchor[i]*.20,
-      -1,
-      1
-    );
+  for(let i=0;i<x.length;i+=4){
+    const v=x[i];
+    s+=v*v;
+    n++;
   }
 
-  return out;
-}
-
-function applyLocalSpeechRetentionGuard(raw,candidate){
-  const speechAnchor=speechBandAnchor(raw);
-  const block=Math.round(SR*.020);
-  const fade=Math.max(
-    8,
-    Math.round(SR*.004)
+  return Math.sqrt(
+    s/Math.max(1,n)
   );
-
-  for(let start=0;start<raw.length;start+=block){
-    const end=Math.min(
-      raw.length,
-      start+block
-    );
-
-    let rr=0;
-    let cc=0;
-
-    for(let i=start;i<end;i++){
-      rr+=speechAnchor[i]*speechAnchor[i];
-      cc+=candidate[i]*candidate[i];
-    }
-
-    const n=Math.max(1,end-start);
-    const r=Math.sqrt(rr/n);
-    const c=Math.sqrt(cc/n);
-
-    if(r<.0038)continue;
-
-    const localRatio=c/(r+1e-10);
-
-    if(localRatio<.055){
-      const need=clamp(
-        .09-localRatio,
-        .02,
-        .075
-      );
-
-      for(let i=start;i<end;i++){
-        let edge=1;
-        const rel=i-start;
-        const tail=end-1-i;
-
-        if(rel<fade)edge*=rel/fade;
-        if(tail<fade)edge*=tail/fade;
-
-        candidate[i]=clamp(
-          candidate[i]+
-          speechAnchor[i]*need*edge,
-          -1,
-          1
-        );
-      }
-    }
-  }
 }
 
 function speechBandAnchor(input){
-  // Conservative ~110 Hz to 6.5 kHz speech path.
-  // This is not a fake music remover; it is only a safety anchor used when
-  // the actual vocal-separation model over-suppresses a spoken block.
   const hp=biquadProcess(
     input,
     "highpass",
@@ -374,7 +845,11 @@ function biquadProcess(input,type,frequency,q=.707){
       a1*y1-
       a2*y2;
 
-    out[i]=clamp(y0,-1,1);
+    out[i]=clamp(
+      y0,
+      -1,
+      1
+    );
 
     x2=x1;
     x1=x0;
@@ -385,13 +860,81 @@ function biquadProcess(input,type,frequency,q=.707){
   return out;
 }
 
-async function runChunk(left,right){const input=buildModelInput(left,right),tensor=new ort.Tensor("float32",input,[1,4,DIM_F,DIM_T]),name=session.inputNames[0],outs=await session.run({[name]:tensor}),out=outs[session.outputNames[0]];if(!out?.data||out.data.length<4*DIM_F*DIM_T)throw new Error(`Unexpected Music Control output shape [${out?.dims?.join(", ")||"none"}].`);return synthesizeVocals(out.data,left.length);}
-function buildModelInput(left,right){const L=centerReflectPad(left,PAD),R=centerReflectPad(right,PAD),out=new Float32Array(4*DIM_F*DIM_T),rl=new Float64Array(NFFT),il=new Float64Array(NFFT),rr=new Float64Array(NFFT),ir=new Float64Array(NFFT);for(let t=0;t<DIM_T;t++){const start=t*HOP;rl.fill(0);il.fill(0);rr.fill(0);ir.fill(0);for(let n=0;n<NFFT;n++){rl[n]=L[start+n]*WINDOW[n];rr[n]=R[start+n]*WINDOW[n];}fftInPlace(rl,il,false);fftInPlace(rr,ir,false);for(let b=0;b<DIM_F;b++){out[idx4(0,b,t)]=rl[b];out[idx4(1,b,t)]=il[b];out[idx4(2,b,t)]=rr[b];out[idx4(3,b,t)]=ir[b];}}return out;}
-function synthesizeVocals(spec,valid){const total=CHUNK+2*PAD,sumL=new Float64Array(total),sumR=new Float64Array(total),norm=new Float64Array(total),rl=new Float64Array(NFFT),il=new Float64Array(NFFT),rr=new Float64Array(NFFT),ir=new Float64Array(NFFT);for(let t=0;t<DIM_T;t++){rl.fill(0);il.fill(0);rr.fill(0);ir.fill(0);for(let b=0;b<DIM_F;b++){rl[b]=spec[idx4(0,b,t)]||0;il[b]=spec[idx4(1,b,t)]||0;rr[b]=spec[idx4(2,b,t)]||0;ir[b]=spec[idx4(3,b,t)]||0;}for(let b=1;b<NFFT/2;b++){rl[NFFT-b]=rl[b];il[NFFT-b]=-il[b];rr[NFFT-b]=rr[b];ir[NFFT-b]=-ir[b];}fftInPlace(rl,il,true);fftInPlace(rr,ir,true);const start=t*HOP;for(let n=0;n<NFFT;n++){const i=start+n,w=WINDOW[n];sumL[i]+=rl[n]*w;sumR[i]+=rr[n]*w;norm[i]+=w*w;}}const left=new Float32Array(valid),right=new Float32Array(valid);for(let i=0;i<valid;i++){const j=i+PAD,d=norm[j]>1e-10?norm[j]:1;left[i]=clamp(sumL[j]/d,-1,1);right[i]=clamp(sumR[j]/d,-1,1);}return {left,right};}
-function idx4(p,b,t){return ((p*DIM_F+b)*DIM_T+t);}
-function centerReflectPad(input,pad){const out=new Float32Array(input.length+2*pad);out.set(input,pad);if(!input.length)return out;for(let i=0;i<pad;i++){const li=Math.min(input.length-1,Math.max(0,pad-i));const ri=Math.max(0,input.length-2-i);out[i]=input[li]??input[0];out[pad+input.length+i]=input[ri]??input[input.length-1];}return out;}
-function reflectPad(input,target){if(input.length>=target)return new Float32Array(input.subarray(0,target));const out=new Float32Array(target);out.set(input);if(!input.length)return out;if(input.length===1){out.fill(input[0],1);return out;}const ctx=Math.min(input.length,Math.round(SR*.7));for(let i=input.length;i<target;i++){const p=(i-input.length)%Math.max(2,ctx*2-2),r=p<ctx?p:ctx*2-2-p,idx=Math.max(0,input.length-1-r);out[i]=input[idx];}return out;}
-function fftInPlace(re,im,inverse){const n=re.length;for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let x=re[i];re[i]=re[j];re[j]=x;x=im[i];im[i]=im[j];im[j]=x;}}for(let len=2;len<=n;len<<=1){const ang=(inverse?2:-2)*Math.PI/len,cr=Math.cos(ang),ci=Math.sin(ang);for(let i=0;i<n;i+=len){let wr=1,wi=0;for(let j=0;j<(len>>1);j++){const u=i+j,v=u+(len>>1),vr=re[v]*wr-im[v]*wi,vi=re[v]*wi+im[v]*wr;re[v]=re[u]-vr;im[v]=im[u]-vi;re[u]+=vr;im[u]+=vi;const nw=wr*cr-wi*ci;wi=wr*ci+wi*cr;wr=nw;}}}if(inverse)for(let i=0;i<n;i++){re[i]/=n;im[i]/=n;}}
+function fftInPlace(re,im,inverse){
+  const n=re.length;
+
+  for(let i=1,j=0;i<n;i++){
+    let bit=n>>1;
+
+    for(;j&bit;bit>>=1){
+      j^=bit;
+    }
+
+    j^=bit;
+
+    if(i<j){
+      let x=re[i];
+      re[i]=re[j];
+      re[j]=x;
+
+      x=im[i];
+      im[i]=im[j];
+      im[j]=x;
+    }
+  }
+
+  for(let len=2;len<=n;len<<=1){
+    const ang=
+      (inverse?2:-2)*
+      Math.PI/
+      len;
+
+    const cr=Math.cos(ang);
+    const ci=Math.sin(ang);
+
+    for(let i=0;i<n;i+=len){
+      let wr=1;
+      let wi=0;
+
+      for(let j=0;j<(len>>1);j++){
+        const u=i+j;
+        const v=u+(len>>1);
+
+        const vr=
+          re[v]*wr-
+          im[v]*wi;
+
+        const vi=
+          re[v]*wi+
+          im[v]*wr;
+
+        re[v]=re[u]-vr;
+        im[v]=im[u]-vi;
+
+        re[u]+=vr;
+        im[u]+=vi;
+
+        const nw=
+          wr*cr-
+          wi*ci;
+
+        wi=
+          wr*ci+
+          wi*cr;
+
+        wr=nw;
+      }
+    }
+  }
+
+  if(inverse){
+    for(let i=0;i<n;i++){
+      re[i]/=n;
+      im[i]/=n;
+    }
+  }
+}
+
 function concatChunks(chunks,total){const out=new Uint8Array(total);let o=0;for(const c of chunks){out.set(c,o);o+=c.byteLength;}return out.buffer;}
 function sanitize(x){const out=new Float32Array(x.length);for(let i=0;i<x.length;i++)out[i]=Number.isFinite(x[i])?clamp(x[i],-1,1):0;return out;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
