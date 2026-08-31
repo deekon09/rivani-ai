@@ -529,7 +529,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.8-image",
+      "image-enhancer-worker.js?v=25.9-image",
       {type:"module"}
     );
 
@@ -759,18 +759,21 @@ function getDeviceOutputBudget(bitmap){
     // ~144 MB before GPU/encoder copies, so V25.7 uses a safer adaptive ceiling.
     // This never changes per-pixel AI quality; only oversized 4× requests are
     // capped to the highest effective resolution the device can hold smoothly.
-    maxPixels=28_000_000;
-    maxEdge=8400;
+    // V25.9 also budgets the encoded/result canvas, not only model compute.
+    // Selective AI makes inference bounded; this lower canvas ceiling prevents
+    // mid-range Android from being killed while allocating/encoding a 30+ MP PNG.
+    maxPixels=16_000_000;
+    maxEdge=6800;
 
-    if(memory&&memory<=3){
-      maxPixels=22_000_000;
-      maxEdge=7600;
+    if(memory&&memory<=4){
+      maxPixels=12_000_000;
+      maxEdge=6000;
     }else if(memory>=8&&cores>=8){
-      maxPixels=32_000_000;
-      maxEdge=9000;
+      maxPixels=18_000_000;
+      maxEdge=7300;
     }else if(memory>=6){
-      maxPixels=30_000_000;
-      maxEdge=8800;
+      maxPixels=17_000_000;
+      maxEdge=7000;
     }
   }else{
     maxPixels=48_000_000;
@@ -875,21 +878,43 @@ function startImageUiPressureMonitor(worker,performanceProfile){
 function runWorker(worker,imageData,width,height,targetScale,performanceProfile,imageMode){
   return new Promise((resolve,reject)=>{
     const stopUiMonitor=startImageUiPressureMonitor(worker,performanceProfile);
+    const mobile=performanceProfile==="mobile";
+    const startedAt=Date.now();
+    let lastActivity=startedAt;
+    let settled=false;
+
     const finishWorker=()=>{
       stopUiMonitor();
       worker.terminate();
     };
-    const timer=setTimeout(()=>{
+    const finish=(fn,value)=>{
+      if(settled)return;
+      settled=true;
+      clearInterval(watchdog);
       finishWorker();
-      reject(
-        new Error(
-          "Enhancement took too long on this device. Try 2× or a smaller image."
-        )
-      );
-    },12*60*1000);
+      fn(value);
+    };
+
+    // V25.8 used one fixed 12-minute wall clock. A mobile job that was still
+    // making progress was killed at exactly the same point for both 2× and 4×.
+    // V25.9 watches for a real stall instead. Selective AI should normally finish
+    // much sooner, while a dead GPU/session still exits instead of hanging forever.
+    const hardLimit=mobile?20*60*1000:12*60*1000;
+    const stallLimit=mobile?4*60*1000:3*60*1000;
+    const watchdog=setInterval(()=>{
+      const now=Date.now();
+      if(now-lastActivity>stallLimit){
+        finish(reject,new Error("The mobile AI engine stopped making progress on this device. RIVANI ended the job safely."));
+        return;
+      }
+      if(now-startedAt>hardLimit){
+        finish(reject,new Error("This image still exceeds the safe processing window for this device."));
+      }
+    },15000);
 
     worker.onmessage=event=>{
       const msg=event.data||{};
+      lastActivity=Date.now();
 
       if(msg.type==="model-progress"){
         setProgress(
@@ -902,12 +927,7 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile,
       }
 
       if(msg.type==="status"){
-        const mapped=
-          28+
-          Math.round(
-            Number(msg.progress||0)*.68
-          );
-
+        const mapped=28+Math.round(Number(msg.progress||0)*.68);
         setProgress(
           Math.min(96,mapped),
           "Enhancing image…",
@@ -918,36 +938,29 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile,
       }
 
       if(msg.type==="done"){
-        clearTimeout(timer);
-        finishWorker();
-
-        resolve({
+        finish(resolve,{
           width:msg.width,
           height:msg.height,
           rgba:msg.rgba,
           provider:msg.provider||"RIVANI AI Engine",
-          performanceProfile:msg.performanceProfile||performanceProfile||"balanced"
+          performanceProfile:msg.performanceProfile||performanceProfile||"balanced",
+          mobileRefineTiles:Number(msg.mobileRefineTiles)||0,
+          mobileTotalTiles:Number(msg.mobileTotalTiles)||0
         });
         return;
       }
 
       if(msg.type==="error"){
-        clearTimeout(timer);
-        finishWorker();
-        reject(new Error(msg.message||"Image enhancement failed."));
+        finish(reject,new Error(msg.message||"Image enhancement failed."));
       }
     };
 
     worker.onerror=event=>{
-      clearTimeout(timer);
-      finishWorker();
-      reject(new Error(event.message||"Image enhancement worker failed."));
+      lastActivity=Date.now();
+      finish(reject,new Error(event.message||"Image enhancement worker failed."));
     };
 
-    // Transfer the prepared input buffer directly. V25.5 cloned this entire
-    // RGBA image first, which temporarily doubled input memory on large jobs.
     const inputBuffer=imageData.data.buffer;
-
     worker.postMessage({
       type:"enhance",
       width,
@@ -1299,7 +1312,7 @@ function renderReport(
     performanceProfile==="fast"
       ?"Fast"
       :performanceProfile==="mobile"
-        ?"Mobile Hybrid"
+        ?"Mobile Selective"
         :performanceProfile==="cool"
           ?"Cool"
           :"Balanced";

@@ -1,6 +1,8 @@
-// RIVANI AI · Image Enhancer V25.8
-// Adaptive desktop flagship + Mobile Hybrid browser-side inference.
-// Both RIVANI image models use the fixed 1x3x128x128 -> 1x3x512x512 contract.
+// RIVANI AI · Image Enhancer V25.9
+// Adaptive desktop flagship + Mobile Selective AI browser-side inference.
+// Desktop keeps the flagship full-image model path. Mobile uses a bounded number
+// of efficient-model tiles over a source-preserving resize so mid-range phones
+// can finish instead of timing out after hundreds of model calls.
 
 const ORT_VERSION="1.29.0";
 const ORT_WEBGPU_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
@@ -112,100 +114,116 @@ async function enhanceDesktop(src,width,height,targetScale){
 async function enhanceMobileHybrid(src,width,height,targetScale){
   const tiles=buildTiles(width,height);
   const total=tiles.length;
+  const outW=Math.round(width*targetScale);
+  const outH=Math.round(height*targetScale);
 
-  // Small prepared inputs are already inexpensive; preserve the full flagship path.
-  if(total<=28){
-    await ensureSession("flagship",false);
-    provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileHybrid":"WASM-MobileHybrid";
-    self.postMessage({type:"status",progress:2,text:"Mobile image is compact. Using full-detail AI…",provider});
-    const result=await processTiles({
-      src,width,height,targetScale,tiles,output:null,
-      startProgress:3,endProgress:97,phase:"mobile-detail",refineMask:null
-    });
-    result.provider=provider;
-    result.mobileRefineTiles=total;
-    result.mobileTotalTiles=total;
-    return result;
-  }
+  // V25.9: do not run either model over every mobile tile. On mid-range Android,
+  // hundreds of 128px WebGPU/WASM calls can take longer than the browser's safe
+  // interactive window. Start from a high-quality source-preserving resize and
+  // spend real AI compute only where the image contains the most useful detail.
+  const base=makeSourceBaseline(src,width,height,outW,outH);
 
-  // Stage 1: tiny general-scene model over the full image. This cuts the long
-  // continuous GPU queue that makes mid-range Android browsers visibly janky.
   await ensureSession("mobile",false);
-  provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileHybrid":"WASM-MobileHybrid";
+  provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileSelective":"WASM-MobileSelective";
+
+  const sparseMask=selectMobileSparseTiles(src,width,height,tiles,imageMode,sessionMode);
+  const sparseTiles=tiles.filter(tile=>sparseMask.has(tile.index));
+
   self.postMessage({
     type:"status",progress:2,
-    text:"Mobile Hybrid: building the full image with the efficient AI engine…",
+    text:`Mobile Selective AI: enhancing ${sparseTiles.length} important areas instead of ${total} full-image tiles…`,
     provider
   });
 
-  const base=await processTiles({
-    src,width,height,targetScale,tiles,output:null,
-    startProgress:3,endProgress:72,phase:"mobile-base",refineMask:null
-  });
-
-  const refineMask=selectRefineTiles(src,width,height,tiles,imageMode);
-  const refineTiles=tiles.filter(tile=>refineMask.has(tile.index));
-
-  if(!refineTiles.length){
-    base.provider=provider;
-    base.mobileRefineTiles=0;
-    base.mobileTotalTiles=total;
-    return base;
-  }
-
-  // Release the small session before loading the flagship session so mobile GPU
-  // memory does not hold both networks at the same time.
-  await releaseSession();
-
-  try{
-    await ensureSession("flagship",false);
-  }catch(error){
-    // The efficient base result is real AI output, so a flagship-session failure
-    // should not destroy an otherwise valid mobile job.
-    provider="RIVANI Mobile Engine";
-    self.postMessage({
-      type:"status",progress:96,
-      text:"Flagship detail pass was unavailable. Finalizing the verified mobile result…",
-      provider
-    });
-    base.provider=provider;
-    base.mobileRefineTiles=0;
-    base.mobileTotalTiles=total;
-    return base;
-  }
-
-  provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileHybrid":"WASM-MobileHybrid";
-  self.postMessage({
-    type:"status",progress:73,
-    text:`Mobile Hybrid: refining ${refineTiles.length} detail-critical areas…`,
-    provider
-  });
-
-  // If WebGPU dropped all the way to single-thread WASM on a phone, running the
-  // large network over many refinement tiles can be dramatically slower than the
-  // valid efficient result. Keep the base rather than locking the phone for minutes.
-  if(sessionMode==="wasm"&&refineTiles.length>12){
-    await releaseSession();
-    provider="RIVANI Mobile Engine";
-    base.provider=provider;
-    base.mobileRefineTiles=0;
-    base.mobileTotalTiles=total;
-    return base;
+  if(!sparseTiles.length){
+    return {
+      width:outW,height:outH,rgba:base,
+      provider:"RIVANI Mobile Selective",
+      mobileRefineTiles:0,mobileTotalTiles:total
+    };
   }
 
   const refined=await processTiles({
     src,width,height,targetScale,
-    tiles:refineTiles,
-    output:base.rgba,
-    outW:base.width,outH:base.height,
-    startProgress:73,endProgress:97,
-    phase:"mobile-detail",
-    refineMask
+    tiles:sparseTiles,
+    output:base,
+    outW,outH,
+    startProgress:3,endProgress:97,
+    phase:"mobile-sparse",
+    refineMask:sparseMask
   });
+
   refined.provider=provider;
-  refined.mobileRefineTiles=refineTiles.length;
+  refined.mobileRefineTiles=sparseTiles.length;
   refined.mobileTotalTiles=total;
   return refined;
+}
+
+function makeSourceBaseline(src,width,height,outW,outH){
+  if(typeof OffscreenCanvas!=="undefined"){
+    const sourceCanvas=new OffscreenCanvas(width,height);
+    const sourceCtx=sourceCanvas.getContext("2d",{alpha:true,willReadFrequently:false});
+    sourceCtx.putImageData(new ImageData(src,width,height),0,0);
+
+    const outCanvas=new OffscreenCanvas(outW,outH);
+    const outCtx=outCanvas.getContext("2d",{alpha:true,willReadFrequently:true});
+    outCtx.imageSmoothingEnabled=true;
+    outCtx.imageSmoothingQuality="high";
+    outCtx.drawImage(sourceCanvas,0,0,outW,outH);
+    return outCtx.getImageData(0,0,outW,outH).data;
+  }
+
+  // Compatibility fallback. It is intentionally simple but preserves the
+  // original image everywhere the AI is not needed instead of returning blank
+  // pixels. Modern Chrome/Android normally uses OffscreenCanvas above.
+  const out=new Uint8ClampedArray(outW*outH*4);
+  for(let y=0;y<outH;y++){
+    const sy=Math.min(height-1,Math.floor(y*height/outH));
+    for(let x=0;x<outW;x++){
+      const sx=Math.min(width-1,Math.floor(x*width/outW));
+      const si=(sy*width+sx)*4;
+      const di=(y*outW+x)*4;
+      out[di]=src[si];out[di+1]=src[si+1];out[di+2]=src[si+2];out[di+3]=src[si+3];
+    }
+  }
+  return out;
+}
+
+function selectMobileSparseTiles(src,width,height,tiles,mode,engineMode){
+  const memory=Number(self.navigator?.deviceMemory)||0;
+  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
+  let cap=mode==="restore"?40:mode==="strong"?34:28;
+
+  // Lower-memory phones get a stricter bounded workload. Stronger phones may
+  // spend a few more real-AI passes without turning the job back into a full
+  // image model sweep. If WebGPU is unavailable and the phone fell to WASM,
+  // cut neural calls again because each tile is materially more expensive.
+  if(memory&&memory<=4)cap-=6;
+  else if(memory>=8&&cores>=8)cap+=6;
+  if(engineMode==="wasm")cap=Math.min(cap,mode==="restore"?24:mode==="strong"?20:16);
+  cap=Math.max(engineMode==="wasm"?12:20,Math.min(46,cap,tiles.length));
+
+  const ranked=tiles.map(tile=>({tile,score:tileDetailScore(src,width,height,tile)}))
+    .sort((a,b)=>b.score-a.score);
+  const mask=new Set(ranked.slice(0,cap).map(item=>item.tile.index));
+
+  // Reserve central identity/product areas even if smooth skin or flat product
+  // surfaces have a lower raw gradient score than foliage/text elsewhere.
+  const cx=width*.5,cy=height*.46;
+  const centers=tiles.map(tile=>{
+    const tx=tile.gx+tile.coreW*.5,ty=tile.gy+tile.coreH*.5;
+    const dx=(tx-cx)/Math.max(1,width*.30),dy=(ty-cy)/Math.max(1,height*.34);
+    return {tile,d:dx*dx+dy*dy};
+  }).filter(item=>item.d<=1).sort((a,b)=>a.d-b.d).slice(0,6);
+
+  centers.forEach(item=>mask.add(item.tile.index));
+
+  if(mask.size>cap){
+    const keep=new Set(ranked.slice(0,Math.max(0,cap-2)).map(item=>item.tile.index));
+    centers.slice(0,2).forEach(item=>keep.add(item.tile.index));
+    return keep;
+  }
+  return mask;
 }
 
 function buildTiles(width,height){
@@ -325,11 +343,9 @@ async function processTiles({src,width,height,targetScale,tiles,output,outW,outH
     const now=performance.now();
     if(progress!==lastReported&&(now-lastReportAt>=120||completed===total)){
       lastReported=progress; lastReportAt=now;
-      const text=phase==="mobile-base"
-        ?`Building mobile AI detail ${completed} of ${total}…`
-        :phase==="mobile-detail"
-          ?`Refining important detail ${completed} of ${total}…`
-          :`Enhancing detail ${completed} of ${total}…`;
+      const text=phase==="mobile-sparse"
+        ?`Selective AI detail ${completed} of ${total}…`
+        :`Enhancing detail ${completed} of ${total}…`;
       self.postMessage({type:"status",progress,text,provider});
     }
   }
@@ -371,7 +387,7 @@ async function createWebGpuSession(bytes,modelKind,graphCapture){
   inputName=session.inputNames[0]; outputName=session.outputNames[0];
   sessionMode=graphCapture?"webgpu-graph":"webgpu";
   activeModelKind=modelKind;
-  provider=performanceProfile==="mobile"?"WebGPU-MobileHybrid":(graphCapture?"WebGPU-Graph":"WebGPU");
+  provider=performanceProfile==="mobile"?"WebGPU-MobileSelective":(graphCapture?"WebGPU-Graph":"WebGPU");
 }
 
 async function createWasmSession(bytes,modelKind){
@@ -384,7 +400,7 @@ async function createWasmSession(bytes,modelKind){
   session=await ort.InferenceSession.create(bytes,{executionProviders:["wasm"],graphOptimizationLevel:"all"});
   inputName=session.inputNames[0]; outputName=session.outputNames[0];
   sessionMode="wasm"; activeModelKind=modelKind;
-  provider=performanceProfile==="mobile"?"WASM-MobileHybrid":(threads>1?`WASM-${threads}`:"WASM");
+  provider=performanceProfile==="mobile"?"WASM-MobileSelective":(threads>1?`WASM-${threads}`:"WASM");
 }
 
 async function releaseSession(){
@@ -422,14 +438,10 @@ async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineM
 
   let batchSize,baseDuty,minDuty,maxPause;
   if(performanceProfile==="mobile"){
-    if(phase==="mobile-base"){
-      // The tiny base engine is cheap enough to prioritize speed. Only visible UI
-      // pressure forces breathing room.
-      batchSize=pressure>.40?2:5; baseDuty=.955; minDuty=.82; maxPause=55;
-    }else{
-      // Flagship refinement is the expensive part; keep it bounded and responsive.
-      batchSize=1; baseDuty=.74; minDuty=.52; maxPause=145;
-    }
+    // V25.9 already bounds mobile AI to a small number of useful tiles, so it no
+    // longer needs the very slow V25.7/V25.8 duty cycle. Keep short breathing
+    // points for scrolling without turning a 2× job into a 12-minute timeout.
+    batchSize=pressure>.45?1:2; baseDuty=.90; minDuty=.76; maxPause=70;
   }else if(performanceProfile==="fast"){
     batchSize=pressure>.32?12:18; baseDuty=.985; minDuty=.955; maxPause=12;
   }else if(performanceProfile==="cool"){
