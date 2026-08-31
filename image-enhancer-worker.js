@@ -1,20 +1,33 @@
-// RIVANI AI · Image Enhancer V25.7
-// Real-ESRGAN x4plus ONNX · browser-side inference.
-// Fixed model contract: 1x3x128x128 -> 1x3x512x512.
+// RIVANI AI · Image Enhancer V25.8
+// Adaptive desktop flagship + Mobile Hybrid browser-side inference.
+// Both RIVANI image models use the fixed 1x3x128x128 -> 1x3x512x512 contract.
 
 const ORT_VERSION="1.29.0";
 const ORT_WEBGPU_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
 const ORT_WASM_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
 const ORT_WASM_BASE=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 
-const MODEL_PROXY="https://rivani-models.rivani.workers.dev/image-enhancer-x4.onnx";
-const MODEL_DIRECT="https://huggingface.co/qualcomm/Real-ESRGAN-x4plus/resolve/93195f43da324a8a3e49b563c69e6eadb6f3993d/Real-ESRGAN-x4plus.onnx?download=true";
-const MODEL_URLS=[MODEL_PROXY,MODEL_DIRECT];
+const MODEL_CONFIG={
+  flagship:{
+    urls:[
+      "https://rivani-models.rivani.workers.dev/image-enhancer-x4.onnx",
+      "https://huggingface.co/qualcomm/Real-ESRGAN-x4plus/resolve/93195f43da324a8a3e49b563c69e6eadb6f3993d/Real-ESRGAN-x4plus.onnx?download=true"
+    ],
+    cacheKey:"realesrgan-x4plus-qualcomm-128-v1",
+    minBytes:10_000_000
+  },
+  mobile:{
+    urls:[
+      "https://rivani-models.rivani.workers.dev/image-enhancer-mobile-x4.onnx",
+      "https://huggingface.co/qualcomm/Real-ESRGAN-General-x4v3/resolve/fa56d1c4c62c61cb0efe60f88a549d30b3a1dae3/Real-ESRGAN-General-x4v3.onnx?download=true"
+    ],
+    cacheKey:"realesrgan-general-x4v3-qualcomm-128-v1",
+    minBytes:1_000_000
+  }
+};
 
 const CACHE_DB="rivani-image-models-v1";
 const CACHE_STORE="models";
-const CACHE_KEY="realesrgan-x4plus-qualcomm-128-v1";
-
 const TILE=128;
 const SCALE=4;
 const CONTEXT=8;
@@ -24,20 +37,20 @@ let ort=null;
 let session=null;
 let provider="RIVANI AI Engine";
 let sessionMode="none";
-let modelBytes=null;
+let activeModelKind="none";
 let inputName="";
 let outputName="";
 let performanceProfile="balanced";
+let imageMode="natural";
 let uiPressure=0;
+const modelBytesCache=new Map();
 
 self.onmessage=async event=>{
   const msg=event.data||{};
-
   if(msg.type==="ui-pressure"){
     uiPressure=Math.max(0,Math.min(1,Number(msg.value)||0));
     return;
   }
-
   if(msg.type!=="enhance")return;
 
   try{
@@ -46,212 +59,234 @@ self.onmessage=async event=>{
     const targetScale=Number(msg.targetScale)===4?4:2;
     const pixels=new Uint8ClampedArray(msg.rgba);
     performanceProfile=normalizeProfile(msg.performanceProfile);
+    imageMode=normalizeMode(msg.imageMode);
     uiPressure=0;
 
     if(!width||!height||pixels.length!==width*height*4){
       throw new Error("Invalid image buffer.");
     }
 
-    await ensureSession();
-
-    self.postMessage({
-      type:"status",
-      progress:2,
-      text:"AI model ready. Preparing image tiles…",
-      provider
-    });
-
-    const result=await enhanceImage(
-      pixels,
-      width,
-      height,
-      targetScale
-    );
+    const result=performanceProfile==="mobile"
+      ?await enhanceMobileHybrid(pixels,width,height,targetScale)
+      :await enhanceDesktop(pixels,width,height,targetScale);
 
     self.postMessage({
       type:"done",
       width:result.width,
       height:result.height,
       rgba:result.rgba.buffer,
-      provider,
-      performanceProfile
+      provider:result.provider||provider,
+      performanceProfile,
+      mobileRefineTiles:result.mobileRefineTiles||0,
+      mobileTotalTiles:result.mobileTotalTiles||0
     },[result.rgba.buffer]);
   }catch(error){
-    self.postMessage({
-      type:"error",
-      message:error?.message||"Image enhancement failed."
-    });
+    self.postMessage({type:"error",message:error?.message||"Image enhancement failed."});
+  }finally{
+    await releaseSession();
   }
 };
 
-async function ensureSession(){
-  if(session)return;
+function normalizeProfile(value){
+  return value==="fast"||value==="cool"||value==="mobile"?value:"balanced";
+}
+function normalizeMode(value){
+  return value==="strong"||value==="restore"?value:"natural";
+}
 
-  modelBytes=modelBytes||await getModelBytes();
+async function enhanceDesktop(src,width,height,targetScale){
+  await ensureSession("flagship",true);
+  self.postMessage({type:"status",progress:2,text:"AI model ready. Preparing image tiles…",provider});
+  const result=await processTiles({
+    src,width,height,targetScale,
+    tiles:buildTiles(width,height),
+    output:null,
+    startProgress:3,endProgress:97,
+    phase:"desktop",
+    refineMask:null
+  });
+  result.provider=provider;
+  return result;
+}
 
-  if(self.navigator?.gpu){
-    // Graph capture is a great repeated-tile fast path on desktop, but on
-    // mid-range mobile GPUs it can keep the shared compositor queue too busy.
-    // Mobile Safe therefore starts with normal WebGPU and uses responsive
-    // duty-cycle pacing instead. Model math and output pixels are unchanged.
-    if(performanceProfile==="mobile"){
-      try{
-        await createWebGpuSession(false);
-        return;
-      }catch(error){
-        await releaseSession();
-        self.postMessage({
-          type:"status",
-          progress:1,
-          text:"Mobile GPU path is unavailable. Using compatibility engine…",
-          provider:"RIVANI AI Engine"
-        });
-      }
-    }else try{
-      await createWebGpuSession(true);
-      return;
-    }catch(error){
-      await releaseSession();
-      try{
-        await createWebGpuSession(false);
-        return;
-      }catch(secondError){
-        await releaseSession();
-        self.postMessage({
-          type:"status",
-          progress:1,
-          text:"GPU path is unavailable on this device. Using compatibility engine…",
-          provider:"RIVANI AI Engine"
-        });
-      }
-    }
+async function enhanceMobileHybrid(src,width,height,targetScale){
+  const tiles=buildTiles(width,height);
+  const total=tiles.length;
+
+  // Small prepared inputs are already inexpensive; preserve the full flagship path.
+  if(total<=28){
+    await ensureSession("flagship",false);
+    provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileHybrid":"WASM-MobileHybrid";
+    self.postMessage({type:"status",progress:2,text:"Mobile image is compact. Using full-detail AI…",provider});
+    const result=await processTiles({
+      src,width,height,targetScale,tiles,output:null,
+      startProgress:3,endProgress:97,phase:"mobile-detail",refineMask:null
+    });
+    result.provider=provider;
+    result.mobileRefineTiles=total;
+    result.mobileTotalTiles=total;
+    return result;
   }
 
-  await createWasmSession();
-}
+  // Stage 1: tiny general-scene model over the full image. This cuts the long
+  // continuous GPU queue that makes mid-range Android browsers visibly janky.
+  await ensureSession("mobile",false);
+  provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileHybrid":"WASM-MobileHybrid";
+  self.postMessage({
+    type:"status",progress:2,
+    text:"Mobile Hybrid: building the full image with the efficient AI engine…",
+    provider
+  });
 
-async function createWebGpuSession(graphCapture){
-  ort=await import(ORT_WEBGPU_URL);
-  ort.env.wasm.wasmPaths=ORT_WASM_BASE;
+  const base=await processTiles({
+    src,width,height,targetScale,tiles,output:null,
+    startProgress:3,endProgress:72,phase:"mobile-base",refineMask:null
+  });
 
-  if(ort.env.webgpu){
-    // High-performance adapter preference is reserved for genuinely strong desktops.
-    // Balanced/Cool still use WebGPU, but let the browser choose the sensible adapter.
-    if(performanceProfile==="fast"){
-      ort.env.webgpu.powerPreference="high-performance";
-    }
-    ort.env.webgpu.forceFallbackAdapter=false;
+  const refineMask=selectRefineTiles(src,width,height,tiles,imageMode);
+  const refineTiles=tiles.filter(tile=>refineMask.has(tile.index));
+
+  if(!refineTiles.length){
+    base.provider=provider;
+    base.mobileRefineTiles=0;
+    base.mobileTotalTiles=total;
+    return base;
   }
 
-  session=await ort.InferenceSession.create(
-    modelBytes,
-    {
-      executionProviders:["webgpu"],
-      graphOptimizationLevel:"all",
-      enableGraphCapture:Boolean(graphCapture)
-    }
-  );
-
-  inputName=session.inputNames[0];
-  outputName=session.outputNames[0];
-  sessionMode=graphCapture?"webgpu-graph":"webgpu";
-  provider=graphCapture?"WebGPU-Graph":"WebGPU";
-}
-
-async function createWasmSession(){
-  ort=await import(ORT_WASM_URL);
-  ort.env.wasm.wasmPaths=ORT_WASM_BASE;
-
-  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||1);
-  const canThread=self.crossOriginIsolated===true;
-  const threads=canThread?Math.max(1,Math.min(4,cores-1)):1;
-
-  // RIVANI never enables cross-origin isolation just for image speed. If the
-  // hosting environment already provides it, ORT can safely use a few threads.
-  ort.env.wasm.numThreads=threads;
-  ort.env.wasm.simd=true;
-
-  session=await ort.InferenceSession.create(
-    modelBytes,
-    {
-      executionProviders:["wasm"],
-      graphOptimizationLevel:"all"
-    }
-  );
-
-  inputName=session.inputNames[0];
-  outputName=session.outputNames[0];
-  sessionMode="wasm";
-  provider=threads>1?`WASM-${threads}`:"WASM";
-}
-
-async function releaseSession(){
-  try{session?.release?.();}catch(_error){}
-  session=null;
-  inputName="";
-  outputName="";
-}
-
-async function runTile(input){
-  const execute=async()=>{
-    const tensor=new ort.Tensor("float32",input,[1,3,TILE,TILE]);
-    try{
-      const outputs=await session.run({[inputName]:tensor});
-      const outTensor=outputs[outputName];
-      if(!outTensor?.data){
-        throw new Error("AI model returned an empty result.");
-      }
-      return outTensor;
-    }finally{
-      try{tensor?.dispose?.();}catch(_error){}
-    }
-  };
+  // Release the small session before loading the flagship session so mobile GPU
+  // memory does not hold both networks at the same time.
+  await releaseSession();
 
   try{
-    return await execute();
+    await ensureSession("flagship",false);
   }catch(error){
-    if(sessionMode==="webgpu-graph"){
-      // Some GPUs accept the session but reject graph capture on first run.
-      await releaseSession();
-      self.postMessage({
-        type:"status",
-        progress:2,
-        text:"Optimizing GPU compatibility…",
-        provider:"WebGPU"
-      });
-      try{
-        await createWebGpuSession(false);
-        return await execute();
-      }catch(secondError){
-        await releaseSession();
-      }
-    }else if(sessionMode==="webgpu"){
-      await releaseSession();
-    }else{
-      throw error;
-    }
-
-    // A WebGPU session can occasionally fail during actual inference even if
-    // creation succeeded. Retry the same tile with the full-quality WASM EP.
+    // The efficient base result is real AI output, so a flagship-session failure
+    // should not destroy an otherwise valid mobile job.
+    provider="RIVANI Mobile Engine";
     self.postMessage({
-      type:"status",
-      progress:2,
-      text:"GPU inference was not stable. Continuing with compatibility engine…",
-      provider:"RIVANI AI Engine"
+      type:"status",progress:96,
+      text:"Flagship detail pass was unavailable. Finalizing the verified mobile result…",
+      provider
     });
-    await createWasmSession();
-    return await execute();
+    base.provider=provider;
+    base.mobileRefineTiles=0;
+    base.mobileTotalTiles=total;
+    return base;
   }
+
+  provider=sessionMode.startsWith("webgpu")?"WebGPU-MobileHybrid":"WASM-MobileHybrid";
+  self.postMessage({
+    type:"status",progress:73,
+    text:`Mobile Hybrid: refining ${refineTiles.length} detail-critical areas…`,
+    provider
+  });
+
+  // If WebGPU dropped all the way to single-thread WASM on a phone, running the
+  // large network over many refinement tiles can be dramatically slower than the
+  // valid efficient result. Keep the base rather than locking the phone for minutes.
+  if(sessionMode==="wasm"&&refineTiles.length>12){
+    await releaseSession();
+    provider="RIVANI Mobile Engine";
+    base.provider=provider;
+    base.mobileRefineTiles=0;
+    base.mobileTotalTiles=total;
+    return base;
+  }
+
+  const refined=await processTiles({
+    src,width,height,targetScale,
+    tiles:refineTiles,
+    output:base.rgba,
+    outW:base.width,outH:base.height,
+    startProgress:73,endProgress:97,
+    phase:"mobile-detail",
+    refineMask
+  });
+  refined.provider=provider;
+  refined.mobileRefineTiles=refineTiles.length;
+  refined.mobileTotalTiles=total;
+  return refined;
 }
 
-async function enhanceImage(src,width,height,targetScale){
-  const outW=width*targetScale;
-  const outH=height*targetScale;
-  const output=new Uint8ClampedArray(outW*outH*4);
-
+function buildTiles(width,height){
   const cols=Math.ceil(width/CORE);
   const rows=Math.ceil(height/CORE);
-  const total=cols*rows;
+  const tiles=[];
+  let index=0;
+  for(let row=0,gy=0;gy<height;row++,gy+=CORE){
+    const coreH=Math.min(CORE,height-gy);
+    for(let col=0,gx=0;gx<width;col++,gx+=CORE){
+      tiles.push({index:index++,row,col,gx,gy,coreW:Math.min(CORE,width-gx),coreH});
+    }
+  }
+  tiles.cols=cols;
+  tiles.rows=rows;
+  return tiles;
+}
+
+function selectRefineTiles(src,width,height,tiles,mode){
+  const fraction=mode==="restore"?.36:mode==="strong"?.30:.20;
+  const ranked=tiles.map(tile=>({tile,score:tileDetailScore(src,width,height,tile)}))
+    .sort((a,b)=>b.score-a.score);
+  const wanted=Math.max(6,Math.min(tiles.length,Math.ceil(tiles.length*fraction)));
+  const mask=new Set(ranked.slice(0,wanted).map(item=>item.tile.index));
+
+  // Portraits and product shots often place identity-critical content near the
+  // center even when skin/smooth surfaces have fewer gradients than foliage/text.
+  // Reserve a small center set without turning the whole phone job back into x4plus.
+  const cx=width*.5,cy=height*.46;
+  const centerCandidates=tiles
+    .map(tile=>{
+      const tx=tile.gx+tile.coreW*.5,ty=tile.gy+tile.coreH*.5;
+      const dx=(tx-cx)/Math.max(1,width*.30),dy=(ty-cy)/Math.max(1,height*.34);
+      return {tile,d:dx*dx+dy*dy};
+    })
+    .filter(item=>item.d<=1)
+    .sort((a,b)=>a.d-b.d)
+    .slice(0,Math.min(6,Math.ceil(tiles.length*.05)));
+  centerCandidates.forEach(item=>mask.add(item.tile.index));
+
+  // Hard ceiling keeps the flagship share bounded on long mobile jobs.
+  const maxCount=Math.max(wanted,Math.ceil(tiles.length*(mode==="restore"?.42:.36)));
+  if(mask.size>maxCount){
+    const keep=new Set(ranked.slice(0,maxCount).map(item=>item.tile.index));
+    // Preserve the two most central tiles even if their edge score is low.
+    centerCandidates.slice(0,2).forEach(item=>keep.add(item.tile.index));
+    return keep;
+  }
+  return mask;
+}
+
+function tileDetailScore(src,width,height,tile){
+  const step=5;
+  let edge=0,contrast=0,count=0;
+  const xEnd=Math.max(tile.gx+1,Math.min(width-2,tile.gx+tile.coreW-1));
+  const yEnd=Math.max(tile.gy+1,Math.min(height-2,tile.gy+tile.coreH-1));
+  let mean=0,mean2=0;
+  for(let y=Math.max(1,tile.gy);y<yEnd;y+=step){
+    for(let x=Math.max(1,tile.gx);x<xEnd;x+=step){
+      const i=(y*width+x)*4;
+      const l=src[i]*.2126+src[i+1]*.7152+src[i+2]*.0722;
+      const ir=(y*width+Math.min(width-1,x+step))*4;
+      const id=(Math.min(height-1,y+step)*width+x)*4;
+      const lr=src[ir]*.2126+src[ir+1]*.7152+src[ir+2]*.0722;
+      const ld=src[id]*.2126+src[id+1]*.7152+src[id+2]*.0722;
+      edge+=Math.abs(l-lr)+Math.abs(l-ld);
+      mean+=l; mean2+=l*l; count++;
+    }
+  }
+  if(!count)return 0;
+  mean/=count;
+  const variance=Math.max(0,mean2/count-mean*mean);
+  contrast=Math.sqrt(variance);
+  return edge/count+contrast*.55;
+}
+
+async function processTiles({src,width,height,targetScale,tiles,output,outW,outH,startProgress,endProgress,phase,refineMask}){
+  outW=outW||width*targetScale;
+  outH=outH||height*targetScale;
+  output=output||new Uint8ClampedArray(outW*outH*4);
+  const total=tiles.length;
   let completed=0;
   let outputFactor=null;
   let lastReported=-1;
@@ -260,151 +295,231 @@ async function enhanceImage(src,width,height,targetScale){
   let tileEmaMs=0;
   let tileBaselineMs=Infinity;
   const inputBuffer=new Float32Array(TILE*TILE*3);
+  const cols=Math.ceil(width/CORE);
+  const rows=Math.ceil(height/CORE);
 
-  for(let gy=0;gy<height;gy+=CORE){
-    const coreH=Math.min(CORE,height-gy);
-
-    for(let gx=0;gx<width;gx+=CORE){
-      const coreW=Math.min(CORE,width-gx);
-
-      const tileStarted=performance.now();
-      fillTileTensor(inputBuffer,src,width,height,gx,gy);
-      const outTensor=await runTile(inputBuffer);
-
-      if(outputFactor===null){
-        outputFactor=detectOutputFactor(outTensor.data);
-      }
-
-      try{
-        writeCore(
-          outTensor,
-          outputFactor,
-          output,
-          outW,
-          gx,
-          gy,
-          coreW,
-          coreH,
-          targetScale
-        );
-      }finally{
-        try{outTensor?.dispose?.();}catch(_error){}
-      }
-
-      completed++;
-
-      const tileMs=Math.max(1,performance.now()-tileStarted);
-      tileEmaMs=tileEmaMs?tileEmaMs*.88+tileMs*.12:tileMs;
-      if(completed<=8){
-        tileBaselineMs=Math.min(tileBaselineMs,tileMs);
+  for(const tile of tiles){
+    const tileStarted=performance.now();
+    fillTileTensor(inputBuffer,src,width,height,tile.gx,tile.gy);
+    const outTensor=await runTile(inputBuffer);
+    if(outputFactor===null)outputFactor=detectOutputFactor(outTensor.data);
+    try{
+      if(refineMask){
+        writeCoreRefine(outTensor,outputFactor,output,outW,tile,targetScale,refineMask,cols,rows);
       }else{
-        // Baseline follows long-term improvements very slowly but never jumps up
-        // just because a device is temporarily hot or busy.
-        tileBaselineMs=Math.min(tileBaselineMs*1.0015,tileMs);
+        writeCore(outTensor,outputFactor,output,outW,tile.gx,tile.gy,tile.coreW,tile.coreH,targetScale);
       }
+    }finally{
+      try{outTensor?.dispose?.();}catch(_error){}
+    }
 
-      // Adaptive GPU pacing: same model, same pixels, same tile/context math.
-      // V25.5 also watches repeated tile latency. If a laptop/mobile GPU starts
-      // slowing under sustained load, RIVANI automatically gives it slightly
-      // more breathing room instead of continuing to hammer it at the same duty.
-      paceBatchStarted=await adaptivePace(
-        completed,
-        total,
-        paceBatchStarted,
-        tileEmaMs,
-        tileBaselineMs
-      );
+    completed++;
+    const tileMs=Math.max(1,performance.now()-tileStarted);
+    tileEmaMs=tileEmaMs?tileEmaMs*.88+tileMs*.12:tileMs;
+    if(completed<=8)tileBaselineMs=Math.min(tileBaselineMs,tileMs);
+    else tileBaselineMs=Math.min(tileBaselineMs*1.0015,tileMs);
 
-      const progress=3+Math.round((completed/total)*94);
-      const now=performance.now();
-      if(progress!==lastReported&&(now-lastReportAt>=90||completed===total)){
-        lastReported=progress;
-        lastReportAt=now;
-        self.postMessage({
-          type:"status",
-          progress,
-          text:`Enhancing detail ${completed} of ${total}…`,
-          provider
-        });
-      }
+    paceBatchStarted=await adaptivePace(completed,total,paceBatchStarted,tileEmaMs,tileBaselineMs,phase);
 
+    const progress=Math.round(startProgress+(completed/total)*(endProgress-startProgress));
+    const now=performance.now();
+    if(progress!==lastReported&&(now-lastReportAt>=120||completed===total)){
+      lastReported=progress; lastReportAt=now;
+      const text=phase==="mobile-base"
+        ?`Building mobile AI detail ${completed} of ${total}…`
+        :phase==="mobile-detail"
+          ?`Refining important detail ${completed} of ${total}…`
+          :`Enhancing detail ${completed} of ${total}…`;
+      self.postMessage({type:"status",progress,text,provider});
     }
   }
+  return {width:outW,height:outH,rgba:output};
+}
 
-  return {
-    width:outW,
-    height:outH,
-    rgba:output
+async function ensureSession(modelKind,graphCapture){
+  if(session&&activeModelKind===modelKind)return;
+  await releaseSession();
+  const bytes=await getModelBytes(modelKind);
+
+  if(self.navigator?.gpu){
+    try{
+      await createWebGpuSession(bytes,modelKind,Boolean(graphCapture));
+      return;
+    }catch(error){
+      await releaseSession();
+      if(graphCapture){
+        try{
+          await createWebGpuSession(bytes,modelKind,false);
+          return;
+        }catch(_second){await releaseSession();}
+      }
+    }
+  }
+  await createWasmSession(bytes,modelKind);
+}
+
+async function createWebGpuSession(bytes,modelKind,graphCapture){
+  ort=await import(ORT_WEBGPU_URL);
+  ort.env.wasm.wasmPaths=ORT_WASM_BASE;
+  if(ort.env.webgpu){
+    if(performanceProfile==="fast"&&modelKind==="flagship")ort.env.webgpu.powerPreference="high-performance";
+    ort.env.webgpu.forceFallbackAdapter=false;
+  }
+  session=await ort.InferenceSession.create(bytes,{
+    executionProviders:["webgpu"],graphOptimizationLevel:"all",enableGraphCapture:Boolean(graphCapture)
+  });
+  inputName=session.inputNames[0]; outputName=session.outputNames[0];
+  sessionMode=graphCapture?"webgpu-graph":"webgpu";
+  activeModelKind=modelKind;
+  provider=performanceProfile==="mobile"?"WebGPU-MobileHybrid":(graphCapture?"WebGPU-Graph":"WebGPU");
+}
+
+async function createWasmSession(bytes,modelKind){
+  ort=await import(ORT_WASM_URL);
+  ort.env.wasm.wasmPaths=ORT_WASM_BASE;
+  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||1);
+  const canThread=self.crossOriginIsolated===true;
+  const threads=canThread?Math.max(1,Math.min(4,cores-1)):1;
+  ort.env.wasm.numThreads=threads; ort.env.wasm.simd=true;
+  session=await ort.InferenceSession.create(bytes,{executionProviders:["wasm"],graphOptimizationLevel:"all"});
+  inputName=session.inputNames[0]; outputName=session.outputNames[0];
+  sessionMode="wasm"; activeModelKind=modelKind;
+  provider=performanceProfile==="mobile"?"WASM-MobileHybrid":(threads>1?`WASM-${threads}`:"WASM");
+}
+
+async function releaseSession(){
+  try{session?.release?.();}catch(_error){}
+  session=null; inputName=""; outputName=""; sessionMode="none"; activeModelKind="none";
+}
+
+async function runTile(input){
+  const modelKind=activeModelKind;
+  const execute=async()=>{
+    const tensor=new ort.Tensor("float32",input,[1,3,TILE,TILE]);
+    try{
+      const outputs=await session.run({[inputName]:tensor});
+      const outTensor=outputs[outputName];
+      if(!outTensor?.data)throw new Error("AI model returned an empty result.");
+      return outTensor;
+    }finally{try{tensor?.dispose?.();}catch(_error){}}
   };
+  try{return await execute();}
+  catch(error){
+    if(!sessionMode.startsWith("webgpu"))throw error;
+    const bytes=await getModelBytes(modelKind);
+    await releaseSession();
+    self.postMessage({type:"status",progress:2,text:"GPU path adjusted for this device…",provider:"RIVANI AI Engine"});
+    await createWasmSession(bytes,modelKind);
+    return await execute();
+  }
 }
 
-function normalizeProfile(value){
-  return value==="fast"||value==="cool"||value==="mobile"?value:"balanced";
-}
-
-async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineMs){
+async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineMs,phase){
   if(completed>=total||!sessionMode.startsWith("webgpu"))return performance.now();
-
-  const slowdown=Number.isFinite(tileBaselineMs)&&tileBaselineMs>0
-    ?Math.max(1,tileEmaMs/tileBaselineMs)
-    :1;
-  const throttling=Math.max(0,Math.min(1,(slowdown-1.18)/.55));
-
-  // Mobile Safe also listens to real browser-frame pressure from the page.
-  // This is important because the GPU is shared with Chrome's compositor: a
-  // phone can have fast AI tiles yet still make scrolling visibly janky.
+  const slowdown=Number.isFinite(tileBaselineMs)&&tileBaselineMs>0?Math.max(1,tileEmaMs/tileBaselineMs):1;
+  const throttling=Math.max(0,Math.min(1,(slowdown-1.20)/.55));
   const pressure=Math.max(throttling,uiPressure);
 
-  const normalBatch=
-    performanceProfile==="fast"
-      ?18
-      :performanceProfile==="mobile"
-        ?2
-        :performanceProfile==="cool"
-          ?3
-          :5;
-  const hotBatch=
-    performanceProfile==="fast"
-      ?12
-      :performanceProfile==="mobile"
-        ?1
-        :performanceProfile==="cool"
-          ?2
-          :3;
-  const batchSize=pressure>.32?hotBatch:normalBatch;
-
+  let batchSize,baseDuty,minDuty,maxPause;
+  if(performanceProfile==="mobile"){
+    if(phase==="mobile-base"){
+      // The tiny base engine is cheap enough to prioritize speed. Only visible UI
+      // pressure forces breathing room.
+      batchSize=pressure>.40?2:5; baseDuty=.955; minDuty=.82; maxPause=55;
+    }else{
+      // Flagship refinement is the expensive part; keep it bounded and responsive.
+      batchSize=1; baseDuty=.74; minDuty=.52; maxPause=145;
+    }
+  }else if(performanceProfile==="fast"){
+    batchSize=pressure>.32?12:18; baseDuty=.985; minDuty=.955; maxPause=12;
+  }else if(performanceProfile==="cool"){
+    batchSize=pressure>.32?2:3; baseDuty=.855; minDuty=.78; maxPause=88;
+  }else{
+    batchSize=pressure>.32?3:5; baseDuty=.905; minDuty=.84; maxPause=58;
+  }
   if(completed%batchSize!==0)return batchStarted;
-
   const elapsed=Math.max(1,performance.now()-batchStarted);
-  const baseDuty=
-    performanceProfile==="fast"
-      ?.985
-      :performanceProfile==="mobile"
-        ?.82
-        :performanceProfile==="cool"
-          ?.855
-          :.905;
-  const minDuty=
-    performanceProfile==="fast"
-      ?.955
-      :performanceProfile==="mobile"
-        ?.62
-        :performanceProfile==="cool"
-          ?.78
-          :.84;
-  const thermalPenalty=throttling*.075;
-  const uiPenalty=performanceProfile==="mobile"?uiPressure*.19:uiPressure*.08;
+  const thermalPenalty=throttling*(performanceProfile==="mobile"?.09:.075);
+  const uiPenalty=uiPressure*(performanceProfile==="mobile"?(phase==="mobile-detail"?.26:.14):.08);
   const duty=Math.max(minDuty,baseDuty-thermalPenalty-uiPenalty);
-
-  // Duty-cycle pacing is proportional to actual tile time, not a fixed sleep.
-  // Mobile pressure feedback only changes when work is submitted; it never
-  // changes the Real-ESRGAN model, tile, context or sampled output pixels.
-  const maxPause=performanceProfile==="mobile"?125:performanceProfile==="cool"?88:performanceProfile==="balanced"?58:12;
   const pause=Math.min(maxPause,Math.max(0,elapsed*(1/duty-1)));
-  if(pause>=1)await delay(Math.round(pause));
-  else await delay(0);
-
+  await delay(pause>=1?Math.round(pause):0);
   return performance.now();
+}
+
+function writeCoreRefine(tensor,factor,dest,outW,tile,targetScale,mask,cols,rows){
+  const dims=tensor.dims||[];
+  const data=tensor.data;
+  const nativeW=dims.length===4?(dims[3]===3?dims[2]:dims[3]):TILE*SCALE;
+  const nativeH=dims.length===4?(dims[3]===3?dims[1]:dims[2]):TILE*SCALE;
+  const nchw=dims.length===4&&dims[1]===3;
+  const plane=nativeW*nativeH;
+  const nativeCrop=CONTEXT*SCALE;
+  const outCoreW=tile.coreW*targetScale;
+  const outCoreH=tile.coreH*targetScale;
+  const baseX=tile.gx*targetScale,baseY=tile.gy*targetScale;
+  const feather=Math.max(8,targetScale*7);
+  const leftExternal=tile.col>0&&!mask.has(tile.index-1);
+  const rightExternal=tile.col<cols-1&&!mask.has(tile.index+1);
+  const topExternal=tile.row>0&&!mask.has(tile.index-cols);
+  const bottomExternal=tile.row<rows-1&&!mask.has(tile.index+cols);
+
+  const smooth=v=>{v=Math.max(0,Math.min(1,v));return v*v*(3-2*v);};
+
+  if(targetScale===4){
+    for(let oy=0;oy<outCoreH;oy++){
+      const ny=nativeCrop+oy;
+      let ay=1;
+      if(topExternal&&oy<feather)ay*=smooth(oy/feather);
+      if(bottomExternal&&outCoreH-1-oy<feather)ay*=smooth((outCoreH-1-oy)/feather);
+      for(let ox=0;ox<outCoreW;ox++){
+        const nx=nativeCrop+ox; let r,g,b;
+        if(nchw){const pi=ny*nativeW+nx;r=Number(data[pi]||0);g=Number(data[plane+pi]||0);b=Number(data[plane*2+pi]||0);}
+        else{const pi=(ny*nativeW+nx)*3;r=Number(data[pi]||0);g=Number(data[pi+1]||0);b=Number(data[pi+2]||0);}
+        let ax=1;
+        if(leftExternal&&ox<feather)ax*=smooth(ox/feather);
+        if(rightExternal&&outCoreW-1-ox<feather)ax*=smooth((outCoreW-1-ox)/feather);
+        const a=ax*ay;
+        const di=((baseY+oy)*outW+(baseX+ox))*4;
+        r*=factor;g*=factor;b*=factor;
+        if(a>=.999){dest[di]=clampByte(r);dest[di+1]=clampByte(g);dest[di+2]=clampByte(b);}
+        else{
+          dest[di]=clampByte(dest[di]*(1-a)+r*a);
+          dest[di+1]=clampByte(dest[di+1]*(1-a)+g*a);
+          dest[di+2]=clampByte(dest[di+2]*(1-a)+b*a);
+        }
+        dest[di+3]=255;
+      }
+    }
+    return;
+  }
+  for(let oy=0;oy<outCoreH;oy++){
+    const ny=nativeCrop+oy*2;
+    let ay=1;
+    if(topExternal&&oy<feather)ay*=smooth(oy/feather);
+    if(bottomExternal&&outCoreH-1-oy<feather)ay*=smooth((outCoreH-1-oy)/feather);
+    for(let ox=0;ox<outCoreW;ox++){
+      const nx=nativeCrop+ox*2;let r=0,g=0,b=0;
+      for(let yy=0;yy<2;yy++)for(let xx=0;xx<2;xx++){
+        const y=ny+yy,x=nx+xx;
+        if(nchw){const pi=y*nativeW+x;r+=Number(data[pi]||0);g+=Number(data[plane+pi]||0);b+=Number(data[plane*2+pi]||0);}
+        else{const pi=(y*nativeW+x)*3;r+=Number(data[pi]||0);g+=Number(data[pi+1]||0);b+=Number(data[pi+2]||0);}
+      }
+      let ax=1;
+      if(leftExternal&&ox<feather)ax*=smooth(ox/feather);
+      if(rightExternal&&outCoreW-1-ox<feather)ax*=smooth((outCoreW-1-ox)/feather);
+      const a=ax*ay;
+      const di=((baseY+oy)*outW+(baseX+ox))*4;
+      r*=.25*factor;g*=.25*factor;b*=.25*factor;
+      if(a>=.999){dest[di]=clampByte(r);dest[di+1]=clampByte(g);dest[di+2]=clampByte(b);}
+      else{
+        dest[di]=clampByte(dest[di]*(1-a)+r*a);
+        dest[di+1]=clampByte(dest[di+1]*(1-a)+g*a);
+        dest[di+2]=clampByte(dest[di+2]*(1-a)+b*a);
+      }
+      dest[di+3]=255;
+    }
+  }
 }
 
 function fillTileTensor(out,src,width,height,gx,gy){
@@ -616,72 +731,41 @@ function delay(ms){
   return new Promise(resolve=>setTimeout(resolve,ms));
 }
 
-async function getModelBytes(){
-  const cached=await idbGet(CACHE_KEY).catch(()=>null);
 
-  if(cached instanceof ArrayBuffer&&cached.byteLength>10_000_000){
-    self.postMessage({
-      type:"status",
-      progress:1,
-      text:"AI model loaded from device cache…",
-      provider:"RIVANI AI Engine"
-    });
+async function getModelBytes(kind){
+  const cfg=MODEL_CONFIG[kind]||MODEL_CONFIG.flagship;
+  if(modelBytesCache.has(kind))return modelBytesCache.get(kind);
+  const cached=await idbGet(cfg.cacheKey).catch(()=>null);
+  if(cached instanceof ArrayBuffer&&cached.byteLength>cfg.minBytes){
+    modelBytesCache.set(kind,cached);
+    self.postMessage({type:"status",progress:1,text:"AI model loaded from device cache…",provider:"RIVANI AI Engine"});
     return cached;
   }
-
   let lastError=null;
-
-  for(const url of MODEL_URLS){
+  for(const url of cfg.urls){
     try{
       const response=await fetch(url,{cache:"force-cache"});
       if(!response.ok)throw new Error(`Model fetch ${response.status}`);
-
       const total=Number(response.headers.get("content-length"))||0;
       const reader=response.body?.getReader();
-
       if(!reader){
         const buffer=await response.arrayBuffer();
-        await idbPut(CACHE_KEY,buffer).catch(()=>{});
-        return buffer;
+        await idbPut(cfg.cacheKey,buffer).catch(()=>{});
+        modelBytesCache.set(kind,buffer);return buffer;
       }
-
-      const parts=[];
-      let received=0;
-
+      const parts=[];let received=0;
       while(true){
-        const {done,value}=await reader.read();
-        if(done)break;
-
-        parts.push(value);
-        received+=value.byteLength;
-
-        const pct=total
-          ?Math.min(90,Math.round(received/total*90))
-          :Math.min(90,5+Math.round(received/750000));
-
-        self.postMessage({
-          type:"model-progress",
-          progress:pct,
-          text:"Downloading RIVANI image model…",
-          provider:"RIVANI AI Engine"
-        });
+        const {done,value}=await reader.read();if(done)break;
+        parts.push(value);received+=value.byteLength;
+        const pct=total?Math.min(90,Math.round(received/total*90)):Math.min(90,5+Math.round(received/500000));
+        self.postMessage({type:"model-progress",progress:pct,text:kind==="mobile"?"Downloading mobile AI engine…":"Downloading detail AI engine…",provider:"RIVANI AI Engine"});
       }
-
-      const buffer=new Uint8Array(received);
-      let offset=0;
-
-      for(const part of parts){
-        buffer.set(part,offset);
-        offset+=part.byteLength;
-      }
-
-      await idbPut(CACHE_KEY,buffer.buffer).catch(()=>{});
-      return buffer.buffer;
-    }catch(error){
-      lastError=error;
-    }
+      const joined=new Uint8Array(received);let offset=0;
+      for(const part of parts){joined.set(part,offset);offset+=part.byteLength;}
+      await idbPut(cfg.cacheKey,joined.buffer).catch(()=>{});
+      modelBytesCache.set(kind,joined.buffer);return joined.buffer;
+    }catch(error){lastError=error;}
   }
-
   throw lastError||new Error("Could not load the image enhancement model.");
 }
 

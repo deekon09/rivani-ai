@@ -82,3 +82,7 @@ Existing audio routes remain unchanged:
 ## Plans
 Image plan gating is intentionally not finalized in V25 because final cross-tool
 Free/Pro packaging will be decided after the remaining tools are implemented.
+
+
+## V25.8 Mobile Hybrid route
+`/image-enhancer-mobile-x4.onnx` is used by the adaptive mobile engine. See `README-V25-8-MOBILE-HYBRID.md`.

@@ -529,7 +529,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.7-image",
+      "image-enhancer-worker.js?v=25.8-image",
       {type:"module"}
     );
 
@@ -540,7 +540,8 @@ async function enhanceCurrentImage(){
       prep.width,
       prep.height,
       prep.workerScale,
-      getImagePerformanceProfile()
+      getImagePerformanceProfile(),
+      imageMode
     );
     const runtimeMs=performance.now()-runtimeStarted;
 
@@ -871,7 +872,7 @@ function startImageUiPressureMonitor(worker,performanceProfile){
   };
 }
 
-function runWorker(worker,imageData,width,height,targetScale,performanceProfile){
+function runWorker(worker,imageData,width,height,targetScale,performanceProfile,imageMode){
   return new Promise((resolve,reject)=>{
     const stopUiMonitor=startImageUiPressureMonitor(worker,performanceProfile);
     const finishWorker=()=>{
@@ -953,6 +954,7 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile)
       height,
       targetScale,
       performanceProfile,
+      imageMode:imageMode||"natural",
       rgba:inputBuffer
     },[inputBuffer]);
   });
@@ -1297,7 +1299,7 @@ function renderReport(
     performanceProfile==="fast"
       ?"Fast"
       :performanceProfile==="mobile"
-        ?"Mobile Safe"
+        ?"Mobile Hybrid"
         :performanceProfile==="cool"
           ?"Cool"
           :"Balanced";
