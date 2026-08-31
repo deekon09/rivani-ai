@@ -405,10 +405,11 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.2-image",
+      "image-enhancer-worker.js?v=25.3-image",
       {type:"module"}
     );
 
+    const runtimeStarted=performance.now();
     const response=await runWorker(
       worker,
       prep.imageData,
@@ -416,6 +417,7 @@ async function enhanceCurrentImage(){
       prep.height,
       prep.workerScale
     );
+    const runtimeMs=performance.now()-runtimeStarted;
 
     setProgress(98,"Running Fidelity Guard…","Checking structure, color and edge behavior.");
 
@@ -485,7 +487,8 @@ async function enhanceCurrentImage(){
       response.width,
       response.height,
       prep.effectiveScale,
-      response.provider
+      response.provider,
+      runtimeMs
     );
 
     processing.classList.add("hidden");
@@ -734,14 +737,18 @@ function decideGuard(metrics,mode,guard,textSafe,colorSafe){
 
   if(guard){
     if(risk==="high"){
-      blend=Math.min(blend,.54);
+      // True Safe Pass: keep the requested output dimensions, but use the
+      // original image as the truth source instead of forcing risky AI detail.
+      blend=0;
     }else if(risk==="medium"){
       blend=Math.min(blend,.70);
     }
   }
 
-  // Product safety floor/ceiling.
-  blend=Math.max(.38,Math.min(.96,blend));
+  // Keep ordinary AI blends bounded. A high-risk Safe Pass is intentionally 0%.
+  if(!(guard&&risk==="high")){
+    blend=Math.max(.38,Math.min(.96,blend));
+  }
 
   return {
     blend,
@@ -911,7 +918,8 @@ function renderReport(
   width,
   height,
   effectiveScale,
-  provider
+  provider,
+  runtimeMs
 ){
   const structurePct=Math.round(metrics.structure*100);
   const colorPct=Math.round(metrics.colorDrift*100);
@@ -978,9 +986,15 @@ function renderReport(
     `${effectiveScale.toFixed(effectiveScale>=3?1:2)}× effective scale`;
 
   $("imageRuntimeProvider").textContent=
-    provider==="WebGPU"
+    String(provider||"").startsWith("WebGPU")
       ?"GPU accelerated"
       :"Compatibility engine";
+
+  const seconds=Math.max(0,Number(runtimeMs)||0)/1000;
+  $("imageRuntimeTime").textContent=
+    seconds>=60
+      ?`${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`
+      :`${seconds.toFixed(seconds<10?1:0)}s`;
 }
 
 function setProgress(percent,title,text,provider){
@@ -993,9 +1007,9 @@ function setProgress(percent,title,text,provider){
 
   if(provider){
     providerText.textContent=
-      provider==="WebGPU"
+      String(provider).startsWith("WebGPU")
         ?"RIVANI GPU Engine"
-        :provider==="WASM"
+        :String(provider).startsWith("WASM")
           ?"RIVANI Compatibility Engine"
           :"RIVANI AI Engine";
   }

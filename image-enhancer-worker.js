@@ -1,4 +1,4 @@
-// RIVANI AI · Image Enhancer V25
+// RIVANI AI · Image Enhancer V25.3
 // Real-ESRGAN x4plus ONNX · browser-side inference.
 // Fixed model contract: 1x3x128x128 -> 1x3x512x512.
 
@@ -23,6 +23,10 @@ const CORE=TILE-CONTEXT*2;
 let ort=null;
 let session=null;
 let provider="RIVANI AI Engine";
+let sessionMode="none";
+let modelBytes=null;
+let inputName="";
+let outputName="";
 
 self.onmessage=async event=>{
   const msg=event.data||{};
@@ -72,49 +76,142 @@ self.onmessage=async event=>{
 async function ensureSession(){
   if(session)return;
 
-  const model=await getModelBytes();
+  modelBytes=modelBytes||await getModelBytes();
 
   if(self.navigator?.gpu){
+    // The model input is fully static (1×3×128×128), so graph capture can
+    // reduce repeated per-tile CPU command overhead on compatible GPUs.
     try{
-      ort=await import(ORT_WEBGPU_URL);
-      ort.env.wasm.wasmPaths=ORT_WASM_BASE;
-
-      session=await ort.InferenceSession.create(
-        model,
-        {
-          executionProviders:["webgpu"],
-          graphOptimizationLevel:"all"
-        }
-      );
-
-      provider="WebGPU";
+      await createWebGpuSession(true);
       return;
     }catch(error){
-      session=null;
-      ort=null;
-      self.postMessage({
-        type:"status",
-        progress:1,
-        text:"Using compatibility engine for this device…",
-        provider:"RIVANI AI Engine"
-      });
+      await releaseSession();
+      try{
+        await createWebGpuSession(false);
+        return;
+      }catch(secondError){
+        await releaseSession();
+        self.postMessage({
+          type:"status",
+          progress:1,
+          text:"GPU path is unavailable on this device. Using compatibility engine…",
+          provider:"RIVANI AI Engine"
+        });
+      }
     }
   }
 
+  await createWasmSession();
+}
+
+async function createWebGpuSession(graphCapture){
+  ort=await import(ORT_WEBGPU_URL);
+  ort.env.wasm.wasmPaths=ORT_WASM_BASE;
+
+  if(ort.env.webgpu){
+    ort.env.webgpu.powerPreference="high-performance";
+    ort.env.webgpu.forceFallbackAdapter=false;
+  }
+
+  session=await ort.InferenceSession.create(
+    modelBytes,
+    {
+      executionProviders:["webgpu"],
+      graphOptimizationLevel:"all",
+      enableGraphCapture:Boolean(graphCapture)
+    }
+  );
+
+  inputName=session.inputNames[0];
+  outputName=session.outputNames[0];
+  sessionMode=graphCapture?"webgpu-graph":"webgpu";
+  provider=graphCapture?"WebGPU-Graph":"WebGPU";
+}
+
+async function createWasmSession(){
   ort=await import(ORT_WASM_URL);
   ort.env.wasm.wasmPaths=ORT_WASM_BASE;
-  ort.env.wasm.numThreads=1;
+
+  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||1);
+  const canThread=self.crossOriginIsolated===true;
+  const threads=canThread?Math.max(1,Math.min(4,cores-1)):1;
+
+  // RIVANI never enables cross-origin isolation just for image speed. If the
+  // hosting environment already provides it, ORT can safely use a few threads.
+  ort.env.wasm.numThreads=threads;
   ort.env.wasm.simd=true;
 
   session=await ort.InferenceSession.create(
-    model,
+    modelBytes,
     {
       executionProviders:["wasm"],
       graphOptimizationLevel:"all"
     }
   );
 
-  provider="WASM";
+  inputName=session.inputNames[0];
+  outputName=session.outputNames[0];
+  sessionMode="wasm";
+  provider=threads>1?`WASM-${threads}`:"WASM";
+}
+
+async function releaseSession(){
+  try{session?.release?.();}catch(_error){}
+  session=null;
+  inputName="";
+  outputName="";
+}
+
+async function runTile(input){
+  const execute=async()=>{
+    const tensor=new ort.Tensor("float32",input,[1,3,TILE,TILE]);
+    try{
+      const outputs=await session.run({[inputName]:tensor});
+      const outTensor=outputs[outputName];
+      if(!outTensor?.data){
+        throw new Error("AI model returned an empty result.");
+      }
+      return outTensor;
+    }finally{
+      try{tensor?.dispose?.();}catch(_error){}
+    }
+  };
+
+  try{
+    return await execute();
+  }catch(error){
+    if(sessionMode==="webgpu-graph"){
+      // Some GPUs accept the session but reject graph capture on first run.
+      await releaseSession();
+      self.postMessage({
+        type:"status",
+        progress:2,
+        text:"Optimizing GPU compatibility…",
+        provider:"WebGPU"
+      });
+      try{
+        await createWebGpuSession(false);
+        return await execute();
+      }catch(secondError){
+        await releaseSession();
+      }
+    }else if(sessionMode==="webgpu"){
+      await releaseSession();
+    }else{
+      throw error;
+    }
+
+    // A WebGPU session can occasionally fail during actual inference even if
+    // creation succeeded. Retry the same tile with the full-quality WASM EP.
+    self.postMessage({
+      type:"status",
+      progress:2,
+      text:"GPU inference was not stable. Continuing with compatibility engine…",
+      provider:"RIVANI AI Engine"
+    });
+    await createWasmSession();
+    return await execute();
+  }
 }
 
 async function enhanceImage(src,width,height,targetScale){
@@ -127,6 +224,9 @@ async function enhanceImage(src,width,height,targetScale){
   const total=cols*rows;
   let completed=0;
   let outputFactor=null;
+  let lastReported=-1;
+  let lastReportAt=0;
+  const inputBuffer=new Float32Array(TILE*TILE*3);
 
   for(let gy=0;gy<height;gy+=CORE){
     const coreH=Math.min(CORE,height-gy);
@@ -134,41 +234,43 @@ async function enhanceImage(src,width,height,targetScale){
     for(let gx=0;gx<width;gx+=CORE){
       const coreW=Math.min(CORE,width-gx);
 
-      const input=makeTileTensor(src,width,height,gx,gy);
-      const tensor=new ort.Tensor("float32",input,[1,3,TILE,TILE]);
-
-      const inputName=session.inputNames[0];
-      const outputs=await session.run({[inputName]:tensor});
-      const outTensor=outputs[session.outputNames[0]];
-
-      if(!outTensor?.data){
-        throw new Error("AI model returned an empty result.");
-      }
+      fillTileTensor(inputBuffer,src,width,height,gx,gy);
+      const outTensor=await runTile(inputBuffer);
 
       if(outputFactor===null){
         outputFactor=detectOutputFactor(outTensor.data);
       }
 
-      writeCore(
-        outTensor,
-        outputFactor,
-        output,
-        outW,
-        gx,
-        gy,
-        coreW,
-        coreH,
-        targetScale
-      );
+      try{
+        writeCore(
+          outTensor,
+          outputFactor,
+          output,
+          outW,
+          gx,
+          gy,
+          coreW,
+          coreH,
+          targetScale
+        );
+      }finally{
+        try{outTensor?.dispose?.();}catch(_error){}
+      }
 
       completed++;
 
-      self.postMessage({
-        type:"status",
-        progress:3+Math.round((completed/total)*94),
-        text:`Enhancing detail ${completed} of ${total}…`,
-        provider
-      });
+      const progress=3+Math.round((completed/total)*94);
+      const now=performance.now();
+      if(progress!==lastReported&&(now-lastReportAt>=90||completed===total)){
+        lastReported=progress;
+        lastReportAt=now;
+        self.postMessage({
+          type:"status",
+          progress,
+          text:`Enhancing detail ${completed} of ${total}…`,
+          provider
+        });
+      }
 
     }
   }
@@ -180,9 +282,8 @@ async function enhanceImage(src,width,height,targetScale){
   };
 }
 
-function makeTileTensor(src,width,height,gx,gy){
+function fillTileTensor(out,src,width,height,gx,gy){
   const plane=TILE*TILE;
-  const out=new Float32Array(plane*3);
 
   for(let ty=0;ty<TILE;ty++){
     const sy=reflectIndex(
@@ -204,8 +305,6 @@ function makeTileTensor(src,width,height,gx,gy){
       out[plane*2+dst]=src[source+2]/255;
     }
   }
-
-  return out;
 }
 
 function writeCore(

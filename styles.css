@@ -2829,15 +2829,11 @@ body.rivani-processing-performance .specialist-beta-card{
   background:radial-gradient(circle,rgba(64,151,255,.14),rgba(43,61,151,.04));
 }
 .image-processing-orb img{
-  position:absolute;
-  top:50%;
-  left:-2px;
-  width:190px;
-  max-width:none;
-  height:auto;
-  transform:translateY(-50%);
+  width:58px;
+  height:58px;
+  object-fit:contain;
   pointer-events:none;
-  filter:drop-shadow(0 0 8px rgba(51,181,255,.2));
+  filter:drop-shadow(0 0 10px rgba(51,181,255,.25));
 }
 
 .compare-label{
@@ -2896,4 +2892,23 @@ body.rivani-processing-performance .specialist-beta-card{
   .compare-label.before{left:9px}
   .compare-label.after{right:9px}
   .image-result-actions .btn{width:100%}
+}
+
+
+/* =========================================================
+   V25.3 IMAGE ENGINE / PROCESSING BADGE POLISH
+   ========================================================= */
+.image-processing-orb{
+  overflow:visible;
+}
+.image-processing-orb::after{
+  content:"";
+  position:absolute;
+  inset:-6px;
+  border-radius:26px;
+  border:1px solid rgba(94,202,255,.12);
+  pointer-events:none;
+}
+.image-output-meta{
+  flex-wrap:wrap;
 }
