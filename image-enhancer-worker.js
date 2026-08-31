@@ -1,5 +1,5 @@
-// RIVANI AI · Image Enhancer V25.10
-// Adaptive desktop flagship + Mobile Selective AI + shared RIVANI HD Finish.
+// RIVANI AI · Image Enhancer V25.11
+// Reliable desktop WebGPU + portrait-aware Mobile Selective AI + stronger shared RIVANI HD Finish.
 // Desktop keeps the flagship full-image model path. Mobile uses a bounded number
 // of efficient-model tiles over a source-preserving resize so mid-range phones
 // can finish instead of timing out after hundreds of model calls.
@@ -47,6 +47,7 @@ let imageMode="natural";
 let hdFinishEnabled=true;
 let hdFinishStrength=70;
 let uiPressure=0;
+let webGpuRecoveryUsed=false;
 const modelBytesCache=new Map();
 
 self.onmessage=async event=>{
@@ -67,6 +68,7 @@ self.onmessage=async event=>{
     hdFinishEnabled=msg.hdFinishEnabled!==false;
     hdFinishStrength=Math.max(0,Math.min(100,Number(msg.hdFinishStrength)||0));
     uiPressure=0;
+    webGpuRecoveryUsed=false;
 
     if(!width||!height||pixels.length!==width*height*4){
       throw new Error("Invalid image buffer.");
@@ -112,7 +114,10 @@ function normalizeMode(value){
 }
 
 async function enhanceDesktop(src,width,height,targetScale){
-  await ensureSession("flagship",true);
+  // V25.11: regular WebGPU is the production desktop default. Graph capture can
+  // be faster on some systems, but a runtime hiccup used to push a whole job to
+  // CPU/WASM. Reliable GPU completion is more important than a fragile shortcut.
+  await ensureSession("flagship",false);
   self.postMessage({type:"status",progress:2,text:"AI model ready. Preparing image tiles…",provider});
   const result=await processTiles({
     src,width,height,targetScale,
@@ -209,33 +214,49 @@ function selectMobileSparseTiles(src,width,height,tiles,mode,engineMode){
   const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
   let cap=mode==="restore"?40:mode==="strong"?34:28;
 
-  // Lower-memory phones get a stricter bounded workload. Stronger phones may
-  // spend a few more real-AI passes without turning the job back into a full
-  // image model sweep. If WebGPU is unavailable and the phone fell to WASM,
-  // cut neural calls again because each tile is materially more expensive.
+  // Keep the successful V25.9 bounded workload. V25.11 changes *which* tiles
+  // receive AI, not how many, so mobile completion/performance stays predictable.
   if(memory&&memory<=4)cap-=6;
   else if(memory>=8&&cores>=8)cap+=6;
   if(engineMode==="wasm")cap=Math.min(cap,mode==="restore"?24:mode==="strong"?20:16);
   cap=Math.max(engineMode==="wasm"?12:20,Math.min(46,cap,tiles.length));
 
-  const ranked=tiles.map(tile=>({tile,score:tileDetailScore(src,width,height,tile)}))
-    .sort((a,b)=>b.score-a.score);
+  const portrait=height>width*1.06;
+  const focusX=width*.50;
+  const focusY=height*(portrait?.40:.46);
+  const focusRx=width*(portrait?.34:.30);
+  const focusRy=height*(portrait?.30:.34);
+
+  // Portrait/selfie images need the scarce mobile AI budget concentrated on the
+  // face/hair/glasses region rather than spending most calls on background edges.
+  // This re-ranks the same bounded number of tiles, so speed does not regress.
+  const ranked=tiles.map(tile=>{
+    const tx=tile.gx+tile.coreW*.5,ty=tile.gy+tile.coreH*.5;
+    const dx=(tx-focusX)/Math.max(1,focusRx);
+    const dy=(ty-focusY)/Math.max(1,focusRy);
+    const d=dx*dx+dy*dy;
+    const focus=Math.max(0,1-Math.min(1,d));
+    const detail=tileDetailScore(src,width,height,tile);
+    const score=detail*(1+(portrait?.42:.18)*focus)+(portrait?.16:.06)*focus;
+    return {tile,score,d};
+  }).sort((a,b)=>b.score-a.score);
+
   const mask=new Set(ranked.slice(0,cap).map(item=>item.tile.index));
 
-  // Reserve central identity/product areas even if smooth skin or flat product
-  // surfaces have a lower raw gradient score than foliage/text elsewhere.
-  const cx=width*.5,cy=height*.46;
-  const centers=tiles.map(tile=>{
-    const tx=tile.gx+tile.coreW*.5,ty=tile.gy+tile.coreH*.5;
-    const dx=(tx-cx)/Math.max(1,width*.30),dy=(ty-cy)/Math.max(1,height*.34);
-    return {tile,d:dx*dx+dy*dy};
-  }).filter(item=>item.d<=1).sort((a,b)=>a.d-b.d).slice(0,6);
-
+  const reserveCount=portrait?Math.min(12,Math.max(6,Math.floor(cap*.38))):6;
+  const centers=ranked.filter(item=>item.d<=1)
+    .sort((a,b)=>a.d-b.d)
+    .slice(0,reserveCount);
   centers.forEach(item=>mask.add(item.tile.index));
 
   if(mask.size>cap){
-    const keep=new Set(ranked.slice(0,Math.max(0,cap-2)).map(item=>item.tile.index));
-    centers.slice(0,2).forEach(item=>keep.add(item.tile.index));
+    // Preserve portrait-critical center tiles first, then fill the remaining
+    // budget with the highest-detail scene tiles.
+    const keep=new Set(centers.slice(0,Math.min(centers.length,reserveCount)).map(item=>item.tile.index));
+    for(const item of ranked){
+      if(keep.size>=cap)break;
+      keep.add(item.tile.index);
+    }
     return keep;
   }
   return mask;
@@ -434,18 +455,35 @@ async function runTile(input){
       return outTensor;
     }finally{try{tensor?.dispose?.();}catch(_error){}}
   };
+
   try{return await execute();}
-  catch(error){
-    if(!sessionMode.startsWith("webgpu"))throw error;
+  catch(firstError){
+    if(!sessionMode.startsWith("webgpu"))throw firstError;
     const bytes=await getModelBytes(modelKind);
-    await releaseSession();
-    self.postMessage({type:"status",progress:2,text:"GPU path adjusted for this device…",provider:"RIVANI AI Engine"});
+
+    // V25.11 recovery order: WebGPU first, CPU only as a last resort. A single
+    // GPU hiccup should not turn a high-end desktop job into a long WASM run.
+    if(!webGpuRecoveryUsed){
+      webGpuRecoveryUsed=true;
+      await releaseSession();
+      self.postMessage({type:"status",progress:2,text:"Refreshing GPU engine…",provider:"WebGPU"});
+      try{
+        await createWebGpuSession(bytes,modelKind,false);
+        return await execute();
+      }catch(_webgpuRetry){
+        await releaseSession();
+      }
+    }else{
+      await releaseSession();
+    }
+
+    self.postMessage({type:"status",progress:2,text:"Using compatibility engine for this device…",provider:"WASM"});
     await createWasmSession(bytes,modelKind);
     return await execute();
   }
 }
 
-// V25.10: lightweight full-frame finishing pass shared by desktop and mobile.
+// V25.11: stronger lightweight full-frame finishing pass shared by desktop and mobile.
 // This is intentionally not marketed as another neural model. It adds controlled
 // local contrast, vibrance and micro-detail after AI reconstruction. The pass is
 // in-place and keeps only three luminance rows, so mobile memory stays bounded.
@@ -453,16 +491,21 @@ function applyRivaniHdFinish(rgba,width,height,mode,strength){
   const power=Math.max(0,Math.min(1,Number(strength)||0)/100);
   if(power<=0||width<3||height<3)return;
 
+  // V25.10 was intentionally conservative, but at 100% Strong it barely moved
+  // saturation/definition on real phone photos. V25.11 makes Strong visibly HD
+  // while keeping skin restrained and clamping micro-contrast to avoid halos.
   const params=mode==="strong"
-    ?{contrast:.080,vibrance:.180,detail:.480,lift:.012}
+    ?{contrast:.135,vibrance:.300,detail:.92,lift:.014,shadow:.020,highlight:.022}
     :mode==="restore"
-      ?{contrast:.055,vibrance:.105,detail:.350,lift:.007}
-      :{contrast:.045,vibrance:.105,detail:.250,lift:.006};
+      ?{contrast:.085,vibrance:.145,detail:.58,lift:.009,shadow:.012,highlight:.013}
+      :{contrast:.070,vibrance:.165,detail:.46,lift:.008,shadow:.010,highlight:.012};
 
   const contrast=params.contrast*power;
   const vibrance=params.vibrance*power;
   const detailAmount=params.detail*power;
   const lift=params.lift*power;
+  const shadowDepth=params.shadow*power;
+  const highlightLift=params.highlight*power;
 
   let prev=new Float32Array(width);
   let curr=new Float32Array(width);
@@ -486,34 +529,40 @@ function applyRivaniHdFinish(rgba,width,height,mode,strength){
       const i=rowBase+x*4;
       if(rgba[i+3]<8)continue;
 
+      const r0=rgba[i]/255,g0=rgba[i+1]/255,b0=rgba[i+2]/255;
       const lum=curr[x];
       const left=curr[x>0?x-1:x];
       const right=curr[x<width-1?x+1:x];
       const localAvg=(prev[x]+next[x]+left+right)*.25;
-      const rawDetail=Math.max(-.085,Math.min(.085,lum-localAvg));
-      const detailGate=Math.min(1,.18+Math.abs(rawDetail)*18);
-      const micro=rawDetail*detailAmount*detailGate;
+      const rawDetail=Math.max(-.070,Math.min(.070,lum-localAvg));
+      const detailGate=Math.min(1,.20+Math.abs(rawDetail)*20);
+
+      // Detect skin before the finish curve. Skin gets less color and slightly
+      // less local-detail gain; hair, beard, glasses, clothes and scenery keep
+      // the stronger definition the user expects from an HD enhancer.
+      const skin=r0>.28&&g0>.16&&b0>.08&&r0>g0&&g0>b0&&(r0-b0)>.075&&(r0-g0)<.30;
+      const localDetail=detailAmount*(skin?.62:1);
+      const micro=Math.max(-.036,Math.min(.036,rawDetail*localDetail*detailGate));
 
       const centered=lum-.5;
-      const curve=centered*(1-Math.min(1,4*centered*centered));
-      const dimensional=curve*contrast;
+      const sCurve=centered*(1-Math.min(1,3.25*centered*centered));
+      const dimensional=sCurve*contrast;
       const midPresence=lift*Math.max(0,1-Math.abs(lum-.55)/.55)*(lum<.94?1:0);
-      const targetLum=Math.max(0,Math.min(1,lum+micro+dimensional+midPresence));
+      const shadowShape=Math.max(0,Math.min(1,(.42-lum)/.42));
+      const highlightShape=Math.max(0,Math.min(1,(lum-.52)/.48));
+      const tonePunch=highlightLift*highlightShape-shadowDepth*shadowShape;
+      const targetLum=Math.max(0,Math.min(1,lum+micro+dimensional+midPresence+tonePunch));
       const delta=targetLum-lum;
 
-      let r=Math.max(0,Math.min(1,rgba[i]/255+delta));
-      let g=Math.max(0,Math.min(1,rgba[i+1]/255+delta));
-      let b=Math.max(0,Math.min(1,rgba[i+2]/255+delta));
+      let r=Math.max(0,Math.min(1,r0+delta));
+      let g=Math.max(0,Math.min(1,g0+delta));
+      let b=Math.max(0,Math.min(1,b0+delta));
 
       const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
       const sat=mx>1e-5?(mx-mn)/mx:0;
-      let vib=vibrance*(1-sat*.72);
-
-      // Keep skin from becoming orange/red while still allowing clothing and
-      // scenery to gain visible color presence.
-      const skin=r>.28&&g>.16&&b>.08&&r>g&&g>b&&(r-b)>.075&&(r-g)<.30;
-      if(skin)vib*=.42;
-      if(targetLum>.90)vib*=.55;
+      let vib=vibrance*(1-sat*.62);
+      if(skin)vib*=.30;
+      if(targetLum>.92)vib*=.50;
 
       const l=r*.2126+g*.7152+b*.0722;
       r=l+(r-l)*(1+vib);

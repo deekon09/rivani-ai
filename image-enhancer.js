@@ -1,6 +1,6 @@
 (()=>{"use strict";
 
-// RIVANI Image Enhancer V25.10 · mobile completion + shared HD Finish
+// RIVANI Image Enhancer V25.11 · reliable desktop GPU + portrait-aware mobile + stronger HD Finish
 
 const $=id=>document.getElementById(id);
 
@@ -544,7 +544,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.10-image",
+      "image-enhancer-worker.js?v=25.11-image",
       {type:"module"}
     );
 
