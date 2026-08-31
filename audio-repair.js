@@ -813,7 +813,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23.3",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.4",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -946,6 +946,8 @@ async function repairLocally(){
       :0;
     let specialistIndex=0;
     let dereverbAppliedThisRun=false;
+    let musicAppliedThisRun=false;
+    let backgroundAppliedThisRun=false;
 
     if(musicControlEnabled){
       const a=preStart+slice*specialistIndex++;
@@ -966,6 +968,8 @@ async function repairLocally(){
         );
 
         mono=resampleMonoLinear(musicResult.audio,44100,48000);
+        musicAppliedThisRun=!musicResult.safetyFallback;
+
         const musicState=$("musicControlState");
         if(musicState){
           musicState.textContent=musicResult.safetyFallback
@@ -980,6 +984,7 @@ async function repairLocally(){
         );
       }catch(error){
         mono=preMusic48;
+        musicAppliedThisRun=false;
         releaseMusicWorker();
         const musicState=$("musicControlState");
         if(musicState)musicState.textContent="BETA ON · RETRY";
@@ -1008,9 +1013,14 @@ async function repairLocally(){
 
         if(sep.applied){
           const sep48=resampleMonoLinear(sep.audio,16000,48000);
-          mono=restoreSeparatedSpeechAir(sep48,preSpeaker48);
+          mono=restoreSeparatedSpeechAir(
+            sep48,
+            preSpeaker48
+          );
+          backgroundAppliedThisRun=true;
         }else{
           mono=preSpeaker48;
+          backgroundAppliedThisRun=false;
         }
 
         const state=$("backgroundVoicesState");
@@ -1028,6 +1038,7 @@ async function repairLocally(){
         );
       }catch(error){
         mono=preSpeaker48;
+        backgroundAppliedThisRun=false;
         releaseSpeakerWorker();
         const state=$("backgroundVoicesState");
         if(state)state.textContent="BETA ON · RETRY";
@@ -1085,13 +1096,46 @@ async function repairLocally(){
     updateProgress(clearStart,"Starting RIVANI AI Clear Voice…");
 
     // Fan/Traffic already receive one restrained post-model cleanup pass.
-    // When a source-separation stage is active, avoid a second aggressive
-    // attenuation inside the neural mask path.
-    const separationSpecialistActive=musicControlEnabled||backgroundVoicesEnabled;
+    // Only an actually-applied source-separation stage disables the duplicate
+    // neural assist path.
+    const separationSpecialistActive=
+      musicAppliedThisRun||
+      backgroundAppliedThisRun;
+
+    const requestedStrength=
+      Number(strength.value)/100;
+
+    // Artifact Guard: when audio has already passed through a heavy cleanup
+    // stage, an 85–100% second neural pass can sound "fata"/watery.
+    // Keep the user's setting when no specialist actually changed the signal,
+    // but cap stacked processing conservatively.
+    let effectiveStrength=requestedStrength;
+    let artifactGuardActive=false;
+
+    if(musicAppliedThisRun||backgroundAppliedThisRun){
+      const cap=dereverbAppliedThisRun?.76:.80;
+      if(effectiveStrength>cap){
+        effectiveStrength=cap;
+        artifactGuardActive=true;
+      }
+    }else if(dereverbAppliedThisRun){
+      const cap=.80;
+      if(effectiveStrength>cap){
+        effectiveStrength=cap;
+        artifactGuardActive=true;
+      }
+    }
+
+    if(artifactGuardActive){
+      updateProgress(
+        clearStart,
+        "Artifact Guard is balancing stacked cleanup for a more natural voice…"
+      );
+    }
 
     const enhanced=await runMossFormer(
       mono,
-      Number(strength.value)/100,
+      effectiveStrength,
       (p,text,providerName)=>{
         activeProvider=providerName||activeProvider;
         const mapped=clearStart+Math.round(Number(p||0)*((80-clearStart)/100));
@@ -1212,7 +1256,7 @@ function createDereverbWorker(useEmbedded=false){
   }else{
     // Resolve against this module instead of the document URL.
     const url=new URL(
-      "./dereverb-worker.js?v=23.2",
+      "./dereverb-worker.js?v=23.4",
       import.meta.url
     );
     dereverbWorker=new Worker(url);
@@ -1442,6 +1486,120 @@ async function runDereverbBeta(mono,strength,onProgress){
   }
 
   throw lastError||new Error("De-Reverb Beta could not run.");
+}
+
+function restoreSeparatedSpeechAir(processed48,reference48){
+  if(
+    !processed48?.length||
+    !reference48?.length||
+    processed48.length!==reference48.length
+  ){
+    return processed48;
+  }
+
+  // The speaker model works at 16 kHz. Restore only a very small amount of
+  // >7.2 kHz detail, and only while the separated speech itself is active.
+  // This avoids bringing cymbals/music/noise back as a full-band dry blend.
+  const high=highPassBiquadMono(
+    reference48,
+    48000,
+    7200,
+    .707
+  );
+
+  const out=new Float32Array(processed48.length);
+
+  let refEnergy=0;
+  let n=0;
+  for(let i=0;i<processed48.length;i+=16){
+    refEnergy+=processed48[i]*processed48[i];
+    n++;
+  }
+
+  const baseRms=Math.sqrt(
+    refEnergy/Math.max(1,n)
+  );
+
+  const attack=.018;
+  const release=.0014;
+  let env=0;
+
+  for(let i=0;i<out.length;i++){
+    const x=processed48[i]||0;
+    const abs=Math.abs(x);
+
+    const k=abs>env?attack:release;
+    env+=(abs-env)*k;
+
+    const speechGate=Math.max(
+      0,
+      Math.min(
+        1,
+        (env-baseRms*.18)/
+        Math.max(1e-5,baseRms*.82)
+      )
+    );
+
+    out[i]=Math.max(
+      -1,
+      Math.min(
+        1,
+        x+
+        high[i]*
+        .06*
+        speechGate
+      )
+    );
+  }
+
+  return out;
+}
+
+function highPassBiquadMono(input,sampleRate,frequency,q=.707){
+  const out=new Float32Array(input.length);
+
+  const w0=2*Math.PI*frequency/sampleRate;
+  const cos=Math.cos(w0);
+  const sin=Math.sin(w0);
+  const alpha=sin/(2*q);
+
+  let b0=(1+cos)/2;
+  let b1=-(1+cos);
+  let b2=(1+cos)/2;
+  let a0=1+alpha;
+  let a1=-2*cos;
+  let a2=1-alpha;
+
+  b0/=a0;
+  b1/=a0;
+  b2/=a0;
+  a1/=a0;
+  a2/=a0;
+
+  let x1=0,x2=0,y1=0,y2=0;
+
+  for(let i=0;i<input.length;i++){
+    const x0=input[i]||0;
+
+    const y0=
+      b0*x0+
+      b1*x1+
+      b2*x2-
+      a1*y1-
+      a2*y2;
+
+    out[i]=Math.max(
+      -1,
+      Math.min(1,y0)
+    );
+
+    x2=x1;
+    x1=x0;
+    y2=y1;
+    y1=y0;
+  }
+
+  return out;
 }
 
 function getStereoChannels(buffer){

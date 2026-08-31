@@ -152,31 +152,151 @@ function rmsSignal(x){
 
 function speechPreservationFallback(raw,candidate){
   const out=new Float32Array(raw.length);
-  const rr=rmsSignal(raw),cr=rmsSignal(candidate);
+  const speechAnchor=speechBandAnchor(raw);
+  const rr=rmsSignal(raw);
+  const cr=rmsSignal(candidate);
   const candidateUsable=cr>rr*.006;
-  // Avoid silence: preserve a controlled speech path, then Clear Voice runs next.
-  for(let i=0;i<out.length;i++)out[i]=clamp((candidateUsable?candidate[i]*.35:0)+raw[i]*.24,-1,1);
+
+  // Never put full-band raw audio back into a music-removal result.
+  // The old fallback protected speech but also reintroduced the music.
+  // Keep only a controlled voice-band anchor, then Clear Voice runs next.
+  for(let i=0;i<out.length;i++){
+    out[i]=clamp(
+      (candidateUsable?candidate[i]*.48:0)+
+      speechAnchor[i]*.20,
+      -1,
+      1
+    );
+  }
+
   return out;
 }
 
 function applyLocalSpeechRetentionGuard(raw,candidate){
-  const block=Math.round(SR*.020),fade=Math.max(8,Math.round(SR*.004));
+  const speechAnchor=speechBandAnchor(raw);
+  const block=Math.round(SR*.020);
+  const fade=Math.max(
+    8,
+    Math.round(SR*.004)
+  );
+
   for(let start=0;start<raw.length;start+=block){
-    const end=Math.min(raw.length,start+block);let rr=0,cc=0;
-    for(let i=start;i<end;i++){rr+=raw[i]*raw[i];cc+=candidate[i]*candidate[i];}
-    const n=Math.max(1,end-start),r=Math.sqrt(rr/n),c=Math.sqrt(cc/n);
-    if(r<.0045)continue;
+    const end=Math.min(
+      raw.length,
+      start+block
+    );
+
+    let rr=0;
+    let cc=0;
+
+    for(let i=start;i<end;i++){
+      rr+=speechAnchor[i]*speechAnchor[i];
+      cc+=candidate[i]*candidate[i];
+    }
+
+    const n=Math.max(1,end-start);
+    const r=Math.sqrt(rr/n);
+    const c=Math.sqrt(cc/n);
+
+    if(r<.0038)continue;
+
     const localRatio=c/(r+1e-10);
-    if(localRatio<.063){
-      const need=clamp(.12-localRatio,.03,.12);
+
+    if(localRatio<.055){
+      const need=clamp(
+        .09-localRatio,
+        .02,
+        .075
+      );
+
       for(let i=start;i<end;i++){
-        let edge=1,rel=i-start,tail=end-1-i;
+        let edge=1;
+        const rel=i-start;
+        const tail=end-1-i;
+
         if(rel<fade)edge*=rel/fade;
         if(tail<fade)edge*=tail/fade;
-        candidate[i]=clamp(candidate[i]+raw[i]*need*edge,-1,1);
+
+        candidate[i]=clamp(
+          candidate[i]+
+          speechAnchor[i]*need*edge,
+          -1,
+          1
+        );
       }
     }
   }
+}
+
+function speechBandAnchor(input){
+  // Conservative ~110 Hz to 6.5 kHz speech path.
+  // This is not a fake music remover; it is only a safety anchor used when
+  // the actual vocal-separation model over-suppresses a spoken block.
+  const hp=biquadProcess(
+    input,
+    "highpass",
+    110,
+    .707
+  );
+
+  return biquadProcess(
+    hp,
+    "lowpass",
+    6500,
+    .707
+  );
+}
+
+function biquadProcess(input,type,frequency,q=.707){
+  const out=new Float32Array(input.length);
+
+  const w0=2*Math.PI*frequency/SR;
+  const cos=Math.cos(w0);
+  const sin=Math.sin(w0);
+  const alpha=sin/(2*q);
+
+  let b0,b1,b2;
+  let a0=1+alpha;
+  let a1=-2*cos;
+  let a2=1-alpha;
+
+  if(type==="highpass"){
+    b0=(1+cos)/2;
+    b1=-(1+cos);
+    b2=(1+cos)/2;
+  }else{
+    b0=(1-cos)/2;
+    b1=1-cos;
+    b2=(1-cos)/2;
+  }
+
+  b0/=a0;
+  b1/=a0;
+  b2/=a0;
+  a1/=a0;
+  a2/=a0;
+
+  let x1=0,x2=0,y1=0,y2=0;
+
+  for(let i=0;i<input.length;i++){
+    const x0=input[i]||0;
+
+    const y0=
+      b0*x0+
+      b1*x1+
+      b2*x2-
+      a1*y1-
+      a2*y2;
+
+    out[i]=clamp(y0,-1,1);
+
+    x2=x1;
+    x1=x0;
+    y2=y1;
+    y1=y0;
+  }
+
+  return out;
 }
 
 async function runChunk(left,right){const input=buildModelInput(left,right),tensor=new ort.Tensor("float32",input,[1,4,DIM_F,DIM_T]),name=session.inputNames[0],outs=await session.run({[name]:tensor}),out=outs[session.outputNames[0]];if(!out?.data||out.data.length<4*DIM_F*DIM_T)throw new Error(`Unexpected Music Control output shape [${out?.dims?.join(", ")||"none"}].`);return synthesizeVocals(out.data,left.length);}

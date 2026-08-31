@@ -162,6 +162,9 @@ async function separateLong(input,mode){
   const speechA=speechActivityScore(A),speechB=speechActivityScore(B);
   const secondSpeechScore=Math.min(speechA,speechB);
 
+  const secondaryStem=eA<=eB?A:B;
+  const secondaryDuty=speechDutyCycle(secondaryStem);
+
   let audio,selected;
   if(mode==="a"){audio=A;selected="VOICE A";}
   else if(mode==="b"){audio=B;selected="VOICE B";}
@@ -176,8 +179,26 @@ async function separateLong(input,mode){
   const reconstructionScore=clamp(1-reconstruction/.62,0,1);
   const confidence=twoSpeakerScore*.45+reconstructionScore*.30+secondSpeechScore*.25;
 
-  const unsafe=reconstruction>.68||selectedRatio<.055||selectedRatio>2.4;
-  const noReliableSecondSpeaker=!explicitStem&&(secondaryRatio<.16||secondSpeechScore<.24||confidence<.32);
+  const unsafe=
+    reconstruction>.68||
+    selectedRatio<.055||
+    selectedRatio>2.4;
+
+  // In AUTO mode a continuous second stem is more often music/fan/room bed
+  // than a separate human speaker. Keep AUTO conservative; manual Voice A/B
+  // still lets the user explicitly choose a stem.
+  const continuousBed=
+    !explicitStem&&
+    secondaryRatio>.16&&
+    secondaryDuty>.76;
+
+  const noReliableSecondSpeaker=
+    !explicitStem&&(
+      secondaryRatio<.16||
+      secondSpeechScore<.24||
+      confidence<.32||
+      continuousBed
+    );
 
   if(unsafe||noReliableSecondSpeaker){
     const pass=new Float32Array(input);
@@ -189,12 +210,18 @@ async function separateLong(input,mode){
       energyB:eB,
       applied:false,
       confidence,
-      reason:noReliableSecondSpeaker?"no-second-speaker":"unsafe-separation"
+      reason:
+        continuousBed
+          ?"continuous-background-bed"
+          :noReliableSecondSpeaker
+            ?"no-second-speaker"
+            :"unsafe-separation"
     };
   }
 
-  // Small dry anchor reduces watery artifacts without restoring much of the unwanted speaker.
-  for(let i=0;i<audio.length;i++)audio[i]=clamp(audio[i]*.96+input[i]*.04,-1,1);
+  // Do not add full-band original audio back here: it can reintroduce the
+  // unwanted speaker/music. Voice-detail restoration is handled later by a
+  // small speech-gated >7.2 kHz path in the 48 kHz host pipeline.
   softLevelProtect(input,audio);
   self.postMessage({type:"progress",progress:100,text:`${selected} isolated.`});
   return {audio,selected,energyA:eA,energyB:eB,applied:true,confidence,reason:"applied"};
@@ -210,6 +237,48 @@ function reconstructionError(input,a,b){
   for(let i=0;i<input.length;i+=4){const x=input[i],d=x-(a[i]+b[i]);e+=d*d;r+=x*x;n++;}
   const er=Math.sqrt(e/Math.max(1,n)),rr=Math.sqrt(r/Math.max(1,n));
   return rr>1e-8?er/rr:er;
+}
+
+function speechDutyCycle(x){
+  const block=320;
+  if(x.length<block*4)return 0;
+
+  const levels=[];
+
+  for(let p=0;p<x.length;p+=block){
+    const end=Math.min(
+      x.length,
+      p+block
+    );
+
+    let e=0;
+    let n=0;
+
+    for(let i=p;i<end;i++){
+      const v=x[i]||0;
+      e+=v*v;
+      n++;
+    }
+
+    levels.push(
+      Math.sqrt(e/Math.max(1,n))
+    );
+  }
+
+  const sorted=[...levels].sort((a,b)=>a-b);
+  const floor=
+    sorted[Math.floor(sorted.length*.20)]||
+    0;
+
+  const threshold=Math.max(
+    .0025,
+    floor*1.7
+  );
+
+  const active=
+    levels.filter(v=>v>threshold).length;
+
+  return active/Math.max(1,levels.length);
 }
 
 function speechActivityScore(x){
