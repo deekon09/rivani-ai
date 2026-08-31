@@ -1678,3 +1678,12 @@ body.rivani-processing-performance .grid-overlay{opacity:.025!important}
 body.rivani-processing-performance .processing-orb{box-shadow:0 0 18px rgba(45,139,255,.14)!important}
 .specialist-beta-card em{white-space:nowrap}
 @media(max-width:720px){body.rivani-low-power-device .rivani-bg-pulse-layer{filter:blur(38px)!important}}
+
+
+/* RIVANI V23.1 · specialist preparation recovery */
+.specialist-beta-card.lab-active em{
+  animation:none!important;
+}
+body.rivani-processing-performance .specialist-beta-card{
+  pointer-events:none;
+}

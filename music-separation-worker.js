@@ -9,7 +9,7 @@ const CACHE_NAME="rivani-specialist-models-v22";
 const SR=44100,NFFT=4096,HOP=1024,DIM_F=2048,DIM_T=256,CHUNK=HOP*(DIM_T-1),OVERLAP=Math.round(CHUNK*.10),STRIDE=CHUNK-OVERLAP,PAD=NFFT>>1;
 const WINDOW=new Float64Array(NFFT);for(let n=0;n<NFFT;n++)WINDOW[n]=.5-.5*Math.cos(2*Math.PI*n/NFFT);
 let ort=null,session=null,sessionPromise=null;
-let deviceProfile={lowPower:false,preferWebGPU:true};
+let deviceProfile={lowPower:false,preferWebGPU:false};
 
 self.onmessage=async e=>{
   const d=e.data||{};
@@ -53,38 +53,8 @@ async function ensureSession(){
 
     const bytes=await getModelBytes();
 
-    // Same model and weights; WebGPU only changes where inference executes.
-    if(self.navigator?.gpu&&deviceProfile.preferWebGPU&&!deviceProfile.lowPower){
-      try{
-        const gpuOrt=await import(ORT_WEBGPU_URL);
-
-        self.postMessage({
-          type:"modelProgress",
-          progress:96,
-          text:"Starting accelerated Music Control AI…"
-        });
-
-        const gpuSession=await gpuOrt.InferenceSession.create(bytes,{
-          executionProviders:["webgpu"],
-          graphOptimizationLevel:"all",
-          preferredOutputLocation:"cpu"
-        });
-
-        ort=gpuOrt;
-        session=gpuSession;
-
-        self.postMessage({
-          type:"modelProgress",
-          progress:100,
-          text:"Music Control AI ready · accelerated"
-        });
-
-        return session;
-      }catch(error){
-        console.warn("Music Control WebGPU unavailable; using WASM.",error);
-      }
-    }
-
+    // V23.1 recovery: use the standard WASM execution path. WebGPU session
+    // compilation could hang indefinitely on some GPU/driver combinations.
     const wasmOrt=await import(ORT_WASM_URL);
     wasmOrt.env.wasm.wasmPaths=ORT_WASM_BASE;
     wasmOrt.env.wasm.numThreads=chooseWasmThreads();
@@ -99,8 +69,7 @@ async function ensureSession(){
     session=await wasmOrt.InferenceSession.create(bytes,{
       executionProviders:["wasm"],
       graphOptimizationLevel:"all",
-      executionMode:"sequential",
-      preferredOutputLocation:"cpu"
+      executionMode:"sequential"
     });
 
     ort=wasmOrt;
@@ -116,6 +85,9 @@ async function ensureSession(){
 
   try{
     return await sessionPromise;
+  }catch(error){
+    session=null;
+    throw error;
   }finally{
     sessionPromise=null;
   }

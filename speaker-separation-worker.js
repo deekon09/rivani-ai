@@ -8,7 +8,7 @@ const MODEL_DIRECT="https://huggingface.co/tonythethompson/SepFormer-WhamR16k-ON
 const CACHE_NAME="rivani-specialist-models-v22";
 const SR=16000,CHUNK=SR*6,OVERLAP=SR,STRIDE=CHUNK-OVERLAP;
 let ort=null,session=null,sessionPromise=null;
-let deviceProfile={lowPower:false,preferWebGPU:true};
+let deviceProfile={lowPower:false,preferWebGPU:false};
 
 self.onmessage=async e=>{
   const d=e.data||{};
@@ -56,38 +56,8 @@ async function ensureSession(){
 
     const bytes=await getModelBytes();
 
-    // Same model and weights; WebGPU only changes where inference executes.
-    if(self.navigator?.gpu&&deviceProfile.preferWebGPU&&!deviceProfile.lowPower){
-      try{
-        const gpuOrt=await import(ORT_WEBGPU_URL);
-
-        self.postMessage({
-          type:"modelProgress",
-          progress:96,
-          text:"Starting accelerated Background Voices AI…"
-        });
-
-        const gpuSession=await gpuOrt.InferenceSession.create(bytes,{
-          executionProviders:["webgpu"],
-          graphOptimizationLevel:"all",
-          preferredOutputLocation:"cpu"
-        });
-
-        ort=gpuOrt;
-        session=gpuSession;
-
-        self.postMessage({
-          type:"modelProgress",
-          progress:100,
-          text:"Background Voices AI ready · accelerated"
-        });
-
-        return session;
-      }catch(error){
-        console.warn("Background Voices WebGPU unavailable; using WASM.",error);
-      }
-    }
-
+    // V23.1 recovery: use the standard WASM execution path. WebGPU session
+    // compilation could hang indefinitely on some GPU/driver combinations.
     const wasmOrt=await import(ORT_WASM_URL);
     wasmOrt.env.wasm.wasmPaths=ORT_WASM_BASE;
     wasmOrt.env.wasm.numThreads=chooseWasmThreads();
@@ -102,8 +72,7 @@ async function ensureSession(){
     session=await wasmOrt.InferenceSession.create(bytes,{
       executionProviders:["wasm"],
       graphOptimizationLevel:"all",
-      executionMode:"sequential",
-      preferredOutputLocation:"cpu"
+      executionMode:"sequential"
     });
 
     ort=wasmOrt;
@@ -119,6 +88,9 @@ async function ensureSession(){
 
   try{
     return await sessionPromise;
+  }catch(error){
+    session=null;
+    throw error;
   }finally{
     sessionPromise=null;
   }

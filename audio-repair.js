@@ -351,16 +351,21 @@ document.querySelectorAll("[data-specialist-engine]").forEach(btn=>{
     if(audioTestingMode){
       if(feature==="Background Voices"){
         backgroundVoicesEnabled=!backgroundVoicesEnabled;
-        if(backgroundVoicesEnabled)warmupBackgroundVoices();
-        else releaseSpeakerWorker();
+
+        // V23.1: toggling a specialist must be instant. Heavy model/session
+        // preparation starts only after the user presses Enhance.
+        if(!backgroundVoicesEnabled)releaseSpeakerWorker();
+
         renderSpecialistControls();
         return;
       }
 
       if(feature==="Music Control"){
         musicControlEnabled=!musicControlEnabled;
-        if(musicControlEnabled)warmupMusicControl();
-        else releaseMusicWorker();
+
+        // V23.1: no click-time warmup / no PREPARING deadlock.
+        if(!musicControlEnabled)releaseMusicWorker();
+
         renderSpecialistControls();
         return;
       }
@@ -625,7 +630,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=23");
+    const worker=new Worker("mp3-export-worker.js?v=23.1");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -793,7 +798,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.1",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -916,26 +921,40 @@ async function repairLocally(){
 
       const b441=await resampleAudioBuffer(sourceBuffer,44100);
       const st=getStereoChannels(b441);
-      const musicResult=await runMusicControlBeta(
-        st.left,
-        st.right,
-        musicRemoval,
-        (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
-      );
+      const preMusic48=new Float32Array(mono);
 
-      mono=resampleMonoLinear(musicResult.audio,44100,48000);
-      const musicState=$("musicControlState");
-      if(musicState){
-        musicState.textContent=musicResult.safetyFallback
-          ?"BETA ON · SAFE"
-          :"BETA ON";
+      try{
+        const musicResult=await runMusicControlBeta(
+          st.left,
+          st.right,
+          musicRemoval,
+          (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
+        );
+
+        mono=resampleMonoLinear(musicResult.audio,44100,48000);
+        const musicState=$("musicControlState");
+        if(musicState){
+          musicState.textContent=musicResult.safetyFallback
+            ?"BETA ON · SAFE"
+            :"BETA ON";
+        }
+        updateProgress(
+          Math.round(b),
+          musicResult.safetyFallback
+            ?"Music model became too aggressive — speech-preservation guard protected the voice."
+            :"Music separation ready with speech protection."
+        );
+      }catch(error){
+        mono=preMusic48;
+        releaseMusicWorker();
+        const musicState=$("musicControlState");
+        if(musicState)musicState.textContent="BETA ON · RETRY";
+        updateProgress(
+          Math.round(b),
+          "Music Control could not prepare — safely skipped. Continuing with Clear Voice."
+        );
+        console.warn("Music Control skipped:",error);
       }
-      updateProgress(
-        Math.round(b),
-        musicResult.safetyFallback
-          ?"Music model became too aggressive — speech-preservation guard protected the voice."
-          :"Music separation ready with speech protection."
-      );
     }
 
     if(backgroundVoicesEnabled){
@@ -946,32 +965,44 @@ async function repairLocally(){
 
       const preSpeaker48=new Float32Array(mono);
       const mono16=resampleMonoLinear(mono,48000,16000);
-      const sep=await runBackgroundVoicesBeta(
-        mono16,
-        speakerMode,
-        (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
-      );
+      try{
+        const sep=await runBackgroundVoicesBeta(
+          mono16,
+          speakerMode,
+          (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
+        );
 
-      if(sep.applied){
-        const sep48=resampleMonoLinear(sep.audio,16000,48000);
-        mono=restoreSeparatedSpeechAir(sep48,preSpeaker48);
-      }else{
+        if(sep.applied){
+          const sep48=resampleMonoLinear(sep.audio,16000,48000);
+          mono=restoreSeparatedSpeechAir(sep48,preSpeaker48);
+        }else{
+          mono=preSpeaker48;
+        }
+
+        const state=$("backgroundVoicesState");
+        if(state){
+          state.textContent=sep.applied
+            ?`BETA ON · ${sep.selected}`
+            :"BETA ON · SAFE PASS";
+        }
+
+        updateProgress(
+          Math.round(b),
+          sep.applied
+            ?`${sep.selected} isolated with voice-detail protection.`
+            :"No reliable second speaker detected — original voice path preserved."
+        );
+      }catch(error){
         mono=preSpeaker48;
+        releaseSpeakerWorker();
+        const state=$("backgroundVoicesState");
+        if(state)state.textContent="BETA ON · RETRY";
+        updateProgress(
+          Math.round(b),
+          "Background Voices could not prepare — safely skipped. Continuing with Clear Voice."
+        );
+        console.warn("Background Voices skipped:",error);
       }
-
-      const state=$("backgroundVoicesState");
-      if(state){
-        state.textContent=sep.applied
-          ?`BETA ON · ${sep.selected}`
-          :"BETA ON · SAFE PASS";
-      }
-
-      updateProgress(
-        Math.round(b),
-        sep.applied
-          ?`${sep.selected} isolated with voice-detail protection.`
-          :"No reliable second speaker detected — original voice path preserved."
-      );
     }
 
     if(dereverbEnabled){
@@ -1105,7 +1136,7 @@ async function repairLocally(){
 function getDereverbWorker(){
   if(dereverbWorker)return dereverbWorker;
 
-  dereverbWorker=new Worker("dereverb-worker.js?v=23");
+  dereverbWorker=new Worker("dereverb-worker.js?v=23.1");
   return dereverbWorker;
 }
 
@@ -1163,64 +1194,29 @@ function resampleMonoLinear(input,fromRate,toRate){
 }
 function getSpeakerWorker(){
   if(!speakerWorker){
-    speakerWorker=new Worker("speaker-separation-worker.js?v=23",{type:"module"});
+    speakerWorker=new Worker("speaker-separation-worker.js?v=23.1",{type:"module"});
   }
   return speakerWorker;
 }
 
 function getMusicWorker(){
   if(!musicWorker){
-    musicWorker=new Worker("music-separation-worker.js?v=23",{type:"module"});
+    musicWorker=new Worker("music-separation-worker.js?v=23.1",{type:"module"});
   }
   return musicWorker;
 }
 
 function warmupBackgroundVoices(){
+  // Retained only for compatibility with stale cached UI calls.
+  // V23.1 intentionally does not pre-initialize specialist models on toggle.
   const state=$("backgroundVoicesState");
-  const w=getSpeakerWorker();
-  if(state)state.textContent="PREPARING…";
-
-  const listener=e=>{
-    const d=e.data||{};
-    if(d.type==="ready"||d.type==="error"){
-      w.removeEventListener("message",listener);
-      if(state){
-        state.textContent=d.type==="ready"
-          ?(backgroundVoicesEnabled?"BETA ON":"BETA OFF")
-          :"RETRY";
-      }
-    }
-  };
-
-  w.addEventListener("message",listener);
-  w.postMessage({
-    type:"warmup",
-    deviceProfile:rivaniDeviceProfile
-  });
+  if(state)state.textContent=backgroundVoicesEnabled?"BETA ON":"BETA OFF";
 }
 
 function warmupMusicControl(){
+  // Retained only for compatibility with stale cached UI calls.
   const state=$("musicControlState");
-  const w=getMusicWorker();
-  if(state)state.textContent="PREPARING…";
-
-  const listener=e=>{
-    const d=e.data||{};
-    if(d.type==="ready"||d.type==="error"){
-      w.removeEventListener("message",listener);
-      if(state){
-        state.textContent=d.type==="ready"
-          ?(musicControlEnabled?"BETA ON":"BETA OFF")
-          :"RETRY";
-      }
-    }
-  };
-
-  w.addEventListener("message",listener);
-  w.postMessage({
-    type:"warmup",
-    deviceProfile:rivaniDeviceProfile
-  });
+  if(state)state.textContent=musicControlEnabled?"BETA ON":"BETA OFF";
 }
 
 async function runBackgroundVoicesBeta(mono16,mode,onProgress){
@@ -1228,29 +1224,55 @@ async function runBackgroundVoicesBeta(mono16,mode,onProgress){
   const copy=new Float32Array(mono16);
 
   return await new Promise((resolve,reject)=>{
-    const timeout=setTimeout(()=>{
+    let settled=false;
+    let timeout=null;
+
+    const finishError=error=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timeout);
       w.removeEventListener("message",listener);
-      reject(new Error("Background Voices Beta timed out."));
-    },360000);
+      w.removeEventListener("error",workerError);
+      releaseSpeakerWorker();
+      reject(error instanceof Error?error:new Error(String(error||"Background Voices Beta failed.")));
+    };
+
+    const refreshTimeout=()=>{
+      clearTimeout(timeout);
+      timeout=setTimeout(()=>{
+        finishError(new Error(
+          "Background Voices AI preparation timed out. The specialist was skipped so Clear Voice can continue."
+        ));
+      },150000);
+    };
+
+    const workerError=event=>{
+      finishError(new Error(
+        event?.message||"Background Voices worker failed to start."
+      ));
+    };
 
     const listener=e=>{
       const d=e.data||{};
 
       if(d.type==="modelProgress"||d.type==="progress"){
-        onProgress?.(Number(d.progress||0),d.text||"Separating speakers…");
+        refreshTimeout();
+        onProgress?.(Number(d.progress||0),d.text||"Preparing Background Voices AI…");
         return;
       }
 
       if(d.type==="error"){
-        clearTimeout(timeout);
-        w.removeEventListener("message",listener);
-        reject(new Error(d.message||"Background Voices Beta failed."));
+        finishError(new Error(d.message||"Background Voices Beta failed."));
         return;
       }
 
       if(d.type==="done"){
+        if(settled)return;
+        settled=true;
         clearTimeout(timeout);
         w.removeEventListener("message",listener);
+        w.removeEventListener("error",workerError);
+
         resolve({
           audio:new Float32Array(d.buffer),
           selected:d.selected||"VOICE A",
@@ -1264,10 +1286,13 @@ async function runBackgroundVoicesBeta(mono16,mode,onProgress){
     };
 
     w.addEventListener("message",listener);
+    w.addEventListener("error",workerError,{once:true});
+    refreshTimeout();
+
     w.postMessage({
       type:"process",
       mode,
-      deviceProfile:rivaniDeviceProfile,
+      deviceProfile:{...rivaniDeviceProfile,preferWebGPU:false},
       buffer:copy.buffer
     },[copy.buffer]);
   });
@@ -1279,29 +1304,55 @@ async function runMusicControlBeta(left,right,amount,onProgress){
   const r=new Float32Array(right);
 
   return await new Promise((resolve,reject)=>{
-    const timeout=setTimeout(()=>{
+    let settled=false;
+    let timeout=null;
+
+    const finishError=error=>{
+      if(settled)return;
+      settled=true;
+      clearTimeout(timeout);
       w.removeEventListener("message",listener);
-      reject(new Error("Music Control Beta timed out."));
-    },360000);
+      w.removeEventListener("error",workerError);
+      releaseMusicWorker();
+      reject(error instanceof Error?error:new Error(String(error||"Music Control Beta failed.")));
+    };
+
+    const refreshTimeout=()=>{
+      clearTimeout(timeout);
+      timeout=setTimeout(()=>{
+        finishError(new Error(
+          "Music Control AI preparation timed out. The specialist was skipped so Clear Voice can continue."
+        ));
+      },150000);
+    };
+
+    const workerError=event=>{
+      finishError(new Error(
+        event?.message||"Music Control worker failed to start."
+      ));
+    };
 
     const listener=e=>{
       const d=e.data||{};
 
       if(d.type==="modelProgress"||d.type==="progress"){
-        onProgress?.(Number(d.progress||0),d.text||"Separating music…");
+        refreshTimeout();
+        onProgress?.(Number(d.progress||0),d.text||"Preparing Music Control AI…");
         return;
       }
 
       if(d.type==="error"){
-        clearTimeout(timeout);
-        w.removeEventListener("message",listener);
-        reject(new Error(d.message||"Music Control Beta failed."));
+        finishError(new Error(d.message||"Music Control Beta failed."));
         return;
       }
 
       if(d.type==="done"){
+        if(settled)return;
+        settled=true;
         clearTimeout(timeout);
         w.removeEventListener("message",listener);
+        w.removeEventListener("error",workerError);
+
         resolve({
           audio:new Float32Array(d.buffer),
           safetyFallback:Boolean(d.safetyFallback),
@@ -1311,50 +1362,17 @@ async function runMusicControlBeta(left,right,amount,onProgress){
     };
 
     w.addEventListener("message",listener);
+    w.addEventListener("error",workerError,{once:true});
+    refreshTimeout();
+
     w.postMessage({
       type:"process",
       amount:Math.max(.60,Math.min(1,Number(amount)||1)),
-      deviceProfile:rivaniDeviceProfile,
+      deviceProfile:{...rivaniDeviceProfile,preferWebGPU:false},
       left:l.buffer,
       right:r.buffer
     },[l.buffer,r.buffer]);
   });
-}
-
-function rmsFloat32(x,stride=8){
-  let sum=0,n=0;
-  for(let i=0;i<x.length;i+=Math.max(1,stride)){
-    const v=Number.isFinite(x[i])?x[i]:0;
-    sum+=v*v;
-    n++;
-  }
-  return Math.sqrt(sum/Math.max(1,n));
-}
-
-function highPassBiquadMono(input,sampleRate,frequency=7200,q=.707){
-  const out=new Float32Array(input.length);
-  const w0=2*Math.PI*frequency/sampleRate;
-  const cos=Math.cos(w0),sin=Math.sin(w0),alpha=sin/(2*q);
-  let b0=(1+cos)/2,b1=-(1+cos),b2=(1+cos)/2,a0=1+alpha,a1=-2*cos,a2=1-alpha;
-  b0/=a0;b1/=a0;b2/=a0;a1/=a0;a2/=a0;
-  let x1=0,x2=0,y1=0,y2=0;
-  for(let i=0;i<input.length;i++){
-    const x0=input[i]||0;
-    const y0=b0*x0+b1*x1+b2*x2-a1*y1-a2*y2;
-    out[i]=Math.max(-1,Math.min(1,y0));
-    x2=x1;x1=x0;y2=y1;y1=y0;
-  }
-  return out;
-}
-
-function restoreSeparatedSpeechAir(processed48,reference48){
-  if(!processed48.length||processed48.length!==reference48.length)return processed48;
-  const high=highPassBiquadMono(reference48,48000,7200,.707);
-  const out=new Float32Array(processed48.length);
-  for(let i=0;i<out.length;i++){
-    out[i]=Math.max(-1,Math.min(1,processed48[i]+high[i]*.18));
-  }
-  return out;
 }
 
 async function runMossFormer(mono,strength,onProgress,assistsOverride=null){
