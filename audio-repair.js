@@ -59,6 +59,8 @@ const dereverbLabMode=audioTestingMode;
 let dereverbEnabled=true;
 let dereverbStrength=.58;
 let dereverbWorker=null;
+let dereverbWorkerReady=false;
+let dereverbWorkerBlobUrl=null;
 
 let backgroundVoicesEnabled=false;
 let musicControlEnabled=false;
@@ -129,9 +131,16 @@ function releaseMusicWorker(){
 }
 
 function releaseDereverbWorker(){
-  if(!dereverbWorker)return;
-  try{dereverbWorker.terminate();}catch{}
+  if(dereverbWorker){
+    try{dereverbWorker.terminate();}catch{}
+  }
   dereverbWorker=null;
+  dereverbWorkerReady=false;
+
+  if(dereverbWorkerBlobUrl){
+    try{URL.revokeObjectURL(dereverbWorkerBlobUrl);}catch{}
+    dereverbWorkerBlobUrl=null;
+  }
 }
 
 function releaseInactiveSpecialistWorkers(){
@@ -630,7 +639,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=23.1");
+    const worker=new Worker("mp3-export-worker.js?v=23.2");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -798,7 +807,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23.1",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.2",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -912,6 +921,7 @@ async function repairLocally(){
       ?(preEnd-preStart)/activeSpecialists.length
       :0;
     let specialistIndex=0;
+    let dereverbAppliedThisRun=false;
 
     if(musicControlEnabled){
       const a=preStart+slice*specialistIndex++;
@@ -1010,12 +1020,40 @@ async function repairLocally(){
       const b=a+slice;
       setStage("model");
       updateProgress(Math.round(a),"De-Reverb Beta is analyzing room reflections…");
-      mono=await runDereverbBeta(
-        mono,
-        dereverbStrength,
-        (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
-      );
-      updateProgress(Math.round(b),"Room-reflection cleanup ready.");
+
+      const preDereverb48=new Float32Array(mono);
+
+      try{
+        mono=await runDereverbBeta(
+          mono,
+          dereverbStrength,
+          (p,text)=>updateProgress(
+            Math.round(a+(b-a)*(Number(p||0)/100)),
+            text
+          )
+        );
+        dereverbAppliedThisRun=true;
+
+        const state=$("dereverbState");
+        if(state)state.textContent="BETA ON";
+
+        updateProgress(Math.round(b),"Room-reflection cleanup ready.");
+      }catch(error){
+        // De-Reverb is optional. Never let a Worker/bootstrap failure kill
+        // the stable Clear Voice enhancement path.
+        mono=preDereverb48;
+        dereverbAppliedThisRun=false;
+        releaseDereverbWorker();
+
+        const state=$("dereverbState");
+        if(state)state.textContent="BETA ON · RETRY";
+
+        updateProgress(
+          Math.round(b),
+          "De-Reverb could not start cleanly — safely skipped. Continuing with Clear Voice."
+        );
+        console.warn("De-Reverb safely skipped:",error);
+      }
     }
 
     const clearStart=activeSpecialists.length?50:8;
@@ -1091,7 +1129,7 @@ async function repairLocally(){
     repairedUrl=URL.createObjectURL(repairedBlob);
 
     $("afterPlayer").src=repairedUrl;
-    const specialistLabels=[];if(musicControlEnabled)specialistLabels.push("Music Control");if(backgroundVoicesEnabled)specialistLabels.push("Background Voices");if(dereverbEnabled)specialistLabels.push("De-Reverb");
+    const specialistLabels=[];if(musicControlEnabled)specialistLabels.push("Music Control");if(backgroundVoicesEnabled)specialistLabels.push("Background Voices");if(dereverbAppliedThisRun)specialistLabels.push("De-Reverb");
     $("afterPresetLabel").textContent=`AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish`+(specialistLabels.length?` · ${specialistLabels.join(" + ")}`:"");
 
     const status=$("clearEngineStatus");
@@ -1123,8 +1161,10 @@ async function repairLocally(){
     }
 
     const detail=String(error?.message||error||"").slice(0,220);
-    const activeNames=[];if(musicControlEnabled)activeNames.push("Music Control");if(backgroundVoicesEnabled)activeNames.push("Background Voices");if(dereverbEnabled)activeNames.push("De-Reverb");activeNames.push("Clear Voice");
-    alert(`${activeNames.join(" / ")} could not finish. ${detail}\n\n`+`No fake fallback was generated. If a specialist model route says unavailable, deploy the included V22 rivani-models Worker update and retry.`);
+    alert(
+      `RIVANI AI Clear Voice could not finish. ${detail}\n\n`+
+      `Reload the page once and retry. The model proxy only needs attention when the AI model itself reports a model-fetch error.`
+    );
   }finally{
     repairBtn.disabled=false;
     setProcessingPerformanceMode(false);
@@ -1133,27 +1173,178 @@ async function repairLocally(){
   }
 }
 
-function getDereverbWorker(){
-  if(dereverbWorker)return dereverbWorker;
+const DEREVERB_WORKER_SOURCE="// RIVANI AI · De-Reverb Beta worker\n// Separate from the stable Clear Voice engine.\n//\n// Single-channel, chunked WPE-style late-reverberation suppression:\n// - 48 kHz input\n// - 2048-point STFT\n// - 512-sample hop (~10.7 ms)\n// - delayed long-term complex prediction\n// - conservative blend / magnitude protection\n// - 6 s chunks + 1 s smooth overlap\n//\n// This worker intentionally does not denoise or alter the main AI model.\n\nconst SR=48000;\nconst FFT=2048;\nconst HOP=512;\nconst BINS=FFT/2+1;\nconst CHUNK=Math.round(SR*6);\nconst OVERLAP=Math.round(SR*1);\nconst STRIDE=CHUNK-OVERLAP;\n\nconst WINDOW=new Float64Array(FFT);\nfor(let i=0;i<FFT;i++){\n  // sqrt Hann; synthesis uses same window and explicit normalization.\n  WINDOW[i]=Math.sqrt(Math.max(0,.5-.5*Math.cos(2*Math.PI*i/(FFT-1))));\n}\n\nself.onmessage=event=>{\n  const data=event.data||{};\n\n  // V23.2 transport health check. This does not touch De-Reverb DSP.\n  if(data.type===\"ping\"){\n    self.postMessage({type:\"ready\",version:\"23.2\"});\n    return;\n  }\n\n  if(data.type!==\"process\")return;\n\n  try{\n    const input=sanitize(new Float32Array(data.buffer));\n    const strength=clamp(Number(data.strength??.58),.25,.88);\n\n    self.postMessage({\n      type:\"phase\",\n      progress:1,\n      text:\"Analyzing room reflections…\"\n    });\n\n    const output=processLong(input,strength);\n\n    self.postMessage(\n      {type:\"done\",buffer:output.buffer},\n      [output.buffer]\n    );\n  }catch(error){\n    self.postMessage({\n      type:\"error\",\n      message:String(error?.message||error||\"De-Reverb Beta failed\")\n    });\n  }\n};\n\nfunction processLong(input,strength){\n  if(input.length<=CHUNK){\n    const padded=reflectPad(input,CHUNK);\n    const out=processChunk(padded,strength);\n    return new Float32Array(out.subarray(0,input.length));\n  }\n\n  const sum=new Float64Array(input.length);\n  const weight=new Float64Array(input.length);\n\n  const positions=[];\n  for(let pos=0;pos<input.length;pos+=STRIDE){\n    positions.push(pos);\n    if(pos+CHUNK>=input.length)break;\n  }\n\n  for(let ci=0;ci<positions.length;ci++){\n    const pos=positions[ci];\n    const valid=Math.min(CHUNK,input.length-pos);\n    const seg=reflectPad(input.subarray(pos,pos+valid),CHUNK);\n\n    self.postMessage({\n      type:\"progress\",\n      progress:Math.round((ci/positions.length)*100),\n      text:`De-Reverb segment ${ci+1} of ${positions.length}…`\n    });\n\n    const processed=processChunk(seg,strength);\n\n    for(let i=0;i<valid;i++){\n      const oi=pos+i;\n      let w=1;\n\n      if(ci>0 && i<OVERLAP){\n        const t=i/Math.max(1,OVERLAP-1);\n        w*=.5-.5*Math.cos(Math.PI*t);\n      }\n\n      if(ci<positions.length-1 && i>=STRIDE){\n        const t=(i-STRIDE)/Math.max(1,OVERLAP-1);\n        w*=.5+.5*Math.cos(Math.PI*t);\n      }\n\n      sum[oi]+=processed[i]*w;\n      weight[oi]+=w;\n    }\n  }\n\n  const out=new Float32Array(input.length);\n  for(let i=0;i<out.length;i++){\n    out[i]=weight[i]>1e-10\n      ? clamp(sum[i]/weight[i],-1,1)\n      : input[i];\n  }\n\n  self.postMessage({\n    type:\"progress\",\n    progress:100,\n    text:\"Room-reflection cleanup complete.\"\n  });\n\n  return out;\n}\n\nfunction processChunk(input,strength){\n  const frameCount=Math.max(\n    1,\n    1+Math.ceil(Math.max(0,input.length-FFT)/HOP)\n  );\n\n  const reFrames=new Array(frameCount);\n  const imFrames=new Array(frameCount);\n\n  // Analysis STFT.\n  for(let t=0;t<frameCount;t++){\n    const start=t*HOP;\n    const re=new Float64Array(FFT);\n    const im=new Float64Array(FFT);\n\n    for(let n=0;n<FFT;n++){\n      const idx=start+n;\n      re[n]=(idx<input.length?input[idx]:0)*WINDOW[n];\n    }\n\n    fftInPlace(re,im,false);\n\n    const hr=new Float32Array(BINS);\n    const hi=new Float32Array(BINS);\n    for(let f=0;f<BINS;f++){\n      hr[f]=re[f];\n      hi[f]=im[f];\n    }\n\n    reFrames[t]=hr;\n    imFrames[t]=hi;\n  }\n\n  // Prediction settings.\n  const taps=strength>.72?9:8;\n  const delay=3; // ~32 ms guard interval\n  const iterations=strength>.74?2:1;\n\n  // Keep extreme low/high bands untouched.\n  const lowBin=Math.max(1,Math.floor(90*FFT/SR));\n  const highBin=Math.min(BINS-1,Math.ceil(9000*FFT/SR));\n\n  const T=frameCount;\n  const validStart=delay+taps-1;\n\n  if(T<=validStart+6){\n    return input.slice();\n  }\n\n  for(let f=lowBin;f<=highBin;f++){\n    const yr=new Float64Array(T);\n    const yi=new Float64Array(T);\n    const xr=new Float64Array(T);\n    const xi=new Float64Array(T);\n\n    for(let t=0;t<T;t++){\n      yr[t]=reFrames[t][f];\n      yi[t]=imFrames[t][f];\n      xr[t]=yr[t];\n      xi[t]=yi[t];\n    }\n\n    let solvedAny=false;\n\n    for(let iter=0;iter<iterations;iter++){\n      const invPower=estimateInversePower(xr,xi,validStart);\n\n      const ar=new Float64Array(taps*taps);\n      const ai=new Float64Array(taps*taps);\n      const br=new Float64Array(taps);\n      const bi=new Float64Array(taps);\n\n      // Weighted complex correlations.\n      for(let t=validStart;t<T;t++){\n        const w=invPower[t];\n        const ytr=yr[t], yti=yi[t];\n\n        for(let i=0;i<taps;i++){\n          const ti=t-delay-i;\n          const zir=yr[ti], zii=yi[ti];\n\n          // P = sum w * z * conj(y)\n          br[i]+=w*(zir*ytr+zii*yti);\n          bi[i]+=w*(zii*ytr-zir*yti);\n\n          for(let j=0;j<taps;j++){\n            const tj=t-delay-j;\n            const zjr=yr[tj], zji=yi[tj];\n\n            // R = sum w * z_i * conj(z_j)\n            const idx=i*taps+j;\n            ar[idx]+=w*(zir*zjr+zii*zji);\n            ai[idx]+=w*(zii*zjr-zir*zji);\n          }\n        }\n      }\n\n      // Diagonal loading for numerical stability.\n      let trace=0;\n      for(let i=0;i<taps;i++)trace+=Math.max(0,ar[i*taps+i]);\n      const reg=Math.max(1e-8,(trace/Math.max(1,taps))*(.0025+.003*(1-strength)));\n\n      for(let i=0;i<taps;i++){\n        ar[i*taps+i]+=reg;\n      }\n\n      const solved=solveComplex(ar,ai,br,bi,taps);\n      if(!solved)break;\n      solvedAny=true;\n\n      const gr=solved.re;\n      const gi=solved.im;\n\n      const mix=.46+.43*strength;\n      const minGain=.53-.11*strength;\n      const maxGain=1.10;\n\n      // Apply delayed prediction.\n      for(let t=0;t<T;t++){\n        if(t<validStart){\n          xr[t]=yr[t];\n          xi[t]=yi[t];\n          continue;\n        }\n\n        let pr=0,pi=0;\n\n        for(let k=0;k<taps;k++){\n          const tk=t-delay-k;\n          const zr=yr[tk],zi=yi[tk];\n\n          // conj(g) * z\n          pr+=gr[k]*zr+gi[k]*zi;\n          pi+=gr[k]*zi-gi[k]*zr;\n        }\n\n        let rr=yr[t]-mix*pr;\n        let ri=yi[t]-mix*pi;\n\n        // Protect direct speech from extreme cancellation/amplification.\n        const my=Math.hypot(yr[t],yi[t]);\n        const mx=Math.hypot(rr,ri);\n\n        if(my>1e-10 && mx>1e-12){\n          const ratio=mx/my;\n          if(ratio<minGain){\n            const scale=minGain/ratio;\n            rr*=scale;ri*=scale;\n          }else if(ratio>maxGain){\n            const scale=maxGain/ratio;\n            rr*=scale;ri*=scale;\n          }\n        }\n\n        xr[t]=rr;\n        xi[t]=ri;\n      }\n    }\n\n    if(!solvedAny)continue;\n\n    // Store estimated direct component.\n    for(let t=validStart;t<T;t++){\n      reFrames[t][f]=xr[t];\n      imFrames[t][f]=xi[t];\n    }\n  }\n\n  // Synthesis STFT.\n  const outLen=(frameCount-1)*HOP+FFT;\n  const sum=new Float64Array(outLen);\n  const norm=new Float64Array(outLen);\n\n  for(let t=0;t<frameCount;t++){\n    const re=new Float64Array(FFT);\n    const im=new Float64Array(FFT);\n\n    for(let f=0;f<BINS;f++){\n      re[f]=reFrames[t][f];\n      im[f]=imFrames[t][f];\n\n      if(f>0 && f<FFT/2){\n        re[FFT-f]=re[f];\n        im[FFT-f]=-im[f];\n      }\n    }\n\n    fftInPlace(re,im,true);\n\n    const start=t*HOP;\n    for(let n=0;n<FFT;n++){\n      const idx=start+n;\n      const w=WINDOW[n];\n      sum[idx]+=re[n]*w;\n      norm[idx]+=w*w;\n    }\n  }\n\n  const out=new Float32Array(input.length);\n  for(let i=0;i<out.length;i++){\n    out[i]=norm[i]>1e-10\n      ? clamp(sum[i]/norm[i],-1,1)\n      : input[i];\n  }\n\n  // Preserve gross loudness; final RIVANI stage performs the real level finish.\n  matchRmsSoft(input,out);\n\n  return out;\n}\n\nfunction estimateInversePower(xr,xi,start){\n  const T=xr.length;\n  const p=new Float64Array(T);\n\n  let mean=0,count=0;\n  for(let t=start;t<T;t++){\n    const v=xr[t]*xr[t]+xi[t]*xi[t];\n    p[t]=v;\n    mean+=v;\n    count++;\n  }\n  mean/=Math.max(1,count);\n\n  const floor=Math.max(1e-10,mean*1e-6);\n  const inv=new Float64Array(T);\n\n  for(let t=0;t<T;t++){\n    let sm=0,n=0;\n    for(let q=Math.max(0,t-1);q<=Math.min(T-1,t+1);q++){\n      sm+=p[q];\n      n++;\n    }\n    sm/=Math.max(1,n);\n    inv[t]=1/Math.max(floor,sm);\n  }\n\n  return inv;\n}\n\nfunction solveComplex(ar0,ai0,br0,bi0,n){\n  // Gauss-Jordan elimination with partial pivoting.\n  const ar=new Float64Array(ar0);\n  const ai=new Float64Array(ai0);\n  const br=new Float64Array(br0);\n  const bi=new Float64Array(bi0);\n\n  for(let col=0;col<n;col++){\n    let pivot=col;\n    let best=0;\n\n    for(let row=col;row<n;row++){\n      const idx=row*n+col;\n      const mag=ar[idx]*ar[idx]+ai[idx]*ai[idx];\n      if(mag>best){best=mag;pivot=row;}\n    }\n\n    if(!(best>1e-24) || !Number.isFinite(best))return null;\n\n    if(pivot!==col){\n      for(let j=0;j<n;j++){\n        let idxA=col*n+j,idxB=pivot*n+j;\n\n        let tr=ar[idxA];ar[idxA]=ar[idxB];ar[idxB]=tr;\n        let ti=ai[idxA];ai[idxA]=ai[idxB];ai[idxB]=ti;\n      }\n\n      let tr=br[col];br[col]=br[pivot];br[pivot]=tr;\n      let ti=bi[col];bi[col]=bi[pivot];bi[pivot]=ti;\n    }\n\n    const pidx=col*n+col;\n    const pr=ar[pidx],pi=ai[pidx];\n    const pden=pr*pr+pi*pi;\n    if(!(pden>1e-24))return null;\n\n    // Normalize pivot row.\n    for(let j=col;j<n;j++){\n      const idx=col*n+j;\n      const qr=(ar[idx]*pr+ai[idx]*pi)/pden;\n      const qi=(ai[idx]*pr-ar[idx]*pi)/pden;\n      ar[idx]=qr;ai[idx]=qi;\n    }\n\n    {\n      const qr=(br[col]*pr+bi[col]*pi)/pden;\n      const qi=(bi[col]*pr-br[col]*pi)/pden;\n      br[col]=qr;bi[col]=qi;\n    }\n\n    // Eliminate the column from all other rows.\n    for(let row=0;row<n;row++){\n      if(row===col)continue;\n\n      const fidx=row*n+col;\n      const fr=ar[fidx],fi=ai[fidx];\n      if(Math.abs(fr)+Math.abs(fi)<1e-18)continue;\n\n      for(let j=col;j<n;j++){\n        const ridx=row*n+j;\n        const pRow=col*n+j;\n\n        // factor * pivotRow\n        const mr=fr*ar[pRow]-fi*ai[pRow];\n        const mi=fr*ai[pRow]+fi*ar[pRow];\n\n        ar[ridx]-=mr;\n        ai[ridx]-=mi;\n      }\n\n      const mr=fr*br[col]-fi*bi[col];\n      const mi=fr*bi[col]+fi*br[col];\n      br[row]-=mr;\n      bi[row]-=mi;\n    }\n  }\n\n  for(let i=0;i<n;i++){\n    if(!Number.isFinite(br[i])||!Number.isFinite(bi[i]))return null;\n  }\n\n  return {re:br,im:bi};\n}\n\nfunction fftInPlace(re,im,inverse){\n  const n=re.length;\n\n  for(let i=1,j=0;i<n;i++){\n    let bit=n>>1;\n\n    for(;j&bit;bit>>=1)j^=bit;\n    j^=bit;\n\n    if(i<j){\n      let tr=re[i];re[i]=re[j];re[j]=tr;\n      let ti=im[i];im[i]=im[j];im[j]=ti;\n    }\n  }\n\n  for(let len=2;len<=n;len<<=1){\n    const angle=(inverse?2:-2)*Math.PI/len;\n    const wrStep=Math.cos(angle);\n    const wiStep=Math.sin(angle);\n\n    for(let i=0;i<n;i+=len){\n      let wr=1,wi=0;\n      const half=len>>1;\n\n      for(let j=0;j<half;j++){\n        const u=i+j;\n        const v=u+half;\n\n        const vr=re[v]*wr-im[v]*wi;\n        const vi=re[v]*wi+im[v]*wr;\n\n        re[v]=re[u]-vr;\n        im[v]=im[u]-vi;\n        re[u]+=vr;\n        im[u]+=vi;\n\n        const nwr=wr*wrStep-wi*wiStep;\n        wi=wr*wiStep+wi*wrStep;\n        wr=nwr;\n      }\n    }\n  }\n\n  if(inverse){\n    for(let i=0;i<n;i++){\n      re[i]/=n;\n      im[i]/=n;\n    }\n  }\n}\n\nfunction reflectPad(input,target){\n  if(input.length>=target)return new Float32Array(input.subarray(0,target));\n\n  const out=new Float32Array(target);\n  out.set(input);\n\n  if(!input.length)return out;\n  if(input.length===1){\n    out.fill(input[0],1);\n    return out;\n  }\n\n  const context=Math.min(input.length,Math.round(SR*.65));\n  const base=input.length-context;\n\n  for(let i=input.length;i<target;i++){\n    const p=(i-input.length)%Math.max(2,context*2-2);\n    const r=p<context?p:context*2-2-p;\n    const idx=Math.max(base,Math.min(input.length-1,input.length-1-r));\n    out[i]=input[idx];\n  }\n\n  return out;\n}\n\nfunction matchRmsSoft(input,output){\n  let a=0,b=0,n=0;\n\n  for(let i=0;i<input.length;i+=8){\n    a+=input[i]*input[i];\n    b+=output[i]*output[i];\n    n++;\n  }\n\n  const ra=Math.sqrt(a/Math.max(1,n));\n  const rb=Math.sqrt(b/Math.max(1,n));\n  if(!(ra>1e-7)||!(rb>1e-7))return;\n\n  let gain=ra/rb;\n  gain=clamp(gain,.88,1.12);\n\n  for(let i=0;i<output.length;i++){\n    output[i]=clamp(output[i]*gain,-1,1);\n  }\n}\n\nfunction sanitize(input){\n  const out=new Float32Array(input.length);\n\n  for(let i=0;i<input.length;i++){\n    const v=input[i];\n    out[i]=Number.isFinite(v)?clamp(v,-1,1):0;\n  }\n\n  return out;\n}\n\nfunction clamp(v,a,b){\n  return Math.max(a,Math.min(b,v));\n}\n";
 
-  dereverbWorker=new Worker("dereverb-worker.js?v=23.1");
+function createDereverbWorker(useEmbedded=false){
+  releaseDereverbWorker();
+
+  if(useEmbedded){
+    const blob=new Blob(
+      [DEREVERB_WORKER_SOURCE],
+      {type:"text/javascript"}
+    );
+    dereverbWorkerBlobUrl=URL.createObjectURL(blob);
+    dereverbWorker=new Worker(dereverbWorkerBlobUrl);
+  }else{
+    // Resolve against this module instead of the document URL.
+    const url=new URL(
+      "./dereverb-worker.js?v=23.2",
+      import.meta.url
+    );
+    dereverbWorker=new Worker(url);
+  }
+
+  dereverbWorkerReady=false;
   return dereverbWorker;
 }
 
-async function runDereverbBeta(mono,strength,onProgress){
-  const w=getDereverbWorker();
-  const copy=new Float32Array(mono);
+async function waitForDereverbWorkerReady(workerInstance,timeoutMs=6000){
+  if(dereverbWorkerReady && workerInstance===dereverbWorker){
+    return workerInstance;
+  }
 
   return await new Promise((resolve,reject)=>{
-    const timeout=setTimeout(()=>{
-      w.removeEventListener("message",listener);
-      reject(new Error("De-Reverb Beta timed out."));
-    },180000);
+    let settled=false;
+    let timer=null;
+
+    const cleanup=()=>{
+      clearTimeout(timer);
+      workerInstance.removeEventListener("message",onMessage);
+      workerInstance.removeEventListener("error",onError);
+      workerInstance.removeEventListener("messageerror",onMessageError);
+    };
+
+    const finishError=message=>{
+      if(settled)return;
+      settled=true;
+      cleanup();
+      reject(new Error(message));
+    };
+
+    const onMessage=event=>{
+      const d=event.data||{};
+      if(d.type!=="ready")return;
+      if(settled)return;
+      settled=true;
+      cleanup();
+      dereverbWorkerReady=true;
+      resolve(workerInstance);
+    };
+
+    const onError=event=>{
+      event?.preventDefault?.();
+      finishError("De-Reverb worker script could not load.");
+    };
+
+    const onMessageError=()=>{
+      finishError("De-Reverb worker message channel failed.");
+    };
+
+    workerInstance.addEventListener("message",onMessage);
+    workerInstance.addEventListener("error",onError);
+    workerInstance.addEventListener("messageerror",onMessageError);
+
+    timer=setTimeout(()=>{
+      finishError("De-Reverb worker did not become ready.");
+    },timeoutMs);
+
+    try{
+      workerInstance.postMessage({type:"ping"});
+    }catch(error){
+      finishError(
+        String(error?.message||error||"De-Reverb worker could not start.")
+      );
+    }
+  });
+}
+
+async function ensureDereverbWorkerReady(){
+  if(dereverbWorker && dereverbWorkerReady){
+    return dereverbWorker;
+  }
+
+  let lastError=null;
+
+  // Normal same-origin Worker first.
+  try{
+    const external=createDereverbWorker(false);
+    return await waitForDereverbWorkerReady(external,6000);
+  }catch(error){
+    lastError=error;
+    console.warn(
+      "External De-Reverb worker failed; trying embedded recovery worker.",
+      error
+    );
+  }
+
+  // Recovery path: identical worker source from this bundle, launched from
+  // a Blob URL. This avoids static-route/cache glitches without changing DSP.
+  try{
+    const embeddedWorker=createDereverbWorker(true);
+    return await waitForDereverbWorkerReady(embeddedWorker,6000);
+  }catch(error){
+    lastError=error;
+    releaseDereverbWorker();
+  }
+
+  throw lastError||new Error("De-Reverb worker could not start.");
+}
+
+async function runDereverbOnWorker(
+  workerInstance,
+  mono,
+  strength,
+  onProgress
+){
+  const copy=new Float32Array(mono);
+  const durationSeconds=copy.length/48000;
+
+  // Inactivity watchdog rather than a fixed total deadline. Any legitimate
+  // progress refreshes it. Short clips should never sit for three minutes.
+  const inactivityMs=Math.max(
+    45000,
+    Math.min(150000,30000+durationSeconds*5000)
+  );
+
+  return await new Promise((resolve,reject)=>{
+    let settled=false;
+    let watchdog=null;
+
+    const cleanup=()=>{
+      clearTimeout(watchdog);
+      workerInstance.removeEventListener("message",listener);
+      workerInstance.removeEventListener("error",onError);
+      workerInstance.removeEventListener("messageerror",onMessageError);
+    };
+
+    const finishError=message=>{
+      if(settled)return;
+      settled=true;
+      cleanup();
+      reject(new Error(message));
+    };
+
+    const armWatchdog=()=>{
+      clearTimeout(watchdog);
+      watchdog=setTimeout(()=>{
+        finishError("De-Reverb worker stopped responding.");
+      },inactivityMs);
+    };
+
+    const onError=event=>{
+      event?.preventDefault?.();
+      finishError("De-Reverb worker crashed while processing.");
+    };
+
+    const onMessageError=()=>{
+      finishError("De-Reverb worker returned an unreadable result.");
+    };
 
     const listener=event=>{
       const d=event.data||{};
 
       if(d.type==="phase" || d.type==="progress"){
+        armWatchdog();
         onProgress?.(
           Number(d.progress||0),
           d.text||"Reducing room reflections…"
@@ -1162,27 +1353,71 @@ async function runDereverbBeta(mono,strength,onProgress){
       }
 
       if(d.type==="error"){
-        clearTimeout(timeout);
-        w.removeEventListener("message",listener);
-        reject(new Error(d.message||"De-Reverb Beta failed."));
+        finishError(d.message||"De-Reverb Beta failed.");
         return;
       }
 
       if(d.type==="done"){
-        clearTimeout(timeout);
-        w.removeEventListener("message",listener);
+        if(settled)return;
+        settled=true;
+        cleanup();
         resolve(new Float32Array(d.buffer));
       }
     };
 
-    w.addEventListener("message",listener);
+    workerInstance.addEventListener("message",listener);
+    workerInstance.addEventListener("error",onError);
+    workerInstance.addEventListener("messageerror",onMessageError);
+    armWatchdog();
 
-    w.postMessage({
-      type:"process",
-      strength,
-      buffer:copy.buffer
-    },[copy.buffer]);
+    try{
+      workerInstance.postMessage({
+        type:"process",
+        strength,
+        buffer:copy.buffer
+      },[copy.buffer]);
+    }catch(error){
+      finishError(
+        String(error?.message||error||"De-Reverb request could not start.")
+      );
+    }
   });
+}
+
+async function runDereverbBeta(mono,strength,onProgress){
+  let lastError=null;
+
+  // First attempt reuses a healthy worker when possible. If processing itself
+  // fails, restart once with the embedded identical worker before giving up.
+  try{
+    const workerInstance=await ensureDereverbWorkerReady();
+    return await runDereverbOnWorker(
+      workerInstance,
+      mono,
+      strength,
+      onProgress
+    );
+  }catch(error){
+    lastError=error;
+    console.warn("De-Reverb first attempt failed; restarting once.",error);
+    releaseDereverbWorker();
+  }
+
+  try{
+    const workerInstance=createDereverbWorker(true);
+    await waitForDereverbWorkerReady(workerInstance,6000);
+    return await runDereverbOnWorker(
+      workerInstance,
+      mono,
+      strength,
+      onProgress
+    );
+  }catch(error){
+    lastError=error;
+    releaseDereverbWorker();
+  }
+
+  throw lastError||new Error("De-Reverb Beta could not run.");
 }
 
 function getStereoChannels(buffer){
@@ -1194,14 +1429,14 @@ function resampleMonoLinear(input,fromRate,toRate){
 }
 function getSpeakerWorker(){
   if(!speakerWorker){
-    speakerWorker=new Worker("speaker-separation-worker.js?v=23.1",{type:"module"});
+    speakerWorker=new Worker("speaker-separation-worker.js?v=23.2",{type:"module"});
   }
   return speakerWorker;
 }
 
 function getMusicWorker(){
   if(!musicWorker){
-    musicWorker=new Worker("music-separation-worker.js?v=23.1",{type:"module"});
+    musicWorker=new Worker("music-separation-worker.js?v=23.2",{type:"module"});
   }
   return musicWorker;
 }

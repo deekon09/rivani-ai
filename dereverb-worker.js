@@ -27,6 +27,13 @@ for(let i=0;i<FFT;i++){
 
 self.onmessage=event=>{
   const data=event.data||{};
+
+  // V23.2 transport health check. This does not touch De-Reverb DSP.
+  if(data.type==="ping"){
+    self.postMessage({type:"ready",version:"23.2"});
+    return;
+  }
+
   if(data.type!=="process")return;
 
   try{
