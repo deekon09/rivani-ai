@@ -165,7 +165,8 @@ async function separateLong(left,right,amount){
       chunkLeft,
       chunkRight,
       range.isFirst,
-      range.isLast
+      range.isLast,
+      amount
     );
 
     vocalL.push(processed.left);
@@ -338,7 +339,8 @@ async function processReferenceChunk(
   left,
   right,
   isFirstChunk,
-  isLastChunk
+  isLastChunk,
+  amount
 ){
   const preparedL=computeReferenceStft(left);
   const preparedR=computeReferenceStft(right);
@@ -405,7 +407,8 @@ async function processReferenceChunk(
       output.data,
       outputCursor,
       preparedL.segments[i],
-      preparedR.segments[i]
+      preparedR.segments[i],
+      amount
     );
   }
 
@@ -594,9 +597,18 @@ function applyPredictedSpectrum(
   source,
   cursor,
   left,
-  right
+  right,
+  amount
 ){
   const bins=NFFT/2+1;
+
+  // Preserve the original mixture STFT before replacing it with the model's
+  // vocal prediction. The difference (mix - vocal) is a usable estimate of
+  // leaked accompaniment for a soft Wiener-style cleanup.
+  const mixLr=new Float32Array(left.real);
+  const mixLi=new Float32Array(left.imag);
+  const mixRr=new Float32Array(right.real);
+  const mixRi=new Float32Array(right.imag);
 
   const readPlane=(array)=>{
     for(let f=0;f<DIM_F;f++){
@@ -612,6 +624,28 @@ function applyPredictedSpectrum(
   readPlane(right.real);
   readPlane(right.imag);
 
+  const aggressiveness=clamp(
+    (Number(amount||1)-.60)/.40,
+    0,
+    1
+  );
+
+  purifyVocalSpectrum(
+    mixLr,
+    mixLi,
+    left.real,
+    left.imag,
+    aggressiveness
+  );
+
+  purifyVocalSpectrum(
+    mixRr,
+    mixRi,
+    right.real,
+    right.imag,
+    aggressiveness
+  );
+
   // Official runtime zeros bins outside dim_f before iSTFT.
   for(let t=0;t<DIM_T;t++){
     const base=t*bins;
@@ -625,6 +659,102 @@ function applyPredictedSpectrum(
   }
 
   return cursor;
+}
+
+function purifyVocalSpectrum(
+  mixReal,
+  mixImag,
+  vocalReal,
+  vocalImag,
+  aggressiveness
+){
+  const bins=NFFT/2+1;
+  const eps=1e-9;
+
+  // Smooth, ratio-based suppression. There is no hard gate, which avoids
+  // musical-noise / "fata" artifacts. Stronger cleanup is focused above the
+  // main speech-body range where the user's test showed the largest residual.
+  for(let t=0;t<DIM_T;t++){
+    const base=t*bins;
+
+    for(let f=0;f<DIM_F;f++){
+      const index=base+f;
+
+      const mr=mixReal[index]||0;
+      const mi=mixImag[index]||0;
+      const vr=vocalReal[index]||0;
+      const vi=vocalImag[index]||0;
+
+      const rr=mr-vr;
+      const ri=mi-vi;
+
+      const vocalMag=Math.hypot(vr,vi);
+      const residualMag=Math.hypot(rr,ri);
+
+      if(vocalMag<eps){
+        vocalReal[index]=0;
+        vocalImag[index]=0;
+        continue;
+      }
+
+      const vocalRatio=
+        vocalMag/
+        (vocalMag+residualMag+eps);
+
+      const hz=f*SR/NFFT;
+
+      let power;
+      let floor;
+
+      if(hz<250){
+        // Protect fundamentals / warmth.
+        power=.18+.28*aggressiveness;
+        floor=.22;
+      }else if(hz<3000){
+        // Main speech intelligibility/body.
+        power=.24+.52*aggressiveness;
+        floor=.14;
+      }else if(hz<8000){
+        // Residual accompaniment and separation hash were strongest here.
+        power=.34+.82*aggressiveness;
+        floor=.07;
+      }else{
+        // High-frequency music/noise leakage can be suppressed more strongly.
+        power=.42+1.05*aggressiveness;
+        floor=.035;
+      }
+
+      let mask=Math.pow(
+        Math.max(0,Math.min(1,vocalRatio)),
+        power
+      );
+
+      // If the model is already very confident this bin belongs to voice,
+      // keep it nearly untouched so consonants and harmonics stay natural.
+      if(vocalRatio>.78){
+        const confident=
+          .86+
+          .14*
+          Math.min(
+            1,
+            (vocalRatio-.78)/.22
+          );
+
+        mask=Math.max(
+          mask,
+          confident
+        );
+      }
+
+      mask=Math.max(
+        floor,
+        Math.min(1,mask)
+      );
+
+      vocalReal[index]=vr*mask;
+      vocalImag[index]=vi*mask;
+    }
+  }
 }
 
 function computeReferenceInverse(
