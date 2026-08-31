@@ -1687,3 +1687,32 @@ body.rivani-processing-performance .processing-orb{box-shadow:0 0 18px rgba(45,1
 body.rivani-processing-performance .specialist-beta-card{
   pointer-events:none;
 }
+
+
+/* ==========================================================
+   RIVANI V23.5 · Static top navigation logo
+   ========================================================== */
+.site-header .brand,
+.site-header .brand img,
+.site-header .brand .rivani-logo-shine-shell,
+.site-header .brand .rivani-logo-shine-shell>img{
+  animation:none!important;
+  transition:none!important;
+  transform:none!important;
+  filter:none!important;
+  will-change:auto!important;
+}
+
+.site-header .brand::before,
+.site-header .brand::after,
+.site-header .brand .rivani-logo-shine-shell::before,
+.site-header .brand .rivani-logo-shine-shell::after{
+  content:none!important;
+  display:none!important;
+  animation:none!important;
+  opacity:0!important;
+}
+
+.site-header .brand img{
+  opacity:1!important;
+}

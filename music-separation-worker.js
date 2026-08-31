@@ -141,8 +141,94 @@ async function separateLong(left,right,amount){
   }
 
   applyLocalSpeechRetentionGuard(rawMono,candidate);
-  self.postMessage({type:"progress",progress:100,text:"Music separation ready with speech-preservation guard."});
-  return {audio:candidate,safetyFallback:false,retentionDb};
+
+  // A model run can technically succeed but still sound weak or phasey.
+  // Never expose such a stem as a successful user result.
+  const anchor=speechBandAnchor(rawMono);
+  const candidateSpeech=speechBandAnchor(candidate);
+  const anchorRms=rmsSignal(anchor);
+  const speechRms=rmsSignal(candidateSpeech);
+
+  const speechRetention=
+    anchorRms>1e-8
+      ?speechRms/anchorRms
+      :1;
+
+  const corr=normalizedCorrelation(
+    anchor,
+    candidateSpeech
+  );
+
+  const unreliable=
+    !Number.isFinite(speechRetention)||
+    speechRetention<.11||
+    corr<.08;
+
+  if(unreliable){
+    self.postMessage({
+      type:"progress",
+      progress:100,
+      text:"Music stem quality was not clean enough — Safe Pass protected the voice."
+    });
+
+    return {
+      audio:new Float32Array(rawMono),
+      safetyFallback:true,
+      retentionDb
+    };
+  }
+
+  // Recover only the valid vocal stem level. No raw/background music is mixed
+  // back here; peak protection happens in the main pipeline.
+  const targetRetention=.42;
+
+  if(speechRetention<targetRetention){
+    const gain=clamp(
+      targetRetention/Math.max(.01,speechRetention),
+      1,
+      2.35
+    );
+
+    for(let i=0;i<candidate.length;i++){
+      candidate[i]=clamp(
+        candidate[i]*gain,
+        -1,
+        1
+      );
+    }
+  }
+
+  self.postMessage({
+    type:"progress",
+    progress:100,
+    text:"Music separation ready with voice-quality protection."
+  });
+
+  return {
+    audio:candidate,
+    safetyFallback:false,
+    retentionDb
+  };
+}
+
+function normalizedCorrelation(a,b){
+  const n=Math.min(a.length,b.length);
+  if(!n)return 0;
+
+  let ab=0,aa=0,bb=0;
+
+  for(let i=0;i<n;i+=8){
+    const x=a[i]||0;
+    const y=b[i]||0;
+
+    ab+=x*y;
+    aa+=x*x;
+    bb+=y*y;
+  }
+
+  if(aa<1e-12||bb<1e-12)return 0;
+
+  return ab/Math.sqrt(aa*bb);
 }
 
 function rmsSignal(x){

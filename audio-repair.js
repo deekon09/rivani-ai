@@ -813,7 +813,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23.4",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.5",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -967,20 +967,31 @@ async function repairLocally(){
           (p,t)=>updateProgress(Math.round(a+(b-a)*(Number(p||0)/100)),t)
         );
 
-        mono=resampleMonoLinear(musicResult.audio,44100,48000);
-        musicAppliedThisRun=!musicResult.safetyFallback;
+        if(musicResult.safetyFallback){
+          // Product safety rule: never replace the user's voice with a weak,
+          // phasey or metallic music-separation stem.
+          mono=preMusic48;
+          musicAppliedThisRun=false;
+        }else{
+          mono=resampleMonoLinear(
+            musicResult.audio,
+            44100,
+            48000
+          );
+          musicAppliedThisRun=true;
+        }
 
         const musicState=$("musicControlState");
         if(musicState){
           musicState.textContent=musicResult.safetyFallback
-            ?"BETA ON · SAFE"
+            ?"BETA ON · SAFE PASS"
             :"BETA ON";
         }
         updateProgress(
           Math.round(b),
           musicResult.safetyFallback
-            ?"Music model became too aggressive — speech-preservation guard protected the voice."
-            :"Music separation ready with speech protection."
+            ?"Music separation was not clean enough — original voice path protected."
+            :"Music separation ready with voice protection."
         );
       }catch(error){
         mono=preMusic48;
@@ -1113,12 +1124,18 @@ async function repairLocally(){
     let artifactGuardActive=false;
 
     if(musicAppliedThisRun||backgroundAppliedThisRun){
-      const cap=dereverbAppliedThisRun?.76:.80;
+      const cap=dereverbAppliedThisRun?.70:.74;
       if(effectiveStrength>cap){
         effectiveStrength=cap;
         artifactGuardActive=true;
       }
     }else if(dereverbAppliedThisRun){
+      const cap=(fanAssist||trafficAssist) ? .74 : .78;
+      if(effectiveStrength>cap){
+        effectiveStrength=cap;
+        artifactGuardActive=true;
+      }
+    }else if(fanAssist||trafficAssist){
       const cap=.80;
       if(effectiveStrength>cap){
         effectiveStrength=cap;
@@ -1129,7 +1146,7 @@ async function repairLocally(){
     if(artifactGuardActive){
       updateProgress(
         clearStart,
-        "Artifact Guard is balancing stacked cleanup for a more natural voice…"
+        "Natural Voice Guard is preventing over-processing…"
       );
     }
 
@@ -1142,8 +1159,10 @@ async function repairLocally(){
         updateProgress(Math.min(80,mapped),text);
       },
       {
-        fanAssist:separationSpecialistActive?false:fanAssist,
-        trafficAssist:separationSpecialistActive?false:trafficAssist
+        // Fan / Traffic already have the restrained post-model cleanup below.
+        // Do not also alter the neural mask: one cleanup pass only.
+        fanAssist:false,
+        trafficAssist:false
       }
     );
 
@@ -1197,7 +1216,10 @@ async function repairLocally(){
     repairedUrl=URL.createObjectURL(repairedBlob);
 
     $("afterPlayer").src=repairedUrl;
-    const specialistLabels=[];if(musicControlEnabled)specialistLabels.push("Music Control");if(backgroundVoicesEnabled)specialistLabels.push("Background Voices");if(dereverbAppliedThisRun)specialistLabels.push("De-Reverb");
+    const specialistLabels=[];
+    if(musicAppliedThisRun)specialistLabels.push("Music Control");
+    if(backgroundAppliedThisRun)specialistLabels.push("Background Voices");
+    if(dereverbAppliedThisRun)specialistLabels.push("De-Reverb");
     $("afterPresetLabel").textContent=`AI Clear Voice · ${strength.value}% · ${studioFinish?"Studio":"Natural"} Finish`+(specialistLabels.length?` · ${specialistLabels.join(" + ")}`:"");
 
     const status=$("clearEngineStatus");
@@ -1256,7 +1278,7 @@ function createDereverbWorker(useEmbedded=false){
   }else{
     // Resolve against this module instead of the document URL.
     const url=new URL(
-      "./dereverb-worker.js?v=23.4",
+      "./dereverb-worker.js?v=23.5",
       import.meta.url
     );
     dereverbWorker=new Worker(url);
