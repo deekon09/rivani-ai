@@ -170,9 +170,6 @@ async function enhanceImage(src,width,height,targetScale){
         provider
       });
 
-      if(provider==="WASM"&&completed<total){
-        await delay(2);
-      }
     }
   }
 
@@ -234,34 +231,81 @@ function writeCore(
     :TILE*SCALE;
 
   const nchw=dims.length===4&&dims[1]===3;
+  const plane=nativeW*nativeH;
   const nativeCrop=CONTEXT*SCALE;
-  const nativePerTarget=SCALE/targetScale;
+  const outCoreW=coreW*targetScale;
+  const outCoreH=coreH*targetScale;
+  const baseX=gx*targetScale;
+  const baseY=gy*targetScale;
 
-  for(let oy=0;oy<coreH*targetScale;oy++){
-    for(let ox=0;ox<coreW*targetScale;ox++){
-      const nativeX=nativeCrop+ox*nativePerTarget;
-      const nativeY=nativeCrop+oy*nativePerTarget;
+  // Hot path rewrite: V25 created a temporary RGB array plus .map() for every
+  // output pixel. This version writes directly into the destination buffer.
+  // The sampled values and averaging math are unchanged.
+  if(targetScale===4){
+    for(let oy=0;oy<outCoreH;oy++){
+      const ny=nativeCrop+oy;
+      const dy=baseY+oy;
+      let di=(dy*outW+baseX)*4;
 
-      const rgb=sampleOutput(
-        data,
-        dims,
-        nchw,
-        nativeW,
-        nativeH,
-        nativeX,
-        nativeY,
-        nativePerTarget,
-        factor
-      );
+      for(let ox=0;ox<outCoreW;ox++){
+        const nx=nativeCrop+ox;
+        let r,g,b;
 
-      const dx=gx*targetScale+ox;
-      const dy=gy*targetScale+oy;
-      const di=(dy*outW+dx)*4;
+        if(nchw){
+          const pi=ny*nativeW+nx;
+          r=Number(data[pi]||0);
+          g=Number(data[plane+pi]||0);
+          b=Number(data[plane*2+pi]||0);
+        }else{
+          const pi=(ny*nativeW+nx)*3;
+          r=Number(data[pi]||0);
+          g=Number(data[pi+1]||0);
+          b=Number(data[pi+2]||0);
+        }
 
-      dest[di]=rgb[0];
-      dest[di+1]=rgb[1];
-      dest[di+2]=rgb[2];
+        dest[di]=clampByte(r*factor);
+        dest[di+1]=clampByte(g*factor);
+        dest[di+2]=clampByte(b*factor);
+        dest[di+3]=255;
+        di+=4;
+      }
+    }
+    return;
+  }
+
+  // Requested 2× output: average the same native 2×2 model pixels as V25.
+  for(let oy=0;oy<outCoreH;oy++){
+    const ny=nativeCrop+oy*2;
+    const dy=baseY+oy;
+    let di=(dy*outW+baseX)*4;
+
+    for(let ox=0;ox<outCoreW;ox++){
+      const nx=nativeCrop+ox*2;
+      let r=0,g=0,b=0;
+
+      for(let yy=0;yy<2;yy++){
+        const y=ny+yy;
+        for(let xx=0;xx<2;xx++){
+          const x=nx+xx;
+          if(nchw){
+            const pi=y*nativeW+x;
+            r+=Number(data[pi]||0);
+            g+=Number(data[plane+pi]||0);
+            b+=Number(data[plane*2+pi]||0);
+          }else{
+            const pi=(y*nativeW+x)*3;
+            r+=Number(data[pi]||0);
+            g+=Number(data[pi+1]||0);
+            b+=Number(data[pi+2]||0);
+          }
+        }
+      }
+
+      dest[di]=clampByte(r*.25*factor);
+      dest[di+1]=clampByte(g*.25*factor);
+      dest[di+2]=clampByte(b*.25*factor);
       dest[di+3]=255;
+      di+=4;
     }
   }
 }

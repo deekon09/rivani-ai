@@ -2793,3 +2793,107 @@ body.rivani-processing-performance .specialist-beta-card{
     grid-template-columns:1fr;
   }
 }
+
+
+/* =========================================================
+   V25.2 IMAGE ENHANCER MOBILE / UX / PERFORMANCE POLISH
+   ========================================================= */
+.image-enhancer-page #chooseImageBtn,
+.image-enhancer-page #enhanceAgainBtn{
+  background:var(--grad)!important;
+  border-color:transparent!important;
+  color:#fff!important;
+  box-shadow:0 12px 32px rgba(48,95,255,.22)!important;
+}
+.image-enhancer-page #chooseImageBtn:hover,
+.image-enhancer-page #enhanceAgainBtn:hover{
+  box-shadow:0 16px 42px rgba(76,73,255,.3)!important;
+}
+.image-new-image-btn{
+  background:linear-gradient(135deg,rgba(23,119,213,.24),rgba(105,63,232,.22))!important;
+  border-color:rgba(91,180,255,.42)!important;
+  color:#dff4ff!important;
+  box-shadow:inset 0 0 22px rgba(67,121,255,.07)!important;
+}
+.image-new-image-btn:hover{
+  border-color:rgba(112,211,255,.65)!important;
+  background:linear-gradient(135deg,rgba(31,139,236,.32),rgba(121,73,247,.3))!important;
+}
+
+.image-processing-orb{
+  position:relative;
+  overflow:hidden;
+  width:72px;
+  height:72px;
+  border-radius:22px;
+  background:radial-gradient(circle,rgba(64,151,255,.14),rgba(43,61,151,.04));
+}
+.image-processing-orb img{
+  position:absolute;
+  top:50%;
+  left:-2px;
+  width:190px;
+  max-width:none;
+  height:auto;
+  transform:translateY(-50%);
+  pointer-events:none;
+  filter:drop-shadow(0 0 8px rgba(51,181,255,.2));
+}
+
+.compare-label{
+  min-width:90px;
+  padding:7px 10px;
+  line-height:1.05;
+}
+.compare-label b,
+.compare-label small{display:block}
+.compare-label b{font-size:8px;letter-spacing:.09em}
+.compare-label small{margin-top:3px;font-size:6.5px;letter-spacing:.04em;text-transform:none;font-weight:700}
+.compare-label.before{
+  background:rgba(6,10,25,.9);
+  border-color:rgba(186,199,224,.22);
+  color:#f2f5fb;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);
+}
+.compare-label.before small{color:#8b99ae}
+.compare-label.after{
+  background:linear-gradient(135deg,rgba(34,149,236,.96),rgba(119,64,232,.96));
+  border-color:rgba(151,221,255,.38);
+  color:#fff;
+  box-shadow:0 8px 28px rgba(67,87,230,.3);
+}
+.compare-label.after small{color:rgba(255,255,255,.78)}
+.compare-line{
+  width:3px;
+  background:linear-gradient(180deg,#63d8ff,#7d65ff,#d36aff);
+  box-shadow:0 0 18px rgba(109,117,255,.36);
+}
+.compare-line span{
+  border:1px solid rgba(106,190,255,.45);
+  background:linear-gradient(145deg,#f7fbff,#dfeaff);
+}
+.image-compare::after{
+  content:"Drag to compare";
+  position:absolute;
+  left:50%;
+  bottom:12px;
+  z-index:5;
+  transform:translateX(-50%);
+  padding:5px 8px;
+  border-radius:999px;
+  background:rgba(4,8,22,.76);
+  border:1px solid rgba(255,255,255,.08);
+  color:#91a4c1;
+  font-size:7px;
+  font-weight:800;
+  pointer-events:none;
+}
+
+@media(max-width:680px){
+  .image-processing-orb{width:68px;height:68px}
+  .image-processing-orb img{width:180px}
+  .compare-label{top:9px;min-width:82px;padding:6px 8px}
+  .compare-label.before{left:9px}
+  .compare-label.after{right:9px}
+  .image-result-actions .btn{width:100%}
+}

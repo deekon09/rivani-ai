@@ -30,10 +30,10 @@ const resultStatus=$("imageResultStatus");
 const resultHeadline=$("imageResultHeadline");
 const downloadBtn=$("downloadEnhancedBtn");
 const againBtn=$("enhanceAgainBtn");
+const anotherBtn=$("enhanceAnotherBtn");
 
-const MAX_FILE_BYTES=20*1024*1024;
-const MAX_OUTPUT_PIXELS=24_000_000;
-const MAX_OUTPUT_EDGE=9000;
+const DEFAULT_OUTPUT_PIXELS=36_000_000;
+const DEFAULT_OUTPUT_EDGE=9000;
 
 let sourceFile=null;
 let sourceBitmap=null;
@@ -119,6 +119,12 @@ againBtn?.addEventListener("click",()=>{
   window.scrollTo({top:Math.max(0,enhanceBtn.offsetTop-180),behavior:"smooth"});
 });
 
+anotherBtn?.addEventListener("click",()=>{
+  if(busy)return;
+  resetForAnotherImage();
+  fileInput?.click();
+});
+
 downloadBtn?.addEventListener("click",()=>{
   if(!enhancedBlob)return;
 
@@ -157,18 +163,13 @@ function bindToggle(id,setter){
 }
 
 async function loadImage(file){
-  if(!file.type.startsWith("image/")){
-    alert("Choose a JPG, PNG, WebP or AVIF image.");
-    return;
-  }
-
-  if(file.size>MAX_FILE_BYTES){
-    alert("For this browser build, choose an image under 20 MB.");
+  if(!looksLikeImageFile(file)){
+    alert("Choose an image file supported by your browser.");
     return;
   }
 
   try{
-    const bitmap=await createImageBitmap(file);
+    const bitmap=await decodeImageSource(file);
 
     if(!bitmap.width||!bitmap.height){
       throw new Error("Invalid image.");
@@ -399,12 +400,12 @@ async function enhanceCurrentImage(){
       requestedScale
     );
 
-    if(prep.effectiveScale<1.15){
-      throw new Error("This image is too large for safe browser enhancement.");
+    if(prep.wasCapped){
+      setProgress(1,"Preparing device-safe enhancement…",`Large source detected. RIVANI will preserve the source and use the highest safe output this device can hold (${prep.effectiveScale.toFixed(2)}× effective).`);
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.0-image",
+      "image-enhancer-worker.js?v=25.2-image",
       {type:"module"}
     );
 
@@ -500,6 +501,7 @@ async function enhanceCurrentImage(){
 }
 
 function prepareInputForModel(bitmap,targetScale){
+  const budget=getDeviceOutputBudget(bitmap);
   let prepScale=1;
 
   const targetPixels=
@@ -508,11 +510,11 @@ function prepareInputForModel(bitmap,targetScale){
     targetScale*
     targetScale;
 
-  if(targetPixels>MAX_OUTPUT_PIXELS){
+  if(targetPixels>budget.maxPixels){
     prepScale=Math.min(
       prepScale,
       Math.sqrt(
-        MAX_OUTPUT_PIXELS/
+        budget.maxPixels/
         targetPixels
       )
     );
@@ -520,15 +522,15 @@ function prepareInputForModel(bitmap,targetScale){
 
   const longest=Math.max(bitmap.width,bitmap.height)*targetScale;
 
-  if(longest>MAX_OUTPUT_EDGE){
+  if(longest>budget.maxEdge){
     prepScale=Math.min(
       prepScale,
-      MAX_OUTPUT_EDGE/longest
+      budget.maxEdge/longest
     );
   }
 
   // Avoid tiny fractional resizes that only add work.
-  if(prepScale>.96)prepScale=1;
+  if(prepScale>.97)prepScale=1;
 
   const width=Math.max(
     16,
@@ -560,8 +562,59 @@ function prepareInputForModel(bitmap,targetScale){
     workerScale:targetScale,
     effectiveScale:
       (width*targetScale)/
-      bitmap.width
+      bitmap.width,
+    wasCapped:prepScale<.97,
+    budget
   };
+}
+
+function getDeviceOutputBudget(bitmap){
+  const memory=Number(navigator.deviceMemory)||0;
+  const cores=Number(navigator.hardwareConcurrency)||4;
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||"") || window.matchMedia?.("(pointer:coarse)")?.matches;
+
+  let maxPixels=DEFAULT_OUTPUT_PIXELS;
+  let maxEdge=DEFAULT_OUTPUT_EDGE;
+
+  // V25.2: the old fixed 24 MP cap rejected/capped modern phone photos too early.
+  // These limits are only memory guards; enhancement math/model quality is unchanged.
+  if(mobile){
+    maxPixels=36_000_000;
+    maxEdge=9200;
+
+    if(memory&&memory<=2){
+      maxPixels=28_000_000;
+      maxEdge=8200;
+    }else if(memory>=6||cores>=8){
+      maxPixels=40_000_000;
+      maxEdge=9800;
+    }
+  }else{
+    maxPixels=48_000_000;
+    maxEdge=12000;
+
+    if(memory&&memory<=4){
+      maxPixels=40_000_000;
+      maxEdge=10000;
+    }else if(memory>=8&&cores>=8){
+      maxPixels=56_000_000;
+      maxEdge=13000;
+    }
+  }
+
+  // Never reject a normal high-resolution source just because the requested
+  // upscale is too large. For large originals, preserve at least the source
+  // resolution when it is still within a bounded browser-memory envelope.
+  const sourcePixels=bitmap.width*bitmap.height;
+  const sourceEdge=Math.max(bitmap.width,bitmap.height);
+  const preserveCeiling=mobile?44_000_000:64_000_000;
+
+  if(sourcePixels<=preserveCeiling){
+    maxPixels=Math.max(maxPixels,sourcePixels);
+    maxEdge=Math.max(maxEdge,sourceEdge);
+  }
+
+  return {maxPixels,maxEdge,mobile,memory,cores};
 }
 
 function runWorker(worker,imageData,width,height,targetScale){
@@ -705,36 +758,33 @@ function composeFinal(
   blend,
   colorSafe
 ){
-  const canvas=document.createElement("canvas");
-  canvas.width=width;
-  canvas.height=height;
+  const ctx=aiCanvas.getContext("2d",{alpha:true});
 
-  const ctx=canvas.getContext("2d",{alpha:true});
-
-  // Original is always the truth anchor.
+  // V25.2 memory-safe composition: keep the AI canvas and blend the original
+  // truth anchor over it. For opaque pixels this is mathematically equivalent to
+  // original*(1-blend) + AI*blend, but avoids allocating another full-size canvas.
+  ctx.save();
+  ctx.globalCompositeOperation="source-over";
+  ctx.globalAlpha=Math.max(0,Math.min(1,1-blend));
   ctx.imageSmoothingEnabled=true;
   ctx.imageSmoothingQuality="high";
   ctx.drawImage(source,0,0,width,height);
-
-  ctx.save();
-  ctx.globalAlpha=blend;
-
-  // Color Lock uses a very small saturation guard, not an artificial
-  // beautification filter. The main color protection comes from truth anchoring.
-  if(colorSafe){
-    ctx.filter="saturate(0.985)";
-  }
-
-  ctx.drawImage(aiCanvas,0,0,width,height);
   ctx.restore();
+
+  // Color Lock remains primarily enforced by Fidelity Guard blend reduction.
+  // Avoid a second full-resolution filtered canvas, which is expensive on mobile.
+  if(colorSafe){
+    // Intentionally no destructive color filter here.
+  }
 
   // Preserve original transparency exactly.
   ctx.save();
   ctx.globalCompositeOperation="destination-in";
+  ctx.globalAlpha=1;
   ctx.drawImage(source,0,0,width,height);
   ctx.restore();
 
-  return canvas;
+  return aiCanvas;
 }
 
 function measureFidelity(source,enhancedCanvas){
@@ -996,11 +1046,72 @@ function canvasToBlob(canvas,format){
   });
 }
 
+function looksLikeImageFile(file){
+  if(file?.type?.startsWith("image/"))return true;
+  return /\.(jpe?g|png|webp|avif|gif|bmp|svg|heic|heif)$/i.test(file?.name||"");
+}
+
+async function decodeImageSource(file){
+  if("createImageBitmap" in window){
+    try{
+      return await createImageBitmap(file,{imageOrientation:"from-image"});
+    }catch(_){
+      // Fall through to the browser image decoder. This covers formats that the
+      // <img> pipeline can decode even when createImageBitmap cannot.
+    }
+  }
+
+  const url=URL.createObjectURL(file);
+  try{
+    return await new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.decoding="async";
+      img.onload=()=>resolve(img);
+      img.onerror=()=>reject(new Error("Unsupported image format."));
+      img.src=url;
+    });
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+
+function resetForAnotherImage(){
+  if(sourceBitmap?.close)sourceBitmap.close();
+  if(sourceUrl)URL.revokeObjectURL(sourceUrl);
+  if(enhancedUrl)URL.revokeObjectURL(enhancedUrl);
+
+  sourceFile=null;
+  sourceBitmap=null;
+  sourceUrl="";
+  enhancedUrl="";
+  enhancedBlob=null;
+
+  if(fileInput)fileInput.value="";
+  originalPreview?.removeAttribute("src");
+  compareBefore?.removeAttribute("src");
+  compareAfter?.removeAttribute("src");
+  previewEmpty?.classList.remove("hidden");
+  compareBox?.classList.add("hidden");
+  resultPanel?.classList.add("hidden");
+  processing?.classList.add("hidden");
+  editor?.classList.add("hidden");
+  dropZone?.classList.remove("hidden");
+  enhanceBtn.disabled=true;
+  setCompare(50);
+  setProgress(0,"Preparing enhancement…","Your image remains on this device.");
+  dropZone?.scrollIntoView({behavior:"smooth",block:"center"});
+}
+
 function friendlyType(type){
   if(type==="image/jpeg")return "JPG";
   if(type==="image/png")return "PNG";
   if(type==="image/webp")return "WebP";
   if(type==="image/avif")return "AVIF";
+  if(type==="image/gif")return "GIF";
+  if(type==="image/bmp")return "BMP";
+  if(type==="image/svg+xml")return "SVG";
+  if(type==="image/heic")return "HEIC";
+  if(type==="image/heif")return "HEIF";
   return "Image";
 }
 

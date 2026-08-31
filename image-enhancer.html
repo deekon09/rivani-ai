@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
   <title>Image Enhancer — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=25.0-image">
+  <link rel="stylesheet" href="styles.css?v=25.2-image">
 </head>
 <body class="image-enhancer-page">
   <div class="ambient ambient-one"></div>
@@ -152,13 +152,13 @@
 
           <div class="image-main-panel reveal delay-1">
             <div class="image-drop-zone" id="imageDropZone">
-              <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/avif" hidden>
+              <input id="imageFileInput" type="file" accept="image/*,.heic,.heif" hidden>
               <div class="image-drop-icon">▧</div>
               <span class="section-kicker">UPLOAD IMAGE</span>
               <h2>Drop an image here</h2>
-              <p>JPG, PNG, WebP or AVIF · drag, paste or choose a file</p>
-              <button class="btn btn-secondary" id="chooseImageBtn" type="button">Choose Image</button>
-              <small>For the smoothest browser experience, use images under 20 MB.</small>
+              <p>JPG, PNG, WebP, AVIF and other browser-supported images · drag, paste or choose a file</p>
+              <button class="btn btn-secondary image-accent-btn" id="chooseImageBtn" type="button">Choose Image</button>
+              <small>Large images are automatically adapted to a device-safe working resolution instead of being rejected.</small>
             </div>
 
             <div class="image-editor hidden" id="imageEditor">
@@ -191,12 +191,12 @@
                     value="50"
                     aria-label="Compare original and enhanced image"
                   >
-                  <span class="compare-label before">Before</span>
-                  <span class="compare-label after">After</span>
+                  <span class="compare-label before"><b>Before</b><small>Original</small></span>
+                  <span class="compare-label after"><b>After</b><small>RIVANI Enhanced</small></span>
                 </div>
 
                 <div class="image-processing-overlay hidden" id="imageProcessingOverlay">
-                  <div class="image-processing-orb"><span>R</span></div>
+                  <div class="image-processing-orb" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""></div>
                   <strong id="imageProcessingTitle">Preparing AI model…</strong>
                   <p id="imageProcessingText">Your image remains on this device.</p>
                   <div class="image-progress-track"><span id="imageProgressFill"></span></div>
@@ -258,7 +258,8 @@
 
                 <div class="image-result-actions">
                   <button class="btn btn-primary" id="downloadEnhancedBtn" type="button">Download Enhanced Image</button>
-                  <button class="btn btn-secondary" id="enhanceAgainBtn" type="button">Adjust & Run Again</button>
+                  <button class="btn btn-secondary image-accent-btn" id="enhanceAgainBtn" type="button">Adjust & Run Again</button>
+                  <button class="btn btn-secondary image-new-image-btn" id="enhanceAnotherBtn" type="button">Enhance Another Image</button>
                 </div>
               </div>
             </div>
@@ -296,8 +297,8 @@
     </div>
   </footer>
 
-  <script src="script.js?v=25.0-image"></script>
-  <script src="image-enhancer.js?v=25.0-image"></script>
-  <script type="module" src="auth-nav.js?v=25.0-image"></script>
+  <script src="script.js?v=25.2-image"></script>
+  <script src="image-enhancer.js?v=25.2-image"></script>
+  <script type="module" src="auth-nav.js?v=25.2-image"></script>
 </body>
 </html>
