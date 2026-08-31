@@ -32,6 +32,15 @@ const BINS = WIN / 2 + 1; // 961
 const MAX_WAV = 32768.0;
 const EPS32 = 1.1920928955078125e-7;
 
+// V24 CPU Balanced:
+// cooperative scheduling only. No model, mask, FFT, overlap or strength
+// constants are changed, so audio quality/math remains the same.
+const CPU_YIELD_MS = 4;
+const CPU_YIELD_FRAMES = 16;
+function cpuYield(ms=CPU_YIELD_MS){
+  return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
 let ort = null;
 let session = null;
 let provider = null;
@@ -399,6 +408,10 @@ async function denoiseLong(input, strength, assists={}) {
       sum[oi] += enhanced[i] * ww;
       weight[oi] += ww;
     }
+
+    if(s<positions.length-1){
+      await cpuYield(18);
+    }
   }
 
   const out = new Float32Array(x.length);
@@ -472,7 +485,7 @@ async function enhanceSegment(input, strength, assists={}) {
   const scaled = new Float64Array(input.length);
   for (let i=0;i<input.length;i++) scaled[i] = input[i] * MAX_WAV;
 
-  const {features, frames} = computeFeatures(scaled);
+  const {features, frames} = await computeFeatures(scaled);
   if (!frames) return new Float32Array(input.length);
 
   const tensor = new ort.Tensor("float32", features, [1, frames, 180]);
@@ -487,7 +500,7 @@ async function enhanceSegment(input, strength, assists={}) {
   try { resultTensor.dispose?.(); } catch {}
   try { tensor.dispose?.(); } catch {}
 
-  const enhancedScaled = applyMaskISTFT(scaled, mask, frames, strength, assists);
+  const enhancedScaled = await applyMaskISTFT(scaled, mask, frames, strength, assists);
   const out = new Float32Array(input.length);
 
   for (let i=0;i<out.length;i++) {
@@ -510,7 +523,7 @@ function prepareDSP() {
   }
 }
 
-function computeFeatures(scaled) {
+async function computeFeatures(scaled) {
   if (scaled.length < WIN) {
     return {features:new Float32Array(0), frames:0};
   }
@@ -556,6 +569,10 @@ function computeFeatures(scaled) {
 
       mels[t*NUM_MELS+m] = Math.log(Math.max(energy, EPS32));
     }
+
+    if((t+1)%CPU_YIELD_FRAMES===0){
+      await cpuYield();
+    }
   }
 
   const d1 = computeDeltas(mels, frames, NUM_MELS);
@@ -572,7 +589,7 @@ function computeFeatures(scaled) {
   return {features, frames};
 }
 
-function applyMaskISTFT(scaled, mask, featureFrames, strength, assists={}) {
+async function applyMaskISTFT(scaled, mask, featureFrames, strength, assists={}) {
   const nFrames = Math.min(
     1 + Math.floor((scaled.length - WIN) / HOP),
     featureFrames,
@@ -695,6 +712,10 @@ function applyMaskISTFT(scaled, mask, featureFrames, strength, assists={}) {
       const ww=symmetricHamming1920[n];
       ola[idx] += restored[n] * ww;
       winSq[idx] += ww*ww;
+    }
+
+    if((t+1)%CPU_YIELD_FRAMES===0){
+      await cpuYield();
     }
   }
 

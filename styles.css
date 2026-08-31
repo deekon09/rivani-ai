@@ -1812,3 +1812,44 @@ body.rivani-processing-performance .specialist-beta-card{
   microphone recording pulse.
   Those are functional "work is happening" feedback, not decorative branding.
 */
+
+
+/* ==========================================================
+   RIVANI V24 · Final audio product lock
+   ========================================================== */
+.pro-feature-lock.pro-locked,
+.pro-specialist-card.pro-locked{
+  opacity:.68!important;
+  cursor:pointer!important;
+  border-color:rgba(116,92,166,.14)!important;
+  background:linear-gradient(135deg,rgba(12,13,29,.72),rgba(25,12,43,.50))!important;
+  box-shadow:none!important;
+}
+
+.pro-feature-lock.pro-locked:hover,
+.pro-specialist-card.pro-locked:hover{
+  transform:none!important;
+  border-color:rgba(151,106,220,.24)!important;
+}
+
+.pro-feature-lock.pro-locked em,
+.pro-specialist-card.pro-locked em{
+  color:#b88cff!important;
+}
+
+.pro-specialist-card.pro-entitled{
+  opacity:1!important;
+  border-color:rgba(64,165,255,.24)!important;
+}
+
+.pro-specialist-card.pro-entitled em{
+  color:#7edbff!important;
+}
+
+/* Final product: old test/lab badges can never surface from stale markup. */
+.audio-test-chip,
+.audio-test-badge,
+.dereverb-lab-banner,
+.pro-validation-note{
+  display:none!important;
+}

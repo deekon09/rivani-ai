@@ -1,10 +1,10 @@
-// RIVANI AI · Music Control Beta
+// RIVANI AI · Music Control
 const ORT_VERSION="1.29.0";
 const ORT_WEBGPU_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
 const ORT_WASM_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
 const ORT_WASM_BASE=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 const MODEL_PROXY="https://rivani-models.rivani.workers.dev/music-vocals-ft.onnx";
-const MODEL_DIRECT="https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR_MDXNET_9482.onnx";
+const MODEL_DIRECT="https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/UVR-MDX-NET-Voc_FT.onnx";
 const CACHE_NAME="rivani-specialist-models-v22";
 // RIVANI V23.7: vocal fine-tuned UVR model geometry.
 // UVR-MDX-NET-Voc_FT:
@@ -55,7 +55,7 @@ self.onmessage=async e=>{
       buffer:result.audio.buffer
     },[result.audio.buffer]);
   }catch(err){
-    self.postMessage({type:"error",message:String(err?.message||err||"Music Control Beta failed")});
+    self.postMessage({type:"error",message:String(err?.message||err||"Music Control failed")});
   }
 };
 
@@ -113,15 +113,15 @@ async function ensureSession(){
 }
 
 function chooseWasmThreads(){
-  if(!self.crossOriginIsolated)return 1;
-
-  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
-
-  if(cores>=8)return 4;
-  if(cores>=6)return 3;
-  if(cores>=4)return 2;
+  // Final CPU Balanced profile: keep inference single-threaded.
+  // Thread count changes speed/peak CPU only, not model quality.
   return 1;
 }
+
+function cpuYield(ms=4){
+  return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
 async function getModelBytes(){const cache=await caches.open(CACHE_NAME),key=new Request(MODEL_PROXY),cached=await cache.match(key);if(cached){const ab=await cached.arrayBuffer();if(ab.byteLength>20000000)return ab;}let last;for(const url of [MODEL_PROXY,MODEL_DIRECT]){try{const res=await fetch(url,{mode:"cors",cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);const total=Number(res.headers.get("content-length")||0),reader=res.body?.getReader();let ab;if(reader){let loaded=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;self.postMessage({type:"modelProgress",progress:total?Math.min(94,Math.round(loaded/total*94)):25,text:total?`Preparing Music Control AI ${Math.round(loaded/total*100)}%…`:"Preparing Music Control AI…"});}ab=concatChunks(chunks,loaded);}else ab=await res.arrayBuffer();if(ab.byteLength<20000000)throw new Error("Music model download was incomplete.");try{await cache.put(key,new Response(ab.slice(0),{headers:{"content-type":"application/octet-stream"}}));}catch{}return ab;}catch(err){last=err;}}throw new Error(`Music Control model could not load. Deploy the V22 rivani-models Worker update. ${last?.message||""}`);}
 async function separateLong(left,right,amount){
   if(!left.length){
@@ -171,6 +171,10 @@ async function separateLong(left,right,amount){
     vocalL.push(processed.left);
     vocalR.push(processed.right);
     written+=processed.left.length;
+
+    if(ci<chunkRanges.length-1){
+      await cpuYield(30);
+    }
   }
 
   const vocalsLeft=concatFloat32(vocalL,written);
@@ -340,8 +344,10 @@ async function processReferenceChunk(
   isFirstChunk,
   isLastChunk
 ){
-  const preparedL=computeReferenceStft(left);
-  const preparedR=computeReferenceStft(right);
+  const preparedL=await computeReferenceStft(left);
+  await cpuYield(6);
+  const preparedR=await computeReferenceStft(right);
+  await cpuYield(6);
 
   if(preparedL.segments.length!==preparedR.segments.length){
     throw new Error(
@@ -409,13 +415,17 @@ async function processReferenceChunk(
     );
   }
 
-  const leftSamples=computeReferenceInverse(
+  await cpuYield(12);
+
+  const leftSamples=await computeReferenceInverse(
     preparedL,
     isFirstChunk,
     isLastChunk
   );
 
-  const rightSamples=computeReferenceInverse(
+  await cpuYield(6);
+
+  const rightSamples=await computeReferenceInverse(
     preparedR,
     isFirstChunk,
     isLastChunk
@@ -432,7 +442,7 @@ async function processReferenceChunk(
   };
 }
 
-function computeReferenceStft(chunk){
+async function computeReferenceStft(chunk){
   const numSamples=chunk.length;
 
   // Exact sherpa-onnx behavior: even an exact multiple receives one full
@@ -459,8 +469,10 @@ function computeReferenceStft(chunk){
       );
 
     segments.push(
-      stftCenterReflect(segmentWave)
+      await stftCenterReflect(segmentWave)
     );
+
+    await cpuYield(6);
   }
 
   return {
@@ -469,7 +481,7 @@ function computeReferenceStft(chunk){
   };
 }
 
-function stftCenterReflect(wave){
+async function stftCenterReflect(wave){
   // kaldi-native-fbank Stft(center=true, pad_mode="reflect")
   // adds NFFT/2 reflection on both sides before framing.
   const centered=reflectCenterPad(
@@ -521,6 +533,10 @@ function stftCenterReflect(wave){
         (b===0||b===NFFT/2)
           ?0
           :im[b];
+    }
+
+    if((t+1)%16===0){
+      await cpuYield();
     }
   }
 
@@ -627,7 +643,7 @@ function applyPredictedSpectrum(
   return cursor;
 }
 
-function computeReferenceInverse(
+async function computeReferenceInverse(
   prepared,
   isFirstChunk,
   isLastChunk
@@ -636,7 +652,7 @@ function computeReferenceInverse(
   let total=0;
 
   for(const segment of prepared.segments){
-    const wave=istftCenter(segment);
+    const wave=await istftCenter(segment);
 
     // OfflineSourceSeparationUvrImpl trims NFFT/2 again after centered iSTFT.
     const trimmed=
@@ -647,6 +663,7 @@ function computeReferenceInverse(
 
     pieces.push(trimmed);
     total+=trimmed.length;
+    await cpuYield(6);
   }
 
   const joined=concatFloat32(
@@ -671,7 +688,7 @@ function computeReferenceInverse(
   );
 }
 
-function istftCenter(stft){
+async function istftCenter(stft){
   const numSamples=
     NFFT+
     (stft.numFrames-1)*HOP;
@@ -716,6 +733,10 @@ function istftCenter(stft){
 
       denominator[index]+=
         w*w;
+    }
+
+    if((t+1)%16===0){
+      await cpuYield();
     }
   }
 

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=23.9">
+  <link rel="stylesheet" href="styles.css?v=24.0-final">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,7 +26,7 @@
     <section class="audio-tool-hero section">
       <div class="container audio-tool-hero-grid">
         <div class="reveal">
-          <span class="status-pill live-beta">AI Clear Voice Beta</span>
+          <span class="status-pill live-beta">AI Clear Voice</span>
           <span class="section-kicker">RIVANI AUDIO</span>
           <h1>Make the voice the focus.</h1>
           <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated AI-powered voice enhancement built to reduce background noise while keeping speech clear, smooth and natural.</p>
@@ -34,7 +34,7 @@
             <span>✓ One clear repair workflow</span>
             <span>✓ AI Powered Enhancement</span>
             <span>✓ Before / after preview</span>
-            <span>✓ WAV export</span>
+            <span>✓ MP3 / WAV export</span>
           </div>
         </div>
         <div class="audio-health-demo reveal delay-1">
@@ -101,7 +101,6 @@
               <div class="support-line"><b>Free:</b> 30 min · 500 MB · 5 enhancements/day</div>
               <div class="support-line"><b>Pro:</b> 1 GB/file · 5 h processing/day · unlimited jobs</div>
               <div class="support-line"><b>Mic:</b> same duration/plan limits as uploaded audio</div>
-              <div class="support-line" id="dailyAudioUsage"><b>TEST MODE:</b> daily job lock temporarily disabled</div>
               <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
             </div>
           </div>
@@ -144,7 +143,7 @@
                 </div>
                 <div class="repair-plan-badges">
                   <span class="gpu-badge">AI POWERED</span>
-                  <span class="free-badge">FREE BETA</span>
+                  <span class="free-badge">FREE</span>
                 </div>
               </div>
 
@@ -191,49 +190,49 @@
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
 
-              <section class="pro-noise-mixer audio-test-controls" aria-label="RIVANI audio testing controls">
+              <section class="pro-noise-mixer" aria-label="RIVANI Pro audio controls">
                 <div class="pro-mixer-head">
                   <div>
                     <div class="pro-title-row">
-                      <span class="pro-chip audio-test-chip">TEST MODE</span>
-                      <h3>Advanced Audio Lab</h3>
+                      <span class="pro-chip">PRO</span>
+                      <h3>Advanced Audio</h3>
                     </div>
-                    <p>Testing controls are temporarily unlocked. After quality testing, selected controls will move back to Pro.</p>
+                    <p>Advanced cleanup and specialist separation controls are included with RIVANI Pro.</p>
                   </div>
-                  <span class="pro-lock-badge audio-test-badge" id="proAudioBadge">● TESTING</span>
+                  <span class="pro-lock-badge" id="proAudioBadge">🔒 PRO</span>
                 </div>
 <div class="pro-locked-grid" id="proBuiltControls">
-                  <button class="pro-feature-lock test-feature-control" type="button" data-pro-control="fan" data-pro-lock="Fan / AC Assist" aria-pressed="false">
+                  <button class="pro-feature-lock" type="button" data-pro-control="fan" data-pro-lock="Fan / AC Assist" aria-pressed="false">
                     <span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>OFF</em>
                   </button>
-                  <button class="pro-feature-lock test-feature-control" type="button" data-pro-control="traffic" data-pro-lock="Traffic Assist" aria-pressed="false">
+                  <button class="pro-feature-lock" type="button" data-pro-control="traffic" data-pro-lock="Traffic Assist" aria-pressed="false">
                     <span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>OFF</em>
                   </button>
-                  <button class="pro-feature-lock test-feature-control" type="button" data-pro-control="click" data-pro-lock="Click Repair" aria-pressed="false">
+                  <button class="pro-feature-lock" type="button" data-pro-control="click" data-pro-lock="Click Repair" aria-pressed="false">
                     <span><b>Click Repair</b><small>Keyboard, mouth-click and impulse repair</small></span><em>OFF</em>
                   </button>
                 </div>
 
                 <div class="pro-specialist-title">
                   <strong>Specialist AI Engines</strong>
-                  <small>Separate AI jobs — kept isolated from the stable Clear Voice engine.</small>
+                  <small>Dedicated controls for difficult recordings.</small>
                 </div>
 
                 <div class="pro-specialist-grid">
-                  <button class="pro-specialist-card specialist-beta-card" id="backgroundVoicesBtn" type="button" data-specialist-engine="Background Voices" aria-pressed="false">
+                  <button class="pro-specialist-card" id="backgroundVoicesBtn" type="button" data-specialist-engine="Background Voices" aria-pressed="false">
                     <span class="pro-specialist-icon">◉</span>
                     <span><b>Background Voices</b><small>Separate two overlapping speakers, then keep the selected primary voice.</small></span>
-                    <em id="backgroundVoicesState">BETA OFF</em>
+                    <em id="backgroundVoicesState">PRO 🔒</em>
                   </button>
-                  <button class="pro-specialist-card specialist-beta-card" id="musicControlBtn" type="button" data-specialist-engine="Music Control" aria-pressed="false">
+                  <button class="pro-specialist-card" id="musicControlBtn" type="button" data-specialist-engine="Music Control" aria-pressed="false">
                     <span class="pro-specialist-icon">♫</span>
                     <span><b>Music Control</b><small>Separate voice from instrumental/background music before Clear Voice.</small></span>
-                    <em id="musicControlState">BETA OFF</em>
+                    <em id="musicControlState">PRO 🔒</em>
                   </button>
                   <button class="pro-specialist-card" id="dereverbSpecialistBtn" type="button" data-specialist-engine="De-Reverb">
                     <span class="pro-specialist-icon">⌁</span>
                     <span><b>De-Reverb</b><small>Dedicated room-echo and late-reflection reduction.</small></span>
-                    <em id="dereverbSpecialistState">BETA ON</em>
+                    <em id="dereverbSpecialistState">PRO 🔒</em>
                   </button>
                 </div>
 
@@ -262,21 +261,7 @@
                     </div>
                   </div>
                 </div>
-
-                <div class="dereverb-lab-banner" id="dereverbLabBanner">
-                  <span>DE-REVERB BETA TEST</span>
-                  <p>De-Reverb starts ON in this test build. Tap its card to compare BETA ON vs BETA OFF. Pro locking will be added only after the audio quality is approved.</p>
-                </div>
-
-                <div class="pro-validation-note">
-                  <span>SPECIALIST TEST MODE</span>
-                  <p>Background Voices and Music Control now switch ON instantly and prepare only when Enhance starts. If a specialist cannot prepare, RIVANI safely skips that stage and continues De-Reverb / Clear Voice instead of getting stuck.</p>
-                </div>
-
-                <div class="pro-daily-usage hidden" id="proDailyUsage">
-                  <div><span>Today</span><b id="proUsageText">0 min / 5 h</b></div>
-                  <div class="pro-usage-bar"><i id="proUsageBar"></i></div>
-                </div>
+              </section>
               </section>
             </div>
 
@@ -339,15 +324,15 @@
               </div>
               <div class="repair-disclosure">
                 <strong>Processing disclosure</strong>
-                <p>Your selected recording is processed by RIVANI AI in this Beta. Keep this tab open until enhancement and export are complete.</p>
+                <p>Your selected recording is processed by RIVANI AI in this browser workflow. Keep this tab open until enhancement and export are complete.</p>
               </div>
             </div>
           </div>
         </div>
 
         <div class="audio-beta-note">
-          <span>FREE BETA LIMITS</span>
-          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free plan target: 30 minutes, 500 MB and 5 enhancements per day · Pro target: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
+          <span>AUDIO PLAN LIMITS</span>
+          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: 30 minutes, 500 MB and 5 enhancements per day · Pro: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
         </div>
       </div>
     </section>
@@ -374,8 +359,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=23.9"></script>
-  <script type="module" src="auth-nav.js?v=23.9"></script>
-  <script type="module" src="audio-repair.js?v=23.9"></script>
+  <script src="script.js?v=24.0-final"></script>
+  <script type="module" src="auth-nav.js?v=24.0-final"></script>
+  <script type="module" src="audio-repair.js?v=24.0-final"></script>
 </body>
 </html>

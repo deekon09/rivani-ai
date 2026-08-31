@@ -1,4 +1,4 @@
-// RIVANI AI · De-Reverb Beta worker
+// RIVANI AI · De-Reverb worker
 // Separate from the stable Clear Voice engine.
 //
 // Single-channel, chunked WPE-style late-reverberation suppression:
@@ -25,7 +25,11 @@ for(let i=0;i<FFT;i++){
   WINDOW[i]=Math.sqrt(Math.max(0,.5-.5*Math.cos(2*Math.PI*i/(FFT-1))));
 }
 
-self.onmessage=event=>{
+function cpuYield(ms=3){
+  return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
+self.onmessage=async event=>{
   const data=event.data||{};
 
   // V23.2 transport health check. This does not touch De-Reverb DSP.
@@ -46,7 +50,7 @@ self.onmessage=event=>{
       text:"Analyzing room reflections…"
     });
 
-    const output=processLong(input,strength);
+    const output=await processLong(input,strength);
 
     self.postMessage(
       {type:"done",buffer:output.buffer},
@@ -55,15 +59,15 @@ self.onmessage=event=>{
   }catch(error){
     self.postMessage({
       type:"error",
-      message:String(error?.message||error||"De-Reverb Beta failed")
+      message:String(error?.message||error||"De-Reverb failed")
     });
   }
 };
 
-function processLong(input,strength){
+async function processLong(input,strength){
   if(input.length<=CHUNK){
     const padded=reflectPad(input,CHUNK);
-    const out=processChunk(padded,strength);
+    const out=await processChunk(padded,strength);
     return new Float32Array(out.subarray(0,input.length));
   }
 
@@ -87,7 +91,7 @@ function processLong(input,strength){
       text:`De-Reverb segment ${ci+1} of ${positions.length}…`
     });
 
-    const processed=processChunk(seg,strength);
+    const processed=await processChunk(seg,strength);
 
     for(let i=0;i<valid;i++){
       const oi=pos+i;
@@ -105,6 +109,10 @@ function processLong(input,strength){
 
       sum[oi]+=processed[i]*w;
       weight[oi]+=w;
+    }
+
+    if(ci<positions.length-1){
+      await cpuYield(18);
     }
   }
 
@@ -124,7 +132,7 @@ function processLong(input,strength){
   return out;
 }
 
-function processChunk(input,strength){
+async function processChunk(input,strength){
   const frameCount=Math.max(
     1,
     1+Math.ceil(Math.max(0,input.length-FFT)/HOP)
@@ -155,6 +163,10 @@ function processChunk(input,strength){
 
     reFrames[t]=hr;
     imFrames[t]=hi;
+
+    if((t+1)%16===0){
+      await cpuYield();
+    }
   }
 
   // Prediction settings.
@@ -290,6 +302,10 @@ function processChunk(input,strength){
       reFrames[t][f]=xr[t];
       imFrames[t][f]=xi[t];
     }
+
+    if((f-lowBin+1)%24===0){
+      await cpuYield();
+    }
   }
 
   // Synthesis STFT.
@@ -319,6 +335,10 @@ function processChunk(input,strength){
       const w=WINDOW[n];
       sum[idx]+=re[n]*w;
       norm[idx]+=w*w;
+    }
+
+    if((t+1)%16===0){
+      await cpuYield();
     }
   }
 

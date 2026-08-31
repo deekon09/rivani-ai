@@ -1,4 +1,4 @@
-// RIVANI AI · Background Voices Beta
+// RIVANI AI · Background Voices
 const ORT_VERSION="1.29.0";
 const ORT_WEBGPU_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
 const ORT_WASM_URL=`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
@@ -38,7 +38,7 @@ self.onmessage=async e=>{
   }catch(err){
     self.postMessage({
       type:"error",
-      message:String(err?.message||err||"Background Voices Beta failed")
+      message:String(err?.message||err||"Background Voices failed")
     });
   }
 };
@@ -97,15 +97,13 @@ async function ensureSession(){
 }
 
 function chooseWasmThreads(){
-  if(!self.crossOriginIsolated)return 1;
-
-  const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
-
-  if(cores>=8)return 4;
-  if(cores>=6)return 3;
-  if(cores>=4)return 2;
+  // Final CPU Balanced profile: stable single-thread inference.
   return 1;
 }
+function cpuYield(ms=24){
+  return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
 async function getModelBytes(){const cache=await caches.open(CACHE_NAME),key=new Request(MODEL_PROXY),cached=await cache.match(key);if(cached){const ab=await cached.arrayBuffer();if(ab.byteLength>70000000)return ab;}let last;for(const url of [MODEL_PROXY,MODEL_DIRECT]){try{const res=await fetch(url,{mode:"cors",cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);const total=Number(res.headers.get("content-length")||0),reader=res.body?.getReader();let ab;if(reader){let loaded=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;self.postMessage({type:"modelProgress",progress:total?Math.min(92,Math.round(loaded/total*92)):25,text:total?`Preparing Background Voices AI ${Math.round(loaded/total*100)}%…`:"Preparing Background Voices AI…"});}ab=concatChunks(chunks,loaded);}else ab=await res.arrayBuffer();if(ab.byteLength<70000000)throw new Error("Specialist model download was incomplete.");try{await cache.put(key,new Response(ab.slice(0),{headers:{"content-type":"application/octet-stream"}}));}catch{}return ab;}catch(err){last=err;}}throw new Error(`Background Voices model could not load. Deploy the V22 rivani-models Worker update. ${last?.message||""}`);}
 function inputShapeFor(n){const name=session.inputNames[0];const meta=session.inputMetadata?.[name]||session.inputMetadata?.[0];const dims=meta?.dimensions||meta?.dims||[];if(dims.length===1)return [n];if(dims.length===3)return [1,1,n];return [1,n];}
 async function runSegment(seg){const name=session.inputNames[0],tensor=new ort.Tensor("float32",seg,inputShapeFor(seg.length)),outs=await session.run({[name]:tensor});if(session.outputNames.length>=2){const a=outs[session.outputNames[0]],b=outs[session.outputNames[1]];if(a?.data?.length>=seg.length&&b?.data?.length>=seg.length)return {a:new Float32Array(a.data.slice(0,seg.length)),b:new Float32Array(b.data.slice(0,seg.length))};}const out=outs[session.outputNames[0]];if(!out?.data)throw new Error("Speaker separator returned no audio.");return extractTwoSources(out,seg.length);}
@@ -145,6 +143,10 @@ async function separateLong(input,mode){
       if(ci>0&&i<OVERLAP){const t=i/(OVERLAP-1);w*=.5-.5*Math.cos(Math.PI*t);}
       if(ci<pos.length-1&&i>=STRIDE){const t=(i-STRIDE)/(OVERLAP-1);w*=.5+.5*Math.cos(Math.PI*t);}
       sumA[oi]+=a[i]*w;sumB[oi]+=b[i]*w;wgt[oi]+=w;
+    }
+
+    if(ci<pos.length-1){
+      await cpuYield();
     }
   }
 
