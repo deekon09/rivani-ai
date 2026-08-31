@@ -47,6 +47,7 @@ let fidelityGuard=true;
 let textLogoSafe=true;
 let colorLock=true;
 let busy=false;
+let currentScan=null;
 
 chooseBtn?.addEventListener("click",()=>fileInput?.click());
 replaceBtn?.addEventListener("click",()=>fileInput?.click());
@@ -202,6 +203,7 @@ async function loadImage(file){
     enhanceBtn.disabled=false;
 
     const scan=await smartScan(bitmap,file);
+    currentScan=scan;
     renderSmartScan(scan);
 
     editor.scrollIntoView({behavior:"smooth",block:"start"});
@@ -405,7 +407,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.3-image",
+      "image-enhancer-worker.js?v=25.4-image",
       {type:"module"}
     );
 
@@ -415,7 +417,8 @@ async function enhanceCurrentImage(){
       prep.imageData,
       prep.width,
       prep.height,
-      prep.workerScale
+      prep.workerScale,
+      getImagePerformanceProfile()
     );
     const runtimeMs=performance.now()-runtimeStarted;
 
@@ -446,7 +449,8 @@ async function enhanceCurrentImage(){
       imageMode,
       fidelityGuard,
       textLogoSafe,
-      colorLock
+      colorLock,
+      currentScan
     );
 
     const finalCanvas=composeFinal(
@@ -455,7 +459,8 @@ async function enhanceCurrentImage(){
       response.width,
       response.height,
       decision.blend,
-      colorLock
+      colorLock,
+      rawMetrics
     );
 
     const finalMetrics=measureFidelity(
@@ -488,7 +493,8 @@ async function enhanceCurrentImage(){
       response.height,
       prep.effectiveScale,
       response.provider,
-      runtimeMs
+      runtimeMs,
+      response.performanceProfile
     );
 
     processing.classList.add("hidden");
@@ -620,7 +626,22 @@ function getDeviceOutputBudget(bitmap){
   return {maxPixels,maxEdge,mobile,memory,cores};
 }
 
-function runWorker(worker,imageData,width,height,targetScale){
+function getImagePerformanceProfile(){
+  const cores=Math.max(1,Number(navigator.hardwareConcurrency)||4);
+  const memory=Math.max(0,Number(navigator.deviceMemory)||0);
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||"") ||
+    window.matchMedia?.("(pointer:coarse)")?.matches;
+
+  if(mobile)return "cool";
+
+  // Reserve the fully aggressive feed for clearly strong desktops/workstations.
+  // Common 6–8 core PCs/laptops stay Balanced to keep UI/thermals sensible.
+  if(cores>=12&&(memory===0||memory>=8))return "fast";
+  if(cores>=6)return "balanced";
+  return "cool";
+}
+
+function runWorker(worker,imageData,width,height,targetScale,performanceProfile){
   return new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>{
       worker.terminate();
@@ -668,7 +689,8 @@ function runWorker(worker,imageData,width,height,targetScale){
           width:msg.width,
           height:msg.height,
           rgba:msg.rgba,
-          provider:msg.provider||"RIVANI AI Engine"
+          provider:msg.provider||"RIVANI AI Engine",
+          performanceProfile:msg.performanceProfile||performanceProfile||"balanced"
         });
         return;
       }
@@ -693,61 +715,78 @@ function runWorker(worker,imageData,width,height,targetScale){
       width,
       height,
       targetScale,
+      performanceProfile,
       rgba:copy.buffer
     },[copy.buffer]);
   });
 }
 
-function decideGuard(metrics,mode,guard,textSafe,colorSafe){
+function decideGuard(metrics,mode,guard,textSafe,colorSafe,scan){
   const base={
-    natural:.80,
-    strong:.94,
-    restore:.88
-  }[mode]||.80;
+    natural:.82,
+    strong:.96,
+    restore:.90
+  }[mode]||.82;
 
   let blend=base;
   let risk="low";
   const reasons=[];
 
-  if(metrics.structure<.82){
+  // V25.4: the earlier guard treated ordinary Real-ESRGAN variation as medium
+  // risk too easily, which pulled Strong all the way down to a 70% AI blend.
+  // These thresholds still Safe-Pass genuine drift while allowing verified
+  // model detail to survive in normal photographs.
+  if(metrics.structure<.78){
     risk="high";
     reasons.push("structure drift");
-  }else if(metrics.structure<.90){
+  }else if(metrics.structure<.86){
     risk="medium";
     reasons.push("structure variation");
   }
 
-  if(metrics.edgeRatio>2.25){
+  if(metrics.edgeRatio>3.0){
+    risk="high";
+    reasons.push("extreme edge amplification");
+  }else if(metrics.edgeRatio>2.40){
     risk=risk==="high"?"high":"medium";
     reasons.push("edge amplification");
   }
 
-  if(metrics.colorDrift>.085){
+  if(metrics.colorDrift>.15||Math.abs(metrics.lumaDrift)>.14){
+    risk="high";
+    reasons.push("strong tonal/color drift");
+  }else if(metrics.colorDrift>.10||Math.abs(metrics.lumaDrift)>.09){
     risk=risk==="high"?"high":"medium";
-    reasons.push("color drift");
+    reasons.push("color or brightness drift");
   }
 
+  // Text & Logo Safe is no longer a blanket 84% cap over the whole photo.
+  // It only reins in the model when the verification signals show that fine
+  // structure is actually being pushed hard. This keeps landscapes/portraits
+  // detailed while still protecting edge-dense brand/text content.
+  const sensitive=scan?.detail?.[0]==="Sensitive";
   if(textSafe){
-    blend=Math.min(blend,.84);
+    if(metrics.edgeRatio>2.05)blend-=sensitive?.06:.04;
+    if(metrics.structure<.90)blend-=sensitive?.04:.02;
   }
 
-  if(colorSafe&&metrics.colorDrift>.045){
-    blend-=.05;
+  // Color Lock now has a real tonal/chroma correction pass in composeFinal().
+  // Only severe verified drift reduces AI strength here.
+  if(colorSafe&&(metrics.colorDrift>.075||Math.abs(metrics.lumaDrift)>.07)){
+    blend-=.03;
   }
 
   if(guard){
     if(risk==="high"){
-      // True Safe Pass: keep the requested output dimensions, but use the
-      // original image as the truth source instead of forcing risky AI detail.
       blend=0;
     }else if(risk==="medium"){
-      blend=Math.min(blend,.70);
+      const mediumCap=mode==="strong"?.84:mode==="restore"?.80:.76;
+      blend=Math.min(blend,mediumCap);
     }
   }
 
-  // Keep ordinary AI blends bounded. A high-risk Safe Pass is intentionally 0%.
   if(!(guard&&risk==="high")){
-    blend=Math.max(.38,Math.min(.96,blend));
+    blend=Math.max(.40,Math.min(.97,blend));
   }
 
   return {
@@ -763,13 +802,13 @@ function composeFinal(
   width,
   height,
   blend,
-  colorSafe
+  colorSafe,
+  metrics
 ){
   const ctx=aiCanvas.getContext("2d",{alpha:true});
 
-  // V25.2 memory-safe composition: keep the AI canvas and blend the original
-  // truth anchor over it. For opaque pixels this is mathematically equivalent to
-  // original*(1-blend) + AI*blend, but avoids allocating another full-size canvas.
+  // Keep the AI result as the detail carrier and blend the original truth
+  // anchor over it. No extra full-resolution result canvas is allocated.
   ctx.save();
   ctx.globalCompositeOperation="source-over";
   ctx.globalAlpha=Math.max(0,Math.min(1,1-blend));
@@ -778,10 +817,32 @@ function composeFinal(
   ctx.drawImage(source,0,0,width,height);
   ctx.restore();
 
-  // Color Lock remains primarily enforced by Fidelity Guard blend reduction.
-  // Avoid a second full-resolution filtered canvas, which is expensive on mobile.
-  if(colorSafe){
-    // Intentionally no destructive color filter here.
+  if(colorSafe&&blend>0){
+    // Color Lock V25.4: correct global chroma and luminance drift with partial
+    // source blend modes. This preserves AI micro-detail far better than simply
+    // lowering the whole AI blend whenever the model shifts exposure/color.
+    const chromaAlpha=Math.min(.22,Math.max(0,(metrics?.colorDrift||0)-.018)*2.4);
+    const lumaAlpha=Math.min(.28,Math.abs(metrics?.lumaDrift||0)*3.4);
+
+    if(chromaAlpha>.015){
+      ctx.save();
+      ctx.globalCompositeOperation="color";
+      ctx.globalAlpha=chromaAlpha;
+      ctx.imageSmoothingEnabled=true;
+      ctx.imageSmoothingQuality="high";
+      ctx.drawImage(source,0,0,width,height);
+      ctx.restore();
+    }
+
+    if(lumaAlpha>.015){
+      ctx.save();
+      ctx.globalCompositeOperation="luminosity";
+      ctx.globalAlpha=lumaAlpha;
+      ctx.imageSmoothingEnabled=true;
+      ctx.imageSmoothingQuality="high";
+      ctx.drawImage(source,0,0,width,height);
+      ctx.restore();
+    }
   }
 
   // Preserve original transparency exactly.
@@ -905,6 +966,7 @@ function measureFidelity(source,enhancedCanvas){
   return {
     structure:Math.max(0,Math.min(1,ssim)),
     colorDrift:colorDiff/n,
+    lumaDrift:(meanB-meanA)/255,
     edgeRatio:
       edgeA>1e-6
         ?edgeB/edgeA
@@ -919,7 +981,8 @@ function renderReport(
   height,
   effectiveScale,
   provider,
-  runtimeMs
+  runtimeMs,
+  performanceProfile
 ){
   const structurePct=Math.round(metrics.structure*100);
   const colorPct=Math.round(metrics.colorDrift*100);
@@ -941,8 +1004,9 @@ function renderReport(
         ?"Low"
         :"Moderate";
 
+  const tonePct=Math.round(metrics.lumaDrift*1000)/10;
   $("reportColorNote").textContent=
-    `${colorPct}% sampled color difference`;
+    `${colorPct}% sampled color difference · tone ${tonePct>0?"+":""}${tonePct}%`;
 
   $("reportEdges").textContent=
     edgeDelta<=35
@@ -985,10 +1049,17 @@ function renderReport(
   $("imageEffectiveScale").textContent=
     `${effectiveScale.toFixed(effectiveScale>=3?1:2)}× effective scale`;
 
+  const profileLabel=
+    performanceProfile==="fast"
+      ?"Fast"
+      :performanceProfile==="cool"
+        ?"Cool"
+        :"Balanced";
+
   $("imageRuntimeProvider").textContent=
     String(provider||"").startsWith("WebGPU")
-      ?"GPU accelerated"
-      :"Compatibility engine";
+      ?`GPU accelerated · ${profileLabel}`
+      :`Compatibility engine · ${profileLabel}`;
 
   const seconds=Math.max(0,Number(runtimeMs)||0)/1000;
   $("imageRuntimeTime").textContent=
@@ -1099,6 +1170,7 @@ function resetForAnotherImage(){
   sourceUrl="";
   enhancedUrl="";
   enhancedBlob=null;
+  currentScan=null;
 
   if(fileInput)fileInput.value="";
   originalPreview?.removeAttribute("src");

@@ -1,4 +1,4 @@
-// RIVANI AI · Image Enhancer V25.3
+// RIVANI AI · Image Enhancer V25.4
 // Real-ESRGAN x4plus ONNX · browser-side inference.
 // Fixed model contract: 1x3x128x128 -> 1x3x512x512.
 
@@ -27,6 +27,7 @@ let sessionMode="none";
 let modelBytes=null;
 let inputName="";
 let outputName="";
+let performanceProfile="balanced";
 
 self.onmessage=async event=>{
   const msg=event.data||{};
@@ -37,6 +38,7 @@ self.onmessage=async event=>{
     const height=Number(msg.height);
     const targetScale=Number(msg.targetScale)===4?4:2;
     const pixels=new Uint8ClampedArray(msg.rgba);
+    performanceProfile=normalizeProfile(msg.performanceProfile);
 
     if(!width||!height||pixels.length!==width*height*4){
       throw new Error("Invalid image buffer.");
@@ -63,7 +65,8 @@ self.onmessage=async event=>{
       width:result.width,
       height:result.height,
       rgba:result.rgba.buffer,
-      provider
+      provider,
+      performanceProfile
     },[result.rgba.buffer]);
   }catch(error){
     self.postMessage({
@@ -109,7 +112,11 @@ async function createWebGpuSession(graphCapture){
   ort.env.wasm.wasmPaths=ORT_WASM_BASE;
 
   if(ort.env.webgpu){
-    ort.env.webgpu.powerPreference="high-performance";
+    // High-performance adapter preference is reserved for genuinely strong desktops.
+    // Balanced/Cool still use WebGPU, but let the browser choose the sensible adapter.
+    if(performanceProfile==="fast"){
+      ort.env.webgpu.powerPreference="high-performance";
+    }
     ort.env.webgpu.forceFallbackAdapter=false;
   }
 
@@ -226,6 +233,7 @@ async function enhanceImage(src,width,height,targetScale){
   let outputFactor=null;
   let lastReported=-1;
   let lastReportAt=0;
+  let paceBatchStarted=performance.now();
   const inputBuffer=new Float32Array(TILE*TILE*3);
 
   for(let gy=0;gy<height;gy+=CORE){
@@ -259,6 +267,11 @@ async function enhanceImage(src,width,height,targetScale){
 
       completed++;
 
+      // Adaptive GPU pacing: same model, same pixels, same tile/context math.
+      // We only insert tiny cooperative gaps so mid-range laptops/mobile devices
+      // are not fed an endless back-to-back GPU queue. Strong desktops remain fast.
+      paceBatchStarted=await adaptivePace(completed,total,paceBatchStarted);
+
       const progress=3+Math.round((completed/total)*94);
       const now=performance.now();
       if(progress!==lastReported&&(now-lastReportAt>=90||completed===total)){
@@ -280,6 +293,41 @@ async function enhanceImage(src,width,height,targetScale){
     height:outH,
     rgba:output
   };
+}
+
+function normalizeProfile(value){
+  return value==="fast"||value==="cool"?value:"balanced";
+}
+
+async function adaptivePace(completed,total,batchStarted){
+  if(completed>=total||!sessionMode.startsWith("webgpu"))return performance.now();
+
+  const batchSize=
+    performanceProfile==="fast"
+      ?16
+      :performanceProfile==="cool"
+        ?3
+        :6;
+
+  if(completed%batchSize!==0)return batchStarted;
+
+  const elapsed=Math.max(1,performance.now()-batchStarted);
+  const duty=
+    performanceProfile==="fast"
+      ?.985
+      :performanceProfile==="cool"
+        ?.88
+        :.93;
+
+  // Duty-cycle pacing is proportional to real tile time. On a fast GPU the
+  // pause stays tiny; on a slower/hotter device it creates enough breathing
+  // room to reduce sustained utilization without changing a single model pixel.
+  const maxPause=performanceProfile==="cool"?60:performanceProfile==="balanced"?34:8;
+  const pause=Math.min(maxPause,Math.max(0,elapsed*(1/duty-1)));
+  if(pause>=1)await delay(Math.round(pause));
+  else await delay(0);
+
+  return performance.now();
 }
 
 function fillTileTensor(out,src,width,height,gx,gy){
