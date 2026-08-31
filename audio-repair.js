@@ -23,8 +23,14 @@ const PRO_MAX_FILE_BYTES = 1024 * 1024 * 1024;
 const PRO_DAILY_SECONDS = 5 * 60 * 60;
 const PRO_USAGE_KEY = "rivani_pro_audio_usage_v1";
 
-const FREE_DAILY_JOBS = 5;
+const FREE_DAILY_JOBS = 9;
 const FREE_JOB_USAGE_KEY = "rivani_free_audio_jobs_v1";
+const PRO_PRICE_INR = 499;
+
+// Payment provider is configuration-driven. When the secure checkout is
+// ready, define this before audio-repair.js loads:
+// window.RIVANI_PRO_CHECKOUT_URL = "https://...";
+const PRO_CHECKOUT_URL = String(window.RIVANI_PRO_CHECKOUT_URL||"").trim();
 
 const SUPPORTED_AUDIO_EXTENSIONS = /\.(wav|mp3|m4a|aac|ogg|flac|webm)$/i;
 const FREE_MP3_BITRATE = 192;
@@ -177,11 +183,46 @@ function recordCompletedAudioJob(){
 }
 function freeJobsRemaining(){return Math.max(0,FREE_DAILY_JOBS-readFreeJobUsage().count);}
 function renderDailyJobUsage(){
-  // Final product: usage accounting remains internal; no test/debug counter
-  // is shown in the customer UI.
+  const card=$("freeDailyLimitCard");
+  const locked=!isProPlan()&&freeJobsRemaining()<=0;
+
+  card?.classList.toggle("hidden",!locked);
+
+  if(repairBtn){
+    repairBtn.classList.toggle("quota-locked",locked);
+    repairBtn.setAttribute("aria-disabled",String(locked));
+
+    if(locked){
+      repairBtn.dataset.processing="1";
+  repairBtn.disabled=true;
+    }else if(repairBtn.dataset.processing!=="1"){
+      repairBtn.disabled=false;
+    }
+  }
 }
+
 function canStartAnotherFreeJob(){
   return isProPlan()||freeJobsRemaining()>0;
+}
+
+function showFreeLimitReached(){
+  renderDailyJobUsage();
+
+  openProMessage(
+    "Free daily limit reached",
+    `Your ${FREE_DAILY_JOBS} free audio enhancements are used for today. Upgrade to RIVANI Pro for unlimited enhancement jobs and advanced audio controls.`
+  );
+}
+
+function startProCheckout(){
+  if(PRO_CHECKOUT_URL){
+    window.location.href=PRO_CHECKOUT_URL;
+    return;
+  }
+
+  alert(
+    `RIVANI Pro is ₹${PRO_PRICE_INR}/month. Secure checkout is being connected now.`
+  );
 }
 
 function readProUsage(){
@@ -268,7 +309,7 @@ function getActiveFileByteLimit(){return isProPlan()?PRO_MAX_FILE_BYTES:FREE_MAX
 async function startMicrophoneRecording(){
   if(mediaRecorder?.state==="recording")return;
   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){alert("Microphone recording is not supported by this browser.");return;}
-  if(!canStartAnotherFreeJob()){alert(`Free plan supports ${FREE_DAILY_JOBS} audio enhancements per day.`);return;}
+  if(!canStartAnotherFreeJob()){showFreeLimitReached();return;}
   try{
     micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
     micChunks=[]; micBytes=0;
@@ -406,6 +447,14 @@ function toggleBuiltProControl(btn){
 
 document.querySelectorAll("[data-close-pro]").forEach(btn=>{
   btn.addEventListener("click",()=>$("proPreviewModal")?.classList.add("hidden"));
+});
+
+$("proBuyBtn")?.addEventListener("click",startProCheckout);
+$("freeLimitProBtn")?.addEventListener("click",()=>{
+  openProMessage(
+    "Upgrade to RIVANI Pro",
+    `Unlimited enhancement jobs, advanced audio controls and lossless WAV export for ₹${PRO_PRICE_INR}/month in India.`
+  );
 });
 
 $("speakerModeBtn")?.addEventListener("click",()=>{speakerMode=speakerMode==="auto"?"a":speakerMode==="a"?"b":"auto";renderSpecialistControls();});
@@ -716,7 +765,7 @@ function encodeMp3(buffer,bitrate=192){
       channels.push(new Float32Array(buffer.getChannelData(1)));
     }
 
-    const worker=new Worker("mp3-export-worker.js?v=24.1-adaptive");
+    const worker=new Worker("mp3-export-worker.js?v=24.2-free9");
     const transfer=channels.map(ch=>ch.buffer);
 
     const timeout=setTimeout(()=>{
@@ -890,7 +939,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=24.1-adaptive",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=24.2-free9",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -980,7 +1029,7 @@ async function warmupEngine(){
 
 async function repairLocally(){
   if(!sourceBuffer)return;
-  if(!canStartAnotherFreeJob()){alert(`Free plan supports ${FREE_DAILY_JOBS} audio enhancements per day.`);return;}
+  if(!canStartAnotherFreeJob()){showFreeLimitReached();return;}
 
   if(isProPlan()){
     const remaining=remainingProSeconds();
@@ -1342,7 +1391,9 @@ async function repairLocally(){
       `Reload the page once and retry. The model proxy only needs attention when the AI model itself reports a model-fetch error.`
     );
   }finally{
-    repairBtn.disabled=false;
+    delete repairBtn.dataset.processing;
+    repairBtn.disabled=!canStartAnotherFreeJob();
+    renderDailyJobUsage();
     setProcessingPerformanceMode(false);
     releaseInactiveSpecialistWorkers();
     releaseSpecialistsForLowPowerDevice();
@@ -1364,7 +1415,7 @@ function createDereverbWorker(useEmbedded=false){
   }else{
     // Resolve against this module instead of the document URL.
     const url=new URL(
-      "./dereverb-worker.js?v=24.1-adaptive",
+      "./dereverb-worker.js?v=24.2-free9",
       import.meta.url
     );
     dereverbWorker=new Worker(url);
@@ -1719,14 +1770,14 @@ function resampleMonoLinear(input,fromRate,toRate){
 }
 function getSpeakerWorker(){
   if(!speakerWorker){
-    speakerWorker=new Worker("speaker-separation-worker.js?v=24.1-adaptive",{type:"module"});
+    speakerWorker=new Worker("speaker-separation-worker.js?v=24.2-free9",{type:"module"});
   }
   return speakerWorker;
 }
 
 function getMusicWorker(){
   if(!musicWorker){
-    musicWorker=new Worker("music-separation-worker.js?v=24.1-adaptive",{type:"module"});
+    musicWorker=new Worker("music-separation-worker.js?v=24.2-free9",{type:"module"});
   }
   return musicWorker;
 }

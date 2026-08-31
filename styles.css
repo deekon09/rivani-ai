@@ -1853,3 +1853,62 @@ body.rivani-processing-performance .specialist-beta-card{
 .pro-validation-note{
   display:none!important;
 }
+
+
+/* ==========================================================
+   RIVANI V24.2 · Free 9/day lock + Pro upgrade
+   ========================================================== */
+.free-limit-lock{
+  margin:16px 0 22px;
+  padding:18px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+  border:1px solid rgba(132,91,255,.32);
+  border-radius:18px;
+  background:
+    radial-gradient(circle at 10% 0%,rgba(50,150,255,.12),transparent 38%),
+    linear-gradient(135deg,rgba(10,16,42,.94),rgba(20,10,42,.92));
+  box-shadow:0 18px 55px rgba(0,0,0,.22);
+}
+.free-limit-lock.hidden{display:none!important}
+.free-limit-lock-icon{
+  width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+  background:rgba(126,91,255,.12);border:1px solid rgba(144,105,255,.24);
+  font-size:19px
+}
+.free-limit-lock-copy h3{margin:4px 0 5px;font-size:16px;color:#f5f8ff}
+.free-limit-lock-copy p{margin:0;color:#93a1bd;font-size:11px;line-height:1.55}
+.free-limit-lock-meta{
+  display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:9px;
+  font-size:10px;color:#a8b6d0
+}
+.free-limit-lock-meta b{color:#d8c7ff}
+.free-limit-pro-btn{white-space:nowrap;min-width:190px}
+.audio-main-action.quota-locked{
+  opacity:.48!important;cursor:not-allowed!important;filter:saturate(.65)!important
+}
+.pro-price-panel{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+  margin:16px 0 4px;padding:14px 16px;border-radius:15px;
+  border:1px solid rgba(92,159,255,.22);background:rgba(8,16,39,.72)
+}
+.pro-price-panel strong{font-size:28px;letter-spacing:-.04em;color:#f5f8ff}
+.pro-price-panel strong span{
+  margin-left:3px;font-size:11px;font-weight:700;letter-spacing:0;color:#8fa0bd
+}
+.pro-price-panel small{
+  max-width:240px;text-align:right;color:#8190aa;font-size:9px;line-height:1.45
+}
+.pro-buy-btn{width:100%;margin-top:6px}
+.pro-modal-secondary{
+  width:100%;margin-top:9px;padding:9px 12px;border:0;background:transparent;
+  color:#7f8ca5;cursor:pointer;font:inherit;font-size:10px
+}
+@media (max-width:720px){
+  .free-limit-lock{grid-template-columns:auto minmax(0,1fr)}
+  .free-limit-pro-btn{grid-column:1/-1;width:100%}
+  .pro-price-panel{align-items:flex-start;flex-direction:column}
+  .pro-price-panel small{max-width:none;text-align:left}
+}

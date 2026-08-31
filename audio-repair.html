@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
   <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=24.1-adaptive">
+  <link rel="stylesheet" href="styles.css?v=24.2-free9">
 </head>
 <body class="audio-repair-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -98,7 +98,7 @@
 
             <div class="upload-support-info">
               <div class="support-line"><b>Upload:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
-              <div class="support-line"><b>Free:</b> 30 min · 500 MB · 5 enhancements/day</div>
+              <div class="support-line"><b>Free:</b> 30 min · 500 MB · 9 enhancements/day</div>
               <div class="support-line"><b>Pro:</b> 1 GB/file · 5 h processing/day · unlimited jobs</div>
               <div class="support-line"><b>Mic:</b> same duration/plan limits as uploaded audio</div>
               <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
@@ -189,6 +189,22 @@
 <button class="btn btn-primary audio-main-action gpu-repair-button" id="repairAudioBtn" type="button">
                 <span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
+
+              <div class="free-limit-lock hidden" id="freeDailyLimitCard" role="status" aria-live="polite">
+                <div class="free-limit-lock-icon">🔒</div>
+                <div class="free-limit-lock-copy">
+                  <span class="section-kicker">DAILY LIMIT REACHED</span>
+                  <h3>Your 9 free enhancements are used for today.</h3>
+                  <p>Free plan daily limit is over. Try again tomorrow, or upgrade to RIVANI Pro for unlimited enhancement jobs and advanced audio controls.</p>
+                  <div class="free-limit-lock-meta">
+                    <span><b>RIVANI PRO</b> ₹499/month</span>
+                    <span>Unlimited enhancement jobs · 5 h processing/day</span>
+                  </div>
+                </div>
+                <button class="btn btn-primary free-limit-pro-btn" id="freeLimitProBtn" type="button">
+                  Get Pro — ₹499/month
+                </button>
+              </div>
 
               <section class="pro-noise-mixer" aria-label="RIVANI Pro audio controls">
                 <div class="pro-mixer-head">
@@ -332,7 +348,7 @@
 
         <div class="audio-beta-note">
           <span>AUDIO PLAN LIMITS</span>
-          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: 30 minutes, 500 MB and 5 enhancements per day · Pro: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
+          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: 30 minutes, 500 MB and 9 enhancements per day · Pro: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
         </div>
       </div>
     </section>
@@ -343,9 +359,20 @@
     <div class="pro-preview-card">
       <button class="pro-modal-close" type="button" data-close-pro aria-label="Close">×</button>
       <span class="pro-chip">RIVANI PRO</span>
-      <h2 id="proPreviewTitle">Advanced Noise Mixer</h2>
-      <p id="proPreviewCopy">Advanced audio controls and lossless WAV export are reserved for RIVANI Pro.</p>
-      <button class="btn btn-primary" type="button" data-close-pro>Got it</button>
+      <h2 id="proPreviewTitle">Unlock RIVANI Pro</h2>
+      <p id="proPreviewCopy">Get unlimited enhancement jobs, advanced audio controls and lossless WAV export.</p>
+      <div class="pro-price-panel">
+        <strong>₹499<span>/month</span></strong>
+        <small>India price · international pricing is shown at secure checkout.</small>
+      </div>
+      <div class="pro-modal-points">
+        <span>✓ Unlimited enhancement jobs</span>
+        <span>✓ 5 h processing/day</span>
+        <span>✓ Advanced audio controls</span>
+        <span>✓ Lossless WAV export</span>
+      </div>
+      <button class="btn btn-primary pro-buy-btn" id="proBuyBtn" type="button">Get Pro — ₹499/month</button>
+      <button class="pro-modal-secondary" type="button" data-close-pro>Not now</button>
     </div>
   </div>
 
@@ -359,8 +386,8 @@
     <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
   </footer>
 
-  <script src="script.js?v=24.1-adaptive"></script>
-  <script type="module" src="auth-nav.js?v=24.1-adaptive"></script>
-  <script type="module" src="audio-repair.js?v=24.1-adaptive"></script>
+  <script src="script.js?v=24.2-free9"></script>
+  <script type="module" src="auth-nav.js?v=24.2-free9"></script>
+  <script type="module" src="audio-repair.js?v=24.2-free9"></script>
 </body>
 </html>
