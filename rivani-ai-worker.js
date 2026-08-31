@@ -32,12 +32,51 @@ const BINS = WIN / 2 + 1; // 961
 const MAX_WAV = 32768.0;
 const EPS32 = 1.1920928955078125e-7;
 
-// V24 CPU Balanced:
-// cooperative scheduling only. No model, mask, FFT, overlap or strength
-// constants are changed, so audio quality/math remains the same.
-const CPU_YIELD_MS = 4;
-const CPU_YIELD_FRAMES = 16;
+// V24.1 Adaptive Performance.
+// IMPORTANT: Clear Voice remains the approved single-thread full-WASM
+// runtime. Only cooperative scheduling adapts to the device; model/DSP math
+// is unchanged.
+const RIVANI_PERF = detectAdaptivePerformance();
+
+function detectAdaptivePerformance(){
+  const nav=self.navigator||{};
+  const cores=Math.max(1,Number(nav.hardwareConcurrency)||4);
+  const memory=Number(nav.deviceMemory)||0;
+  const ua=String(nav.userAgent||"");
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const lowMemory=memory>0&&memory<=4;
+
+  if(!mobile&&!lowMemory&&cores>=8){
+    return {
+      mode:"fast",
+      yieldMs:1,
+      frameYieldEvery:64,
+      chunkRestMs:3
+    };
+  }
+
+  if(!mobile&&!lowMemory&&cores>=6){
+    return {
+      mode:"balanced",
+      yieldMs:2,
+      frameYieldEvery:32,
+      chunkRestMs:8
+    };
+  }
+
+  return {
+    mode:"cool",
+    yieldMs:4,
+    frameYieldEvery:16,
+    chunkRestMs:18
+  };
+}
+
+const CPU_YIELD_MS=RIVANI_PERF.yieldMs;
+const CPU_YIELD_FRAMES=RIVANI_PERF.frameYieldEvery;
+
 function cpuYield(ms=CPU_YIELD_MS){
+  if(ms<=0)return Promise.resolve();
   return new Promise(resolve=>setTimeout(resolve,ms));
 }
 
@@ -410,7 +449,7 @@ async function denoiseLong(input, strength, assists={}) {
     }
 
     if(s<positions.length-1){
-      await cpuYield(18);
+      await cpuYield(RIVANI_PERF.chunkRestMs);
     }
   }
 

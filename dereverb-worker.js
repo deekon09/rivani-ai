@@ -25,8 +25,50 @@ for(let i=0;i<FFT;i++){
   WINDOW[i]=Math.sqrt(Math.max(0,.5-.5*Math.cos(2*Math.PI*i/(FFT-1))));
 }
 
+const RIVANI_PERF=detectAdaptivePerformance();
+
+function detectAdaptivePerformance(){
+  const nav=self.navigator||{};
+  const cores=Math.max(1,Number(nav.hardwareConcurrency)||4);
+  const memory=Number(nav.deviceMemory)||0;
+  const ua=String(nav.userAgent||"");
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const lowMemory=memory>0&&memory<=4;
+
+  if(!mobile&&!lowMemory&&cores>=8){
+    return {
+      mode:"fast",
+      yieldScale:.22,
+      frameYieldEvery:64,
+      frequencyYieldEvery:72
+    };
+  }
+
+  if(!mobile&&!lowMemory&&cores>=6){
+    return {
+      mode:"balanced",
+      yieldScale:.50,
+      frameYieldEvery:32,
+      frequencyYieldEvery:48
+    };
+  }
+
+  return {
+    mode:"cool",
+    yieldScale:1,
+    frameYieldEvery:16,
+    frequencyYieldEvery:24
+  };
+}
+
 function cpuYield(ms=3){
-  return new Promise(resolve=>setTimeout(resolve,ms));
+  const wait=Math.max(
+    RIVANI_PERF.mode==="fast"?1:0,
+    Math.round(ms*RIVANI_PERF.yieldScale)
+  );
+
+  if(wait<=0)return Promise.resolve();
+  return new Promise(resolve=>setTimeout(resolve,wait));
 }
 
 self.onmessage=async event=>{
@@ -164,7 +206,7 @@ async function processChunk(input,strength){
     reFrames[t]=hr;
     imFrames[t]=hi;
 
-    if((t+1)%16===0){
+    if((t+1)%RIVANI_PERF.frameYieldEvery===0){
       await cpuYield();
     }
   }
@@ -303,7 +345,7 @@ async function processChunk(input,strength){
       imFrames[t][f]=xi[t];
     }
 
-    if((f-lowBin+1)%24===0){
+    if((f-lowBin+1)%RIVANI_PERF.frequencyYieldEvery===0){
       await cpuYield();
     }
   }
@@ -337,7 +379,7 @@ async function processChunk(input,strength){
       norm[idx]+=w*w;
     }
 
-    if((t+1)%16===0){
+    if((t+1)%RIVANI_PERF.frameYieldEvery===0){
       await cpuYield();
     }
   }

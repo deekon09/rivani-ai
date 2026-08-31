@@ -112,14 +112,57 @@ async function ensureSession(){
   }
 }
 
+const RIVANI_PERF=detectAdaptivePerformance();
+
+function detectAdaptivePerformance(){
+  const nav=self.navigator||{};
+  const cores=Math.max(1,Number(nav.hardwareConcurrency)||4);
+  const memory=Number(nav.deviceMemory)||0;
+  const ua=String(nav.userAgent||"");
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const lowMemory=memory>0&&memory<=4;
+  const isolated=self.crossOriginIsolated===true;
+
+  if(!mobile&&!lowMemory&&cores>=8){
+    return {
+      mode:"fast",
+      yieldScale:.22,
+      frameYieldEvery:64,
+      threads:isolated?2:1
+    };
+  }
+
+  if(!mobile&&!lowMemory&&cores>=6){
+    return {
+      mode:"balanced",
+      yieldScale:.50,
+      frameYieldEvery:32,
+      threads:1
+    };
+  }
+
+  return {
+    mode:"cool",
+    yieldScale:1,
+    frameYieldEvery:16,
+    threads:1
+  };
+}
+
 function chooseWasmThreads(){
-  // Final CPU Balanced profile: keep inference single-threaded.
-  // Thread count changes speed/peak CPU only, not model quality.
-  return 1;
+  // Never force SharedArrayBuffer / COOP-COEP. Two threads are used only if
+  // the current browser context is already safely cross-origin isolated.
+  return RIVANI_PERF.threads;
 }
 
 function cpuYield(ms=4){
-  return new Promise(resolve=>setTimeout(resolve,ms));
+  const wait=Math.max(
+    RIVANI_PERF.mode==="fast"?1:0,
+    Math.round(ms*RIVANI_PERF.yieldScale)
+  );
+
+  if(wait<=0)return Promise.resolve();
+  return new Promise(resolve=>setTimeout(resolve,wait));
 }
 
 async function getModelBytes(){const cache=await caches.open(CACHE_NAME),key=new Request(MODEL_PROXY),cached=await cache.match(key);if(cached){const ab=await cached.arrayBuffer();if(ab.byteLength>20000000)return ab;}let last;for(const url of [MODEL_PROXY,MODEL_DIRECT]){try{const res=await fetch(url,{mode:"cors",cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);const total=Number(res.headers.get("content-length")||0),reader=res.body?.getReader();let ab;if(reader){let loaded=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;self.postMessage({type:"modelProgress",progress:total?Math.min(94,Math.round(loaded/total*94)):25,text:total?`Preparing Music Control AI ${Math.round(loaded/total*100)}%…`:"Preparing Music Control AI…"});}ab=concatChunks(chunks,loaded);}else ab=await res.arrayBuffer();if(ab.byteLength<20000000)throw new Error("Music model download was incomplete.");try{await cache.put(key,new Response(ab.slice(0),{headers:{"content-type":"application/octet-stream"}}));}catch{}return ab;}catch(err){last=err;}}throw new Error(`Music Control model could not load. Deploy the V22 rivani-models Worker update. ${last?.message||""}`);}
@@ -535,7 +578,7 @@ async function stftCenterReflect(wave){
           :im[b];
     }
 
-    if((t+1)%16===0){
+    if((t+1)%RIVANI_PERF.frameYieldEvery===0){
       await cpuYield();
     }
   }
@@ -735,7 +778,7 @@ async function istftCenter(stft){
         w*w;
     }
 
-    if((t+1)%16===0){
+    if((t+1)%RIVANI_PERF.frameYieldEvery===0){
       await cpuYield();
     }
   }

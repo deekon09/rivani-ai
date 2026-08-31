@@ -96,12 +96,52 @@ async function ensureSession(){
   }
 }
 
-function chooseWasmThreads(){
-  // Final CPU Balanced profile: stable single-thread inference.
-  return 1;
+const RIVANI_PERF=detectAdaptivePerformance();
+
+function detectAdaptivePerformance(){
+  const nav=self.navigator||{};
+  const cores=Math.max(1,Number(nav.hardwareConcurrency)||4);
+  const memory=Number(nav.deviceMemory)||0;
+  const ua=String(nav.userAgent||"");
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const lowMemory=memory>0&&memory<=4;
+  const isolated=self.crossOriginIsolated===true;
+
+  if(!mobile&&!lowMemory&&cores>=8){
+    return {
+      mode:"fast",
+      yieldScale:.22,
+      threads:isolated?2:1
+    };
+  }
+
+  if(!mobile&&!lowMemory&&cores>=6){
+    return {
+      mode:"balanced",
+      yieldScale:.50,
+      threads:1
+    };
+  }
+
+  return {
+    mode:"cool",
+    yieldScale:1,
+    threads:1
+  };
 }
+
+function chooseWasmThreads(){
+  return RIVANI_PERF.threads;
+}
+
 function cpuYield(ms=24){
-  return new Promise(resolve=>setTimeout(resolve,ms));
+  const wait=Math.max(
+    RIVANI_PERF.mode==="fast"?1:0,
+    Math.round(ms*RIVANI_PERF.yieldScale)
+  );
+
+  if(wait<=0)return Promise.resolve();
+  return new Promise(resolve=>setTimeout(resolve,wait));
 }
 
 async function getModelBytes(){const cache=await caches.open(CACHE_NAME),key=new Request(MODEL_PROXY),cached=await cache.match(key);if(cached){const ab=await cached.arrayBuffer();if(ab.byteLength>70000000)return ab;}let last;for(const url of [MODEL_PROXY,MODEL_DIRECT]){try{const res=await fetch(url,{mode:"cors",cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);const total=Number(res.headers.get("content-length")||0),reader=res.body?.getReader();let ab;if(reader){let loaded=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;self.postMessage({type:"modelProgress",progress:total?Math.min(92,Math.round(loaded/total*92)):25,text:total?`Preparing Background Voices AI ${Math.round(loaded/total*100)}%…`:"Preparing Background Voices AI…"});}ab=concatChunks(chunks,loaded);}else ab=await res.arrayBuffer();if(ab.byteLength<70000000)throw new Error("Specialist model download was incomplete.");try{await cache.put(key,new Response(ab.slice(0),{headers:{"content-type":"application/octet-stream"}}));}catch{}return ab;}catch(err){last=err;}}throw new Error(`Background Voices model could not load. Deploy the V22 rivani-models Worker update. ${last?.message||""}`);}
