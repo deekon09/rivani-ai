@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030616">
+  <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
+  <title>Image Enhancer — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css?v=25.0-image">
+</head>
+<body class="image-enhancer-page">
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <div class="grid-overlay"></div>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="index.html" aria-label="RIVANI AI home">
+        <img src="assets/rivani-ai-logo.png" alt="RIVANI AI">
+      </a>
+      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="main-nav" id="mainNav" aria-label="Primary navigation">
+        <a href="index.html">Home</a>
+        <a class="active" href="index.html#tools">Tools</a>
+        <a href="features.html">Features</a>
+        <a href="about.html">About</a>
+        <a href="articles.html">Articles</a>
+        <a href="privacy.html">Policies</a>
+      </nav>
+      <div class="nav-account">
+        <a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a>
+        <a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="image-tool-hero section">
+      <div class="container image-tool-hero-grid">
+        <div class="reveal">
+          <div class="image-tool-badges">
+            <span class="status-pill">AI Powered</span>
+            <span class="image-private-chip">◆ Private browser processing</span>
+          </div>
+          <span class="section-kicker">RIVANI IMAGE ENGINE</span>
+          <h1>Sharper, <span>not different.</span></h1>
+          <p>
+            Real AI upscaling with a built-in Fidelity Guard that checks structure,
+            color and edge behavior before RIVANI gives you the final result.
+          </p>
+          <div class="image-hero-points">
+            <span>✓ Real 4× super-resolution model</span>
+            <span>✓ Smart damage scan</span>
+            <span>✓ Fidelity Guard</span>
+            <span>✓ Before / after verification</span>
+          </div>
+        </div>
+
+        <div class="image-trust-card reveal delay-1">
+          <span class="section-kicker">RIVANI FIDELITY GUARD</span>
+          <strong>Enhance where safe.<br>Protect where AI is guessing.</strong>
+          <div class="image-trust-grid">
+            <div><b>Structure</b><span>Verified</span></div>
+            <div><b>Color</b><span>Protected</span></div>
+            <div><b>Fine edges</b><span>Guarded</span></div>
+            <div><b>Transparency</b><span>Preserved</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section image-workspace-section">
+      <div class="container">
+        <div class="image-workspace-grid">
+          <aside class="image-control-panel reveal">
+            <div class="image-panel-head">
+              <span class="section-kicker">ENHANCEMENT CONTROL</span>
+              <h2>Image Enhancer</h2>
+              <p>No model names or confusing technical settings — choose the result you want.</p>
+            </div>
+
+            <div class="image-control-block">
+              <label>Enhancement style</label>
+              <div class="image-segmented" id="imageModeGroup">
+                <button class="active" data-image-mode="natural" type="button">
+                  <b>Natural</b><small>Best default</small>
+                </button>
+                <button data-image-mode="strong" type="button">
+                  <b>Strong</b><small>More AI detail</small>
+                </button>
+                <button data-image-mode="restore" type="button">
+                  <b>Restore</b><small>Older / damaged</small>
+                </button>
+              </div>
+            </div>
+
+            <div class="image-control-block">
+              <label>Output scale</label>
+              <div class="image-scale-options" id="imageScaleGroup">
+                <button class="active" data-image-scale="2" type="button"><b>2×</b><small>Fast + clean</small></button>
+                <button data-image-scale="4" type="button"><b>4×</b><small>Maximum detail</small></button>
+              </div>
+            </div>
+
+            <div class="image-control-block image-guard-controls">
+              <label>Protection</label>
+
+              <button class="image-toggle-row enabled" id="fidelityGuardToggle" type="button" aria-pressed="true">
+                <span>
+                  <b>Fidelity Guard</b>
+                  <small>Auto-reduces AI strength if structure drifts</small>
+                </span>
+                <i></i>
+              </button>
+
+              <button class="image-toggle-row enabled" id="textSafeToggle" type="button" aria-pressed="true">
+                <span>
+                  <b>Text & Logo Safe</b>
+                  <small>Conservative handling for fine edges and brand assets</small>
+                </span>
+                <i></i>
+              </button>
+
+              <button class="image-toggle-row enabled" id="colorLockToggle" type="button" aria-pressed="true">
+                <span>
+                  <b>Color Lock</b>
+                  <small>Limits unwanted color / contrast drift</small>
+                </span>
+                <i></i>
+              </button>
+            </div>
+
+            <div class="image-format-row">
+              <label for="imageExportFormat">Export</label>
+              <select id="imageExportFormat">
+                <option value="png">PNG · Lossless</option>
+                <option value="webp">WebP · High quality</option>
+                <option value="jpeg">JPEG · High quality</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary image-enhance-btn" id="enhanceImageBtn" type="button" disabled>
+              <span>✦</span> Enhance Image →
+            </button>
+
+            <div class="image-local-note">
+              Your photo stays on this device. RIVANI downloads the AI model, then inference runs inside your browser.
+            </div>
+          </aside>
+
+          <div class="image-main-panel reveal delay-1">
+            <div class="image-drop-zone" id="imageDropZone">
+              <input id="imageFileInput" type="file" accept="image/png,image/jpeg,image/webp,image/avif" hidden>
+              <div class="image-drop-icon">▧</div>
+              <span class="section-kicker">UPLOAD IMAGE</span>
+              <h2>Drop an image here</h2>
+              <p>JPG, PNG, WebP or AVIF · drag, paste or choose a file</p>
+              <button class="btn btn-secondary" id="chooseImageBtn" type="button">Choose Image</button>
+              <small>For the smoothest browser experience, use images under 20 MB.</small>
+            </div>
+
+            <div class="image-editor hidden" id="imageEditor">
+              <div class="image-file-bar">
+                <div>
+                  <strong id="imageFileName">image.jpg</strong>
+                  <span id="imageFileMeta">1920 × 1080 · JPG</span>
+                </div>
+                <button id="replaceImageBtn" type="button">Replace</button>
+              </div>
+
+              <div class="image-preview-shell" id="imagePreviewShell">
+                <div class="image-preview-empty" id="imagePreviewEmpty">
+                  <img id="imageOriginalPreview" alt="Original image preview">
+                  <div class="image-preview-tag">ORIGINAL</div>
+                </div>
+
+                <div class="image-compare hidden" id="imageCompare">
+                  <img class="compare-before" id="compareBefore" alt="Original image">
+                  <div class="compare-after-wrap" id="compareAfterWrap">
+                    <img class="compare-after" id="compareAfter" alt="Enhanced image">
+                  </div>
+                  <div class="compare-line" id="compareLine"><span>↔</span></div>
+                  <input
+                    class="compare-range"
+                    id="compareRange"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="50"
+                    aria-label="Compare original and enhanced image"
+                  >
+                  <span class="compare-label before">Before</span>
+                  <span class="compare-label after">After</span>
+                </div>
+
+                <div class="image-processing-overlay hidden" id="imageProcessingOverlay">
+                  <div class="image-processing-orb"><span>R</span></div>
+                  <strong id="imageProcessingTitle">Preparing AI model…</strong>
+                  <p id="imageProcessingText">Your image remains on this device.</p>
+                  <div class="image-progress-track"><span id="imageProgressFill"></span></div>
+                  <div class="image-progress-meta">
+                    <span id="imageProgressPercent">0%</span>
+                    <span id="imageProviderText">RIVANI AI Engine</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="image-smart-scan" id="imageSmartScan">
+                <div class="image-section-title">
+                  <div>
+                    <span class="section-kicker">SMART SCAN</span>
+                    <h3>What RIVANI sees before enhancement</h3>
+                  </div>
+                  <span id="smartScanSummary">Ready</span>
+                </div>
+                <div class="image-scan-grid" id="imageScanGrid"></div>
+              </div>
+
+              <div class="image-result-panel hidden" id="imageResultPanel">
+                <div class="image-section-title">
+                  <div>
+                    <span class="section-kicker">FIDELITY REPORT</span>
+                    <h3 id="imageResultHeadline">Result verified</h3>
+                  </div>
+                  <span class="image-result-status safe" id="imageResultStatus">SAFE</span>
+                </div>
+
+                <div class="image-report-grid">
+                  <article>
+                    <span>Structure</span>
+                    <b id="reportStructure">—</b>
+                    <small id="reportStructureNote">Comparing geometry</small>
+                  </article>
+                  <article>
+                    <span>Color drift</span>
+                    <b id="reportColor">—</b>
+                    <small id="reportColorNote">Checking original palette</small>
+                  </article>
+                  <article>
+                    <span>Edge balance</span>
+                    <b id="reportEdges">—</b>
+                    <small id="reportEdgesNote">Checking over-sharpening</small>
+                  </article>
+                  <article>
+                    <span>AI strength used</span>
+                    <b id="reportBlend">—</b>
+                    <small id="reportBlendNote">Guard-adjusted mix</small>
+                  </article>
+                </div>
+
+                <div class="image-output-meta">
+                  <span id="imageOutputDimensions">—</span>
+                  <span id="imageEffectiveScale">—</span>
+                  <span id="imageRuntimeProvider">—</span>
+                </div>
+
+                <div class="image-result-actions">
+                  <button class="btn btn-primary" id="downloadEnhancedBtn" type="button">Download Enhanced Image</button>
+                  <button class="btn btn-secondary" id="enhanceAgainBtn" type="button">Adjust & Run Again</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="image-feature-strip reveal">
+          <article>
+            <span>01</span>
+            <div><b>Real AI Upscaling</b><small>4× Real-ESRGAN inference runs locally in the browser.</small></div>
+          </article>
+          <article>
+            <span>02</span>
+            <div><b>Fidelity Guard</b><small>RIVANI checks the result before deciding how much AI detail to keep.</small></div>
+          </article>
+          <article>
+            <span>03</span>
+            <div><b>Safe Result</b><small>If the model becomes unreliable, RIVANI falls back toward the original instead of forcing artifacts.</small></div>
+          </article>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div>
+      <div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
+      <div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div>
+      <div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© <span id="year"></span> RIVANI AI. All rights reserved.</span>
+      <span>Built as a focused AI tools platform.</span>
+    </div>
+  </footer>
+
+  <script src="script.js?v=25.0-image"></script>
+  <script src="image-enhancer.js?v=25.0-image"></script>
+  <script type="module" src="auth-nav.js?v=25.0-image"></script>
+</body>
+</html>
