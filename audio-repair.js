@@ -813,7 +813,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23.8",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.9",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -1193,8 +1193,17 @@ async function repairLocally(){
     }
 
     setStage("level");
-    updateProgress(91,"Balancing voice loudness and protecting peaks…");
-    levelVoiceRms(repaired48,studioFinish?-18.0:-18.5,-1.2);
+    updateProgress(91,"Finalizing a smooth listening level and protecting peaks…");
+
+    // V23.9 final listening-level calibration.
+    // The accepted RIVANI user sample measured about -16.7 LUFS while the
+    // supplied Adobe reference was about -21.2 LUFS. Do not chase loudness:
+    // keep the voice comfortable, natural and leave useful peak headroom.
+    levelVoiceRms(
+      repaired48,
+      studioFinish ? -22.2 : -22.7,
+      -2.0
+    );
 
     let finalBuffer=repaired48;
     if(sourceBuffer.sampleRate!==48000){
@@ -1278,7 +1287,7 @@ function createDereverbWorker(useEmbedded=false){
   }else{
     // Resolve against this module instead of the document URL.
     const url=new URL(
-      "./dereverb-worker.js?v=23.8",
+      "./dereverb-worker.js?v=23.9",
       import.meta.url
     );
     dereverbWorker=new Worker(url);
@@ -2335,7 +2344,7 @@ function fftRadix2Local(re,im){
 
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
-function levelVoiceRms(buffer,targetDb=-17,peakCeilingDb=-1.2){
+function levelVoiceRms(buffer,targetDb=-22.2,peakCeilingDb=-2.0){
   let sum=0,n=0;
 
   for(let c=0;c<buffer.numberOfChannels;c++){
@@ -2353,7 +2362,9 @@ function levelVoiceRms(buffer,targetDb=-17,peakCeilingDb=-1.2){
 
   const rms=Math.sqrt(sum/n);
   const measured=20*Math.log10(Math.max(1e-9,rms));
-  let gainDb=Math.max(-4,Math.min(4,targetDb-measured));
+  // Product guard: never make a quiet recording jump unnaturally loud.
+  // Attenuation can be stronger when needed; automatic boost stays modest.
+  let gainDb=Math.max(-6,Math.min(2.5,targetDb-measured));
   let gain=Math.pow(10,gainDb/20);
 
   let peak=0;

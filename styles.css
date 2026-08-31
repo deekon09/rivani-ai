@@ -1716,3 +1716,99 @@ body.rivani-processing-performance .specialist-beta-card{
 .site-header .brand img{
   opacity:1!important;
 }
+
+
+/* ==========================================================
+   RIVANI V23.9 · Final static branding
+   User preference: no decorative RIVANI/logo/background animation.
+   Functional enhancing/processing + recording feedback stays alive.
+   ========================================================== */
+
+/* Full wordmarks and RIVANI AI text: completely static. */
+.brand,
+.brand img,
+.footer-brand img,
+.auth-card-head img,
+.dash-side-brand img,
+.rivani-logo-shine-shell,
+.rivani-logo-shine-shell>img,
+.rivani-ai-textfx{
+  animation:none!important;
+  transition:none!important;
+  transform:none!important;
+  filter:none!important;
+  will-change:auto!important;
+}
+
+.rivani-logo-shine-shell::before,
+.rivani-logo-shine-shell::after,
+.rivani-ai-textfx::after,
+.brand::before,
+.brand::after{
+  content:none!important;
+  display:none!important;
+  animation:none!important;
+  opacity:0!important;
+}
+
+/* Decorative page movement is now static. */
+.rivani-bg-pulse-layer,
+.ambient,
+.ambient-one,
+.ambient-two,
+.grid-overlay,
+.hero-visual::before,
+.hero-visual::after{
+  animation:none!important;
+  transition:none!important;
+  will-change:auto!important;
+}
+
+/* Keep the background look, but not the breathing/drifting motion. */
+.rivani-bg-pulse-layer{
+  transform:none!important;
+  opacity:.10!important;
+}
+
+.ambient-one,
+.ambient-two{
+  transform:none!important;
+  opacity:.09!important;
+}
+
+.grid-overlay{
+  opacity:.07!important;
+}
+
+/* Non-processing ribbon-R / LUKI branding stays static. */
+.luki-launcher-orb.luki-r-logo,
+.luki-avatar.luki-r-logo,
+.luki-launcher-orb.luki-r-logo::before,
+.luki-avatar.luki-r-logo::before,
+.clear-engine-orb.clear-r-logo,
+.clear-engine-orb.clear-r-logo>img,
+.clear-engine-orb.clear-r-logo::after{
+  animation:none!important;
+  transition:none!important;
+  will-change:auto!important;
+}
+
+.clear-engine-orb.clear-r-logo::after{
+  opacity:.22!important;
+  background-position:50% 0!important;
+}
+
+/* Decorative button sparkle should not keep moving. */
+.repair-btn-spark{
+  animation:none!important;
+  transform:none!important;
+  filter:none!important;
+}
+
+/*
+  INTENTIONALLY NOT DISABLED:
+  .processing-orb / .processing-wave / .processing-orbit /
+  .processing-orb.processing-r-logo::after / neural processing visuals /
+  microphone recording pulse.
+  Those are functional "work is happening" feedback, not decorative branding.
+*/
