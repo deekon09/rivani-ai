@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
   <title>Image Enhancer — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=25.5-image">
+  <link rel="stylesheet" href="styles.css?v=25.6-image">
 </head>
 <body class="image-enhancer-page">
   <div class="ambient ambient-one"></div>
@@ -168,10 +168,12 @@
             <div class="image-format-row">
               <label for="imageExportFormat">Export</label>
               <select id="imageExportFormat">
-                <option value="png">PNG · Lossless</option>
-                <option value="webp">WebP · High quality</option>
-                <option value="jpeg">JPEG · High quality</option>
+                <option value="png">PNG Master · Pixel lossless</option>
+                <option value="auto">Smart Smaller · Auto</option>
+                <option value="webp">WebP Max · Smaller photo</option>
+                <option value="jpeg">JPEG Max · Compatibility</option>
               </select>
+              <small class="image-export-help">PNG keeps exact pixels. Smart/WebP Max targets much smaller photo files at maximum visual quality.</small>
             </div>
 
             <button class="btn btn-primary image-enhance-btn" id="enhanceImageBtn" type="button" disabled>
@@ -291,8 +293,12 @@
                   <span id="imageEffectiveScale">—</span>
                   <span id="imageRuntimeProvider">—</span>
                   <span id="imageRuntimeTime">—</span>
+                  <span id="imageOutputMegapixels">— MP</span>
+                  <span id="imageOutputFormat">—</span>
+                  <span id="imageOutputFileSize">—</span>
                   <span id="imageProtectedMeta" class="hidden">—</span>
                 </div>
+                <p class="image-export-size-note" id="imageExportSizeNote">Exact export size appears after encoding.</p>
 
                 <section class="image-truth-map-panel hidden" id="imageTruthMapPanel">
                   <div class="image-section-title image-truth-title">
@@ -371,7 +377,7 @@
   </footer>
 
   <script src="script.js?v=25.2-image"></script>
-  <script src="image-enhancer.js?v=25.5-image"></script>
+  <script src="image-enhancer.js?v=25.6-image"></script>
   <script type="module" src="auth-nav.js?v=25.2-image"></script>
 </body>
 </html>

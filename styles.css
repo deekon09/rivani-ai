@@ -3172,3 +3172,25 @@ body.rivani-processing-performance .specialist-beta-card{
   .image-enhancer-page .image-compare-frame{min-height:270px}
   .image-pro-tool{align-items:flex-start}
 }
+
+
+/* =========================================================
+   V25.6 IMAGE ENHANCER · SMART EXPORT
+   ========================================================= */
+.image-export-help{
+  display:block;
+  margin-top:7px;
+  color:#65758f;
+  font-size:7.5px;
+  line-height:1.45;
+}
+.image-export-size-note{
+  margin:8px 0 0;
+  padding:8px 10px;
+  border:1px solid rgba(77,190,255,.09);
+  border-radius:10px;
+  background:rgba(26,103,179,.055);
+  color:#73839d;
+  font-size:8px;
+  line-height:1.45;
+}

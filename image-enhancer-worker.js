@@ -1,4 +1,4 @@
-// RIVANI AI · Image Enhancer V25.5
+// RIVANI AI · Image Enhancer V25.6
 // Real-ESRGAN x4plus ONNX · browser-side inference.
 // Fixed model contract: 1x3x128x128 -> 1x3x512x512.
 
@@ -329,16 +329,16 @@ async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineM
 
   const normalBatch=
     performanceProfile==="fast"
-      ?16
+      ?18
       :performanceProfile==="cool"
         ?3
-        :6;
+        :5;
   const hotBatch=
     performanceProfile==="fast"
-      ?10
+      ?12
       :performanceProfile==="cool"
         ?2
-        :4;
+        :3;
   const batchSize=throttling>.35?hotBatch:normalBatch;
 
   if(completed%batchSize!==0)return batchStarted;
@@ -348,20 +348,20 @@ async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineM
     performanceProfile==="fast"
       ?.985
       :performanceProfile==="cool"
-        ?.88
-        :.93;
+        ?.855
+        :.905;
   const minDuty=
     performanceProfile==="fast"
-      ?.95
+      ?.955
       :performanceProfile==="cool"
-        ?.82
-        :.875;
-  const duty=Math.max(minDuty,baseDuty-throttling*.055);
+        ?.78
+        :.84;
+  const duty=Math.max(minDuty,baseDuty-throttling*.075);
 
   // Duty-cycle pacing is proportional to actual tile time, not a fixed sleep.
   // Fast devices therefore remain fast, while a device showing sustained
   // slowdown gets a little extra breathing room. Output quality is unchanged.
-  const maxPause=performanceProfile==="cool"?72:performanceProfile==="balanced"?44:14;
+  const maxPause=performanceProfile==="cool"?88:performanceProfile==="balanced"?58:12;
   const pause=Math.min(maxPause,Math.max(0,elapsed*(1/duty-1)));
   if(pause>=1)await delay(Math.round(pause));
   else await delay(0);

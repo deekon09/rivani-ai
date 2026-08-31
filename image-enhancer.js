@@ -1,6 +1,6 @@
 (()=>{"use strict";
 
-// RIVANI Image Enhancer V25.5 · verified tone lock + precision protection
+// RIVANI Image Enhancer V25.6 · stronger verified detail + smart export + adaptive GPU balance
 
 const $=id=>document.getElementById(id);
 
@@ -56,6 +56,8 @@ let sourceBitmap=null;
 let sourceUrl="";
 let enhancedUrl="";
 let enhancedBlob=null;
+let enhancedFormat="png";
+let enhancedFileBytes=0;
 
 let imageMode="natural";
 let requestedScale=2;
@@ -152,7 +154,7 @@ anotherBtn?.addEventListener("click",()=>{
 downloadBtn?.addEventListener("click",()=>{
   if(!enhancedBlob)return;
 
-  const format=$("imageExportFormat")?.value||"png";
+  const format=enhancedFormat||"png";
   const ext=format==="jpeg"?"jpg":format;
   const base=(sourceFile?.name||"rivani-image")
     .replace(/\.[^.]+$/,"")
@@ -295,6 +297,8 @@ async function loadImage(file){
     sourceUrl=URL.createObjectURL(file);
     enhancedUrl="";
     enhancedBlob=null;
+    enhancedFormat="png";
+    enhancedFileBytes=0;
     protectedRegions=[];
     protectionSelectMode=false;
     precisionProtectBtn?.classList.remove("active");
@@ -523,7 +527,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.5-image",
+      "image-enhancer-worker.js?v=25.6-image",
       {type:"module"}
     );
 
@@ -607,15 +611,16 @@ async function enhanceCurrentImage(){
       finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
     }
 
-    const format=$("imageExportFormat")?.value||"png";
-    const blob=await canvasToBlob(
-      finalCanvas,
-      format
-    );
+    const requestedFormat=$("imageExportFormat")?.value||"png";
+    const format=resolveExportFormat(requestedFormat,currentScan);
+    setProgress(99,"Encoding final image…",format==="png"?"Creating pixel-lossless PNG master.":"Creating a smaller maximum-quality photo export.",response.provider);
+    const blob=await canvasToBlob(finalCanvas,format);
 
     if(!blob)throw new Error("Could not create the enhanced image.");
 
     enhancedBlob=blob;
+    enhancedFormat=format;
+    enhancedFileBytes=blob.size||0;
 
     if(enhancedUrl)URL.revokeObjectURL(enhancedUrl);
     enhancedUrl=URL.createObjectURL(blob);
@@ -649,7 +654,9 @@ async function enhanceCurrentImage(){
       prep.effectiveScale,
       response.provider,
       runtimeMs,
-      response.performanceProfile
+      response.performanceProfile,
+      enhancedFormat,
+      enhancedFileBytes
     );
 
     processing.classList.add("hidden");
@@ -865,7 +872,9 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile)
       reject(new Error(event.message||"Image enhancement worker failed."));
     };
 
-    const copy=new Uint8ClampedArray(imageData.data);
+    // Transfer the prepared input buffer directly. V25.5 cloned this entire
+    // RGBA image first, which temporarily doubled input memory on large jobs.
+    const inputBuffer=imageData.data.buffer;
 
     worker.postMessage({
       type:"enhance",
@@ -873,17 +882,19 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile)
       height,
       targetScale,
       performanceProfile,
-      rgba:copy.buffer
-    },[copy.buffer]);
+      rgba:inputBuffer
+    },[inputBuffer]);
   });
 }
 
 function decideGuard(metrics,mode,guard,textSafe,colorSafe,scan){
   const base={
-    natural:.82,
-    strong:.96,
-    restore:.90
-  }[mode]||.82;
+    natural:.84,
+    // Strong keeps almost the full verified model result. Fidelity Guard still
+    // owns the emergency brake, so more detail does not mean less safety.
+    strong:.995,
+    restore:.91
+  }[mode]||.84;
 
   let blend=base;
   let risk="low";
@@ -923,27 +934,30 @@ function decideGuard(metrics,mode,guard,textSafe,colorSafe,scan){
   // detailed while still protecting edge-dense brand/text content.
   const sensitive=scan?.detail?.[0]==="Sensitive";
   if(textSafe){
-    if(metrics.edgeRatio>2.05)blend-=sensitive?.06:.04;
-    if(metrics.structure<.90)blend-=sensitive?.04:.02;
+    // Do not globally soften ordinary landscapes/portraits just because the
+    // source contains many fine edges. Pull back only when verification shows
+    // the model is actually stressing fine structure.
+    if(metrics.edgeRatio>2.20)blend-=sensitive?.045:.03;
+    if(metrics.structure<.875)blend-=sensitive?.035:.02;
   }
 
   // Color Lock now has a real tonal/chroma correction pass in composeFinal().
   // Only severe verified drift reduces AI strength here.
-  if(colorSafe&&(metrics.colorDrift>.075||Math.abs(metrics.lumaDrift)>.07)){
-    blend-=.03;
+  if(colorSafe&&(metrics.colorDrift>.09||Math.abs(metrics.lumaDrift)>.085)){
+    blend-=.015;
   }
 
   if(guard){
     if(risk==="high"){
       blend=0;
     }else if(risk==="medium"){
-      const mediumCap=mode==="strong"?.84:mode==="restore"?.80:.76;
+      const mediumCap=mode==="strong"?.91:mode==="restore"?.83:.79;
       blend=Math.min(blend,mediumCap);
     }
   }
 
   if(!(guard&&risk==="high")){
-    blend=Math.max(.40,Math.min(.97,blend));
+    blend=Math.max(.40,Math.min(.995,blend));
   }
 
   return {
@@ -979,8 +993,7 @@ function composeFinal(
     // Color Lock V25.4: correct global chroma and luminance drift with partial
     // source blend modes. This preserves AI micro-detail far better than simply
     // lowering the whole AI blend whenever the model shifts exposure/color.
-    const chromaAlpha=Math.min(.22,Math.max(0,(metrics?.colorDrift||0)-.018)*2.4);
-    const lumaAlpha=Math.min(.28,Math.abs(metrics?.lumaDrift||0)*3.4);
+    const chromaAlpha=Math.min(.20,Math.max(0,(metrics?.colorDrift||0)-.022)*2.1);
 
     if(chromaAlpha>.015){
       ctx.save();
@@ -992,15 +1005,9 @@ function composeFinal(
       ctx.restore();
     }
 
-    if(lumaAlpha>.015){
-      ctx.save();
-      ctx.globalCompositeOperation="luminosity";
-      ctx.globalAlpha=lumaAlpha;
-      ctx.imageSmoothingEnabled=true;
-      ctx.imageSmoothingQuality="high";
-      ctx.drawImage(source,0,0,width,height);
-      ctx.restore();
-    }
+    // Do not overlay the low-resolution source in luminosity mode here. That
+    // can subtly soften Strong/Maximum Detail. V25.6 repairs only the verified
+    // *global* exposure after composition, preserving the AI high-frequency map.
   }
 
   if(regions?.length){
@@ -1129,6 +1136,8 @@ function measureFidelity(source,enhancedCanvas){
     structure:Math.max(0,Math.min(1,ssim)),
     colorDrift:colorDiff/n,
     lumaDrift:(meanB-meanA)/255,
+    sourceLuma:meanA,
+    enhancedLuma:meanB,
     edgeRatio:
       edgeA>1e-6
         ?edgeB/edgeA
@@ -1144,7 +1153,9 @@ function renderReport(
   effectiveScale,
   provider,
   runtimeMs,
-  performanceProfile
+  performanceProfile,
+  exportFormat,
+  exportBytes
 ){
   const structurePct=Math.round(metrics.structure*100);
   const colorPct=Math.round(metrics.colorDrift*100);
@@ -1228,6 +1239,25 @@ function renderReport(
     seconds>=60
       ?`${Math.floor(seconds/60)}m ${Math.round(seconds%60)}s`
       :`${seconds.toFixed(seconds<10?1:0)}s`;
+
+  const megapixels=(width*height)/1_000_000;
+  const formatLabel=exportFormat==="png"?"PNG lossless":exportFormat==="webp"?"WebP max quality":"JPEG max quality";
+  const sizeLabel=formatBytes(exportBytes||0);
+  const sizeEl=$("imageOutputFileSize");
+  const formatEl=$("imageOutputFormat");
+  const mpEl=$("imageOutputMegapixels");
+  if(sizeEl)sizeEl.textContent=sizeLabel;
+  if(formatEl)formatEl.textContent=formatLabel;
+  if(mpEl)mpEl.textContent=`${megapixels.toFixed(megapixels>=10?1:2)} MP`;
+
+  const note=$("imageExportSizeNote");
+  if(note){
+    note.textContent=exportFormat==="png"&&exportBytes>24*1024*1024
+      ?`This is a true lossless master (${sizeLabel}). Photos with millions of detailed pixels can be large. Choose WebP Max before the next run for a much smaller visually near-identical photo file.`
+      :exportFormat==="png"
+        ?`Pixel-lossless master · ${sizeLabel}`
+        :`Maximum-quality photo export · ${sizeLabel}. PNG Lossless remains available when exact pixels matter.`;
+  }
 }
 
 function setProgress(percent,title,text,provider){
@@ -1430,27 +1460,55 @@ function applyProtectedRegions(source,ctx,width,height,regions){
 function repairVerifiedTone(source,canvas,metrics){
   let current=metrics;
   const ctx=canvas.getContext("2d",{alpha:true});
+
   for(let pass=0;pass<2;pass++){
     const luma=Math.abs(current.lumaDrift||0);
     const color=current.colorDrift||0;
-    if(luma<=.028&&color<=.045)break;
+    if(luma<=.012&&color<=.042)break;
 
     if(color>.035){
       ctx.save();
       ctx.globalCompositeOperation="color";
-      ctx.globalAlpha=Math.min(.34,Math.max(.05,(color-.025)*4.0));
+      ctx.globalAlpha=Math.min(.28,Math.max(.04,(color-.028)*3.2));
+      ctx.imageSmoothingEnabled=true;
+      ctx.imageSmoothingQuality="high";
       ctx.drawImage(source,0,0,canvas.width,canvas.height);
       ctx.restore();
     }
-    if(luma>.018){
-      ctx.save();
-      ctx.globalCompositeOperation="luminosity";
-      ctx.globalAlpha=Math.min(.62,Math.max(.08,luma*7.2));
-      ctx.drawImage(source,0,0,canvas.width,canvas.height);
-      ctx.restore();
+
+    if(luma>.010){
+      // Correct only the global mean exposure. Unlike drawing the original in
+      // luminosity mode, a uniform screen/multiply nudge cannot replace fine AI
+      // structure with an upscaled source, so Strong detail stays intact.
+      const src=Math.max(0,Math.min(255,current.sourceLuma||0));
+      const dst=Math.max(0,Math.min(255,current.enhancedLuma||0));
+      let alpha=0;
+      let mode="source-over";
+      let fill="#000";
+
+      if(dst>src+1){
+        alpha=Math.min(.22,Math.max(0,1-(src/Math.max(1,dst))));
+        mode="multiply";
+        fill="#000";
+      }else if(dst<src-1){
+        alpha=Math.min(.22,Math.max(0,(src-dst)/Math.max(1,255-dst)));
+        mode="screen";
+        fill="#fff";
+      }
+
+      if(alpha>.003){
+        ctx.save();
+        ctx.globalCompositeOperation=mode;
+        ctx.globalAlpha=alpha;
+        ctx.fillStyle=fill;
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+        ctx.restore();
+      }
     }
+
     current=measureFidelity(source,canvas);
   }
+
   return current;
 }
 
@@ -1534,6 +1592,16 @@ function drawSample(bitmap,maxSize){
   return {canvas,ctx};
 }
 
+function resolveExportFormat(requested,scan){
+  if(requested==="auto"){
+    // Transparency requires a format that preserves alpha exactly. For normal
+    // photos, WebP Max dramatically reduces file size while remaining a
+    // maximum-quality *photo* export (not labelled lossless).
+    return scan?.alpha?.[0]==="Present"?"png":"webp";
+  }
+  return requested==="jpeg"||requested==="webp"?requested:"png";
+}
+
 function canvasToBlob(canvas,format){
   const type=
     format==="jpeg"
@@ -1544,14 +1612,21 @@ function canvasToBlob(canvas,format){
 
   const quality=
     format==="jpeg"
-      ?.94
+      ?.98
       :format==="webp"
-        ?.95
+        ?.99
         :undefined;
 
   return new Promise(resolve=>{
     canvas.toBlob(resolve,type,quality);
   });
+}
+
+function formatBytes(bytes){
+  const value=Math.max(0,Number(bytes)||0);
+  if(value<1024)return `${Math.round(value)} B`;
+  if(value<1024*1024)return `${(value/1024).toFixed(1)} KB`;
+  return `${(value/(1024*1024)).toFixed(value>=100*1024*1024?0:1)} MB`;
 }
 
 function looksLikeImageFile(file){
@@ -1593,6 +1668,8 @@ function resetForAnotherImage(){
   sourceUrl="";
   enhancedUrl="";
   enhancedBlob=null;
+  enhancedFormat="png";
+  enhancedFileBytes=0;
   currentScan=null;
   protectedRegions=[];
   protectionSelectMode=false;
