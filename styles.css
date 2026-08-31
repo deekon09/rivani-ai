@@ -2886,8 +2886,8 @@ body.rivani-processing-performance .specialist-beta-card{
 }
 
 @media(max-width:680px){
-  .image-processing-orb{width:68px;height:68px}
-  .image-processing-orb img{width:180px}
+  .image-processing-orb{width:68px;height:68px;margin-left:auto;margin-right:auto}
+  .image-processing-orb img{width:54px;height:54px;display:block;margin:auto}
   .compare-label{top:9px;min-width:82px;padding:6px 8px}
   .compare-label.before{left:9px}
   .compare-label.after{right:9px}
@@ -3193,4 +3193,62 @@ body.rivani-processing-performance .specialist-beta-card{
   color:#73839d;
   font-size:8px;
   line-height:1.45;
+}
+
+
+/* =========================================================
+   V25.7 IMAGE ENHANCER · MOBILE SAFE / COMPOSITOR RELIEF
+   ========================================================= */
+@media(max-width:850px){
+  .image-enhancer-page .image-processing-overlay{
+    align-items:center!important;
+    justify-content:center!important;
+    text-align:center!important;
+  }
+  .image-enhancer-page .image-processing-orb{
+    left:auto!important;
+    right:auto!important;
+    margin-inline:auto!important;
+    transform:none;
+  }
+  .image-enhancer-page .image-processing-orb img{
+    width:54px!important;
+    height:54px!important;
+    max-width:54px!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    margin:auto!important;
+  }
+}
+
+/* During mobile AI inference the browser compositor shares the same GPU.
+   Pause non-functional page effects so scrolling/touch remains responsive.
+   The processing R stays functional but uses a lighter pulse. */
+body.image-mobile-processing .ambient,
+body.image-mobile-processing .grid-overlay,
+body.image-mobile-processing .rivani-bg-pulse-layer,
+body.image-mobile-processing .brand::before,
+body.image-mobile-processing .brand::after,
+body.image-mobile-processing .rivani-logo-shine-shell::before,
+body.image-mobile-processing .rivani-logo-shine-shell::after{
+  animation:none!important;
+  transition:none!important;
+}
+body.image-mobile-processing .ambient,
+body.image-mobile-processing .rivani-bg-pulse-layer{
+  opacity:.02!important;
+  filter:none!important;
+}
+body.image-mobile-processing .grid-overlay{opacity:.018!important}
+body.image-mobile-processing .image-processing-orb{
+  animation:imageProcessPulseMobile 2.2s ease-in-out infinite!important;
+  will-change:transform;
+}
+body.image-mobile-processing .image-processing-orb::after{
+  animation:none!important;
+  opacity:.28;
+}
+@keyframes imageProcessPulseMobile{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.025)}
 }

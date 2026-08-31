@@ -1,6 +1,6 @@
 (()=>{"use strict";
 
-// RIVANI Image Enhancer V25.6 · stronger verified detail + smart export + adaptive GPU balance
+// RIVANI Image Enhancer V25.7 · mobile-safe responsive inference + smart export
 
 const $=id=>document.getElementById(id);
 
@@ -511,6 +511,8 @@ async function enhanceCurrentImage(){
 
   busy=true;
   enhanceBtn.disabled=true;
+  document.body.classList.add("rivani-processing-performance");
+  if(isMobileImageDevice())document.body.classList.add("image-mobile-processing");
   processing.classList.remove("hidden");
   resultPanel.classList.add("hidden");
 
@@ -527,7 +529,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.6-image",
+      "image-enhancer-worker.js?v=25.7-image",
       {type:"module"}
     );
 
@@ -666,6 +668,7 @@ async function enhanceCurrentImage(){
     processing.classList.add("hidden");
     alert(error?.message||"RIVANI Image Enhancer could not finish this image.");
   }finally{
+    document.body.classList.remove("rivani-processing-performance","image-mobile-processing");
     busy=false;
     enhanceBtn.disabled=!sourceBitmap;
   }
@@ -750,15 +753,23 @@ function getDeviceOutputBudget(bitmap){
   // V25.2: the old fixed 24 MP cap rejected/capped modern phone photos too early.
   // These limits are only memory guards; enhancement math/model quality is unchanged.
   if(mobile){
-    maxPixels=36_000_000;
-    maxEdge=9200;
+    // Mobile browser memory is shared by the page, compositor, WebGPU model,
+    // source bitmap, result canvas and encoder. A 36 MP RGBA canvas alone is
+    // ~144 MB before GPU/encoder copies, so V25.7 uses a safer adaptive ceiling.
+    // This never changes per-pixel AI quality; only oversized 4× requests are
+    // capped to the highest effective resolution the device can hold smoothly.
+    maxPixels=28_000_000;
+    maxEdge=8400;
 
-    if(memory&&memory<=2){
-      maxPixels=28_000_000;
-      maxEdge=8200;
-    }else if(memory>=6||cores>=8){
-      maxPixels=40_000_000;
-      maxEdge=9800;
+    if(memory&&memory<=3){
+      maxPixels=22_000_000;
+      maxEdge=7600;
+    }else if(memory>=8&&cores>=8){
+      maxPixels=32_000_000;
+      maxEdge=9000;
+    }else if(memory>=6){
+      maxPixels=30_000_000;
+      maxEdge=8800;
     }
   }else{
     maxPixels=48_000_000;
@@ -788,13 +799,20 @@ function getDeviceOutputBudget(bitmap){
   return {maxPixels,maxEdge,mobile,memory,cores};
 }
 
+function isMobileImageDevice(){
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||"") ||
+    Boolean(window.matchMedia?.("(pointer:coarse)")?.matches);
+}
+
 function getImagePerformanceProfile(){
   const cores=Math.max(1,Number(navigator.hardwareConcurrency)||4);
   const memory=Math.max(0,Number(navigator.deviceMemory)||0);
-  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||"") ||
-    window.matchMedia?.("(pointer:coarse)")?.matches;
+  const mobile=isMobileImageDevice();
 
-  if(mobile)return "cool";
+  // Mobile gets its own responsive profile. It still uses the same WebGPU
+  // model/output path, but lets the browser compositor breathe when scrolling
+  // or touch interaction starts dropping frames.
+  if(mobile)return "mobile";
 
   // V25.5 device-aware defaults. The worker then self-tunes further from real
   // tile latency, so this is only the starting profile—not a quality mode.
@@ -805,10 +823,63 @@ function getImagePerformanceProfile(){
   return "cool";
 }
 
+function startImageUiPressureMonitor(worker,performanceProfile){
+  if(performanceProfile!=="mobile" || typeof requestAnimationFrame!=="function"){
+    return ()=>{};
+  }
+
+  let active=true;
+  let raf=0;
+  let last=performance.now();
+  let pressure=0;
+  let lastSent=-1;
+  let lastSendAt=0;
+
+  const tick=now=>{
+    if(!active)return;
+
+    const frameMs=Math.max(0,now-last);
+    last=now;
+
+    // 60 Hz healthy frame ~=16.7 ms. Pressure reacts quickly to visible jank
+    // and decays gradually so the AI speeds back up when the UI is smooth.
+    let sample=0;
+    if(frameMs>95)sample=1;
+    else if(frameMs>65)sample=.82;
+    else if(frameMs>45)sample=.58;
+    else if(frameMs>32)sample=.32;
+
+    pressure=Math.max(sample,pressure*.90);
+
+    if(document.hidden)pressure=Math.min(pressure,.15);
+
+    if(now-lastSendAt>240 && Math.abs(pressure-lastSent)>.06){
+      lastSendAt=now;
+      lastSent=pressure;
+      try{worker.postMessage({type:"ui-pressure",value:pressure});}catch(_error){}
+    }
+
+    raf=requestAnimationFrame(tick);
+  };
+
+  raf=requestAnimationFrame(tick);
+
+  return ()=>{
+    active=false;
+    if(raf)cancelAnimationFrame(raf);
+    try{worker.postMessage({type:"ui-pressure",value:0});}catch(_error){}
+  };
+}
+
 function runWorker(worker,imageData,width,height,targetScale,performanceProfile){
   return new Promise((resolve,reject)=>{
-    const timer=setTimeout(()=>{
+    const stopUiMonitor=startImageUiPressureMonitor(worker,performanceProfile);
+    const finishWorker=()=>{
+      stopUiMonitor();
       worker.terminate();
+    };
+    const timer=setTimeout(()=>{
+      finishWorker();
       reject(
         new Error(
           "Enhancement took too long on this device. Try 2× or a smaller image."
@@ -847,7 +918,7 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile)
 
       if(msg.type==="done"){
         clearTimeout(timer);
-        worker.terminate();
+        finishWorker();
 
         resolve({
           width:msg.width,
@@ -861,14 +932,14 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile)
 
       if(msg.type==="error"){
         clearTimeout(timer);
-        worker.terminate();
+        finishWorker();
         reject(new Error(msg.message||"Image enhancement failed."));
       }
     };
 
     worker.onerror=event=>{
       clearTimeout(timer);
-      worker.terminate();
+      finishWorker();
       reject(new Error(event.message||"Image enhancement worker failed."));
     };
 
@@ -1225,9 +1296,11 @@ function renderReport(
   const profileLabel=
     performanceProfile==="fast"
       ?"Fast"
-      :performanceProfile==="cool"
-        ?"Cool"
-        :"Balanced";
+      :performanceProfile==="mobile"
+        ?"Mobile Safe"
+        :performanceProfile==="cool"
+          ?"Cool"
+          :"Balanced";
 
   $("imageRuntimeProvider").textContent=
     String(provider||"").startsWith("WebGPU")

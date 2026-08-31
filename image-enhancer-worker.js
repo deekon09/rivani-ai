@@ -1,4 +1,4 @@
-// RIVANI AI · Image Enhancer V25.6
+// RIVANI AI · Image Enhancer V25.7
 // Real-ESRGAN x4plus ONNX · browser-side inference.
 // Fixed model contract: 1x3x128x128 -> 1x3x512x512.
 
@@ -28,9 +28,16 @@ let modelBytes=null;
 let inputName="";
 let outputName="";
 let performanceProfile="balanced";
+let uiPressure=0;
 
 self.onmessage=async event=>{
   const msg=event.data||{};
+
+  if(msg.type==="ui-pressure"){
+    uiPressure=Math.max(0,Math.min(1,Number(msg.value)||0));
+    return;
+  }
+
   if(msg.type!=="enhance")return;
 
   try{
@@ -39,6 +46,7 @@ self.onmessage=async event=>{
     const targetScale=Number(msg.targetScale)===4?4:2;
     const pixels=new Uint8ClampedArray(msg.rgba);
     performanceProfile=normalizeProfile(msg.performanceProfile);
+    uiPressure=0;
 
     if(!width||!height||pixels.length!==width*height*4){
       throw new Error("Invalid image buffer.");
@@ -82,9 +90,24 @@ async function ensureSession(){
   modelBytes=modelBytes||await getModelBytes();
 
   if(self.navigator?.gpu){
-    // The model input is fully static (1×3×128×128), so graph capture can
-    // reduce repeated per-tile CPU command overhead on compatible GPUs.
-    try{
+    // Graph capture is a great repeated-tile fast path on desktop, but on
+    // mid-range mobile GPUs it can keep the shared compositor queue too busy.
+    // Mobile Safe therefore starts with normal WebGPU and uses responsive
+    // duty-cycle pacing instead. Model math and output pixels are unchanged.
+    if(performanceProfile==="mobile"){
+      try{
+        await createWebGpuSession(false);
+        return;
+      }catch(error){
+        await releaseSession();
+        self.postMessage({
+          type:"status",
+          progress:1,
+          text:"Mobile GPU path is unavailable. Using compatibility engine…",
+          provider:"RIVANI AI Engine"
+        });
+      }
+    }else try{
       await createWebGpuSession(true);
       return;
     }catch(error){
@@ -316,7 +339,7 @@ async function enhanceImage(src,width,height,targetScale){
 }
 
 function normalizeProfile(value){
-  return value==="fast"||value==="cool"?value:"balanced";
+  return value==="fast"||value==="cool"||value==="mobile"?value:"balanced";
 }
 
 async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineMs){
@@ -327,19 +350,28 @@ async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineM
     :1;
   const throttling=Math.max(0,Math.min(1,(slowdown-1.18)/.55));
 
+  // Mobile Safe also listens to real browser-frame pressure from the page.
+  // This is important because the GPU is shared with Chrome's compositor: a
+  // phone can have fast AI tiles yet still make scrolling visibly janky.
+  const pressure=Math.max(throttling,uiPressure);
+
   const normalBatch=
     performanceProfile==="fast"
       ?18
-      :performanceProfile==="cool"
-        ?3
-        :5;
+      :performanceProfile==="mobile"
+        ?2
+        :performanceProfile==="cool"
+          ?3
+          :5;
   const hotBatch=
     performanceProfile==="fast"
       ?12
-      :performanceProfile==="cool"
-        ?2
-        :3;
-  const batchSize=throttling>.35?hotBatch:normalBatch;
+      :performanceProfile==="mobile"
+        ?1
+        :performanceProfile==="cool"
+          ?2
+          :3;
+  const batchSize=pressure>.32?hotBatch:normalBatch;
 
   if(completed%batchSize!==0)return batchStarted;
 
@@ -347,21 +379,27 @@ async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineM
   const baseDuty=
     performanceProfile==="fast"
       ?.985
-      :performanceProfile==="cool"
-        ?.855
-        :.905;
+      :performanceProfile==="mobile"
+        ?.82
+        :performanceProfile==="cool"
+          ?.855
+          :.905;
   const minDuty=
     performanceProfile==="fast"
       ?.955
-      :performanceProfile==="cool"
-        ?.78
-        :.84;
-  const duty=Math.max(minDuty,baseDuty-throttling*.075);
+      :performanceProfile==="mobile"
+        ?.62
+        :performanceProfile==="cool"
+          ?.78
+          :.84;
+  const thermalPenalty=throttling*.075;
+  const uiPenalty=performanceProfile==="mobile"?uiPressure*.19:uiPressure*.08;
+  const duty=Math.max(minDuty,baseDuty-thermalPenalty-uiPenalty);
 
   // Duty-cycle pacing is proportional to actual tile time, not a fixed sleep.
-  // Fast devices therefore remain fast, while a device showing sustained
-  // slowdown gets a little extra breathing room. Output quality is unchanged.
-  const maxPause=performanceProfile==="cool"?88:performanceProfile==="balanced"?58:12;
+  // Mobile pressure feedback only changes when work is submitted; it never
+  // changes the Real-ESRGAN model, tile, context or sampled output pixels.
+  const maxPause=performanceProfile==="mobile"?125:performanceProfile==="cool"?88:performanceProfile==="balanced"?58:12;
   const pause=Math.min(maxPause,Math.max(0,elapsed*(1/duty-1)));
   if(pause>=1)await delay(Math.round(pause));
   else await delay(0);
