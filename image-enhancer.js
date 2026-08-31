@@ -1,5 +1,7 @@
 (()=>{"use strict";
 
+// RIVANI Image Enhancer V25.5 · verified tone lock + precision protection
+
 const $=id=>document.getElementById(id);
 
 const fileInput=$("imageFileInput");
@@ -12,11 +14,10 @@ const enhanceBtn=$("enhanceImageBtn");
 const originalPreview=$("imageOriginalPreview");
 const compareBefore=$("compareBefore");
 const compareAfter=$("compareAfter");
-const compareWrap=$("compareAfterWrap");
-const compareLine=$("compareLine");
-const compareRange=$("compareRange");
 const compareBox=$("imageCompare");
 const previewEmpty=$("imagePreviewEmpty");
+const previewShell=$("imagePreviewShell");
+const protectCanvas=$("protectSelectionCanvas");
 
 const processing=$("imageProcessingOverlay");
 const progressFill=$("imageProgressFill");
@@ -31,6 +32,21 @@ const resultHeadline=$("imageResultHeadline");
 const downloadBtn=$("downloadEnhancedBtn");
 const againBtn=$("enhanceAgainBtn");
 const anotherBtn=$("enhanceAnotherBtn");
+const precisionProtectBtn=$("precisionProtectBtn");
+const clearProtectedRegionBtn=$("clearProtectedRegionBtn");
+const protectedRegionStatus=$("protectedRegionStatus");
+const truthMapToggle=$("truthMapToggle");
+const printProofToggle=$("printProofToggle");
+const truthMapPanel=$("imageTruthMapPanel");
+const truthMapCanvas=$("imageTruthMapCanvas");
+const truthMapNote=$("imageTruthMapNote");
+const truthMapStatus=$("truthMapStatus");
+const printProofPanel=$("imagePrintProof");
+const printProofValue=$("imagePrintProofValue");
+const protectedMeta=$("imageProtectedMeta");
+const imageProModal=$("imageProModal");
+const imageProModalTitle=$("imageProModalTitle");
+const imageProModalCopy=$("imageProModalCopy");
 
 const DEFAULT_OUTPUT_PIXELS=36_000_000;
 const DEFAULT_OUTPUT_EDGE=9000;
@@ -48,6 +64,12 @@ let textLogoSafe=true;
 let colorLock=true;
 let busy=false;
 let currentScan=null;
+let currentImagePlan="free";
+let protectionSelectMode=false;
+let protectedRegions=[];
+let truthMapEnabled=false;
+let printProofEnabled=false;
+let protectDrag=null;
 
 chooseBtn?.addEventListener("click",()=>fileInput?.click());
 replaceBtn?.addEventListener("click",()=>fileInput?.click());
@@ -115,8 +137,9 @@ bindToggle("colorLockToggle",value=>colorLock=value);
 enhanceBtn?.addEventListener("click",enhanceCurrentImage);
 againBtn?.addEventListener("click",()=>{
   resultPanel?.classList.add("hidden");
-  compareRange.value="50";
-  setCompare(50);
+  compareBox?.classList.add("hidden");
+  previewEmpty?.classList.remove("hidden");
+  redrawProtectedRegions();
   window.scrollTo({top:Math.max(0,enhanceBtn.offsetTop-180),behavior:"smooth"});
 });
 
@@ -147,8 +170,95 @@ downloadBtn?.addEventListener("click",()=>{
   setTimeout(()=>URL.revokeObjectURL(link.href),3000);
 });
 
-compareRange?.addEventListener("input",()=>{
-  setCompare(Number(compareRange.value));
+
+
+function normalizeImagePlan(value){
+  return String(value||"").trim().toLowerCase()==="pro"?"pro":"free";
+}
+
+function syncImagePlan(context){
+  currentImagePlan=normalizeImagePlan(context?.plan||window.RIVANI_LUKI_CONTEXT?.plan);
+  document.body.classList.toggle("image-pro-entitled",currentImagePlan==="pro");
+  redrawProtectedRegions();
+}
+
+function isImagePro(){
+  return currentImagePlan==="pro";
+}
+
+window.addEventListener("rivani:auth-context",event=>syncImagePlan(event.detail));
+syncImagePlan(window.RIVANI_LUKI_CONTEXT||{});
+
+precisionProtectBtn?.addEventListener("click",()=>{
+  if(!sourceBitmap){
+    alert("Choose an image first, then mark the area you want RIVANI to protect.");
+    return;
+  }
+  if(!isImagePro()){
+    openImagePro("Logo / Critical Area Lock","Select up to five important regions. RIVANI restores those exact regions from the original after enhancement while the rest of the image keeps the verified AI result.");
+    return;
+  }
+  protectionSelectMode=!protectionSelectMode;
+  precisionProtectBtn.classList.toggle("active",protectionSelectMode);
+  precisionProtectBtn.setAttribute("aria-pressed",String(protectionSelectMode));
+  if(protectionSelectMode){
+    previewEmpty?.classList.remove("hidden");
+    compareBox?.classList.add("hidden");
+    resultPanel?.classList.add("hidden");
+  }
+  redrawProtectedRegions();
+});
+
+clearProtectedRegionBtn?.addEventListener("click",()=>{
+  protectedRegions=[];
+  protectionSelectMode=false;
+  precisionProtectBtn?.classList.remove("active");
+  redrawProtectedRegions();
+});
+
+truthMapToggle?.addEventListener("click",()=>{
+  if(!isImagePro()){
+    openImagePro("RIVANI Truth Map","See a visual change map after verification so you can identify where enhancement changed the source most.");
+    return;
+  }
+  truthMapEnabled=!truthMapEnabled;
+  truthMapToggle.setAttribute("aria-pressed",String(truthMapEnabled));
+  truthMapToggle.classList.toggle("active",truthMapEnabled);
+  if(!truthMapEnabled)truthMapPanel?.classList.add("hidden");
+});
+
+printProofToggle?.addEventListener("click",()=>{
+  if(!isImagePro()){
+    openImagePro("Print Proof","Get a conservative 300 DPI print-size estimate from the actual verified output dimensions.");
+    return;
+  }
+  printProofEnabled=!printProofEnabled;
+  printProofToggle.setAttribute("aria-pressed",String(printProofEnabled));
+  printProofToggle.classList.toggle("active",printProofEnabled);
+  if(!printProofEnabled)printProofPanel?.classList.add("hidden");
+});
+
+document.querySelectorAll("[data-close-image-pro]").forEach(btn=>{
+  btn.addEventListener("click",closeImagePro);
+});
+
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape"){
+    closeImagePro();
+    if(protectionSelectMode){
+      protectionSelectMode=false;
+      precisionProtectBtn?.classList.remove("active");
+      redrawProtectedRegions();
+    }
+  }
+});
+
+protectCanvas?.addEventListener("pointerdown",beginProtectionDrag);
+protectCanvas?.addEventListener("pointermove",moveProtectionDrag);
+protectCanvas?.addEventListener("pointerup",endProtectionDrag);
+protectCanvas?.addEventListener("pointercancel",cancelProtectionDrag);
+window.addEventListener("resize",()=>{
+  if(sourceBitmap)redrawProtectedRegions();
 });
 
 function bindToggle(id,setter){
@@ -185,6 +295,11 @@ async function loadImage(file){
     sourceUrl=URL.createObjectURL(file);
     enhancedUrl="";
     enhancedBlob=null;
+    protectedRegions=[];
+    protectionSelectMode=false;
+    precisionProtectBtn?.classList.remove("active");
+    truthMapPanel?.classList.add("hidden");
+    printProofPanel?.classList.add("hidden");
 
     originalPreview.src=sourceUrl;
     compareBefore.src=sourceUrl;
@@ -201,6 +316,7 @@ async function loadImage(file){
     resultPanel.classList.add("hidden");
 
     enhanceBtn.disabled=false;
+    requestAnimationFrame(redrawProtectedRegions);
 
     const scan=await smartScan(bitmap,file);
     currentScan=scan;
@@ -407,7 +523,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.4-image",
+      "image-enhancer-worker.js?v=25.5-image",
       {type:"module"}
     );
 
@@ -460,13 +576,36 @@ async function enhanceCurrentImage(){
       response.height,
       decision.blend,
       colorLock,
-      rawMetrics
+      rawMetrics,
+      isImagePro()?protectedRegions:[]
     );
 
-    const finalMetrics=measureFidelity(
+    let finalMetrics=measureFidelity(
       sourceBitmap,
       finalCanvas
     );
+
+    // V25.5 verified Tone Lock: if a Color Lock result still shifts overall
+    // brightness/color after composition, repair the tone with the source as
+    // the truth anchor. AI detail stays in place; only global tone is nudged.
+    if(colorLock&&decision.blend>0){
+      finalMetrics=repairVerifiedTone(
+        sourceBitmap,
+        finalCanvas,
+        finalMetrics
+      );
+    }
+
+    if(isImagePro()&&protectedRegions.length){
+      applyProtectedRegions(
+        sourceBitmap,
+        finalCanvas.getContext("2d",{alpha:true}),
+        finalCanvas.width,
+        finalCanvas.height,
+        protectedRegions
+      );
+      finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
+    }
 
     const format=$("imageExportFormat")?.value||"png";
     const blob=await canvasToBlob(
@@ -484,8 +623,24 @@ async function enhanceCurrentImage(){
     compareAfter.src=enhancedUrl;
     previewEmpty.classList.add("hidden");
     compareBox.classList.remove("hidden");
+    protectionSelectMode=false;
+    precisionProtectBtn?.classList.remove("active");
+    redrawProtectedRegions();
 
-    setCompare(50);
+    if(isImagePro()&&truthMapEnabled){
+      renderTruthMap(sourceBitmap,finalCanvas,finalMetrics,decision);
+      truthMapPanel?.classList.remove("hidden");
+    }else{
+      truthMapPanel?.classList.add("hidden");
+    }
+
+    if(isImagePro()&&printProofEnabled){
+      renderPrintProof(response.width,response.height);
+      printProofPanel?.classList.remove("hidden");
+    }else{
+      printProofPanel?.classList.add("hidden");
+    }
+
     renderReport(
       finalMetrics,
       decision,
@@ -634,10 +789,12 @@ function getImagePerformanceProfile(){
 
   if(mobile)return "cool";
 
-  // Reserve the fully aggressive feed for clearly strong desktops/workstations.
-  // Common 6–8 core PCs/laptops stay Balanced to keep UI/thermals sensible.
+  // V25.5 device-aware defaults. The worker then self-tunes further from real
+  // tile latency, so this is only the starting profile—not a quality mode.
+  if(memory&&memory<=3)return "cool";
   if(cores>=12&&(memory===0||memory>=8))return "fast";
-  if(cores>=6)return "balanced";
+  if(cores>=8&&(memory===0||memory>=4))return "balanced";
+  if(cores>=6&&(memory===0||memory>=6))return "balanced";
   return "cool";
 }
 
@@ -803,7 +960,8 @@ function composeFinal(
   height,
   blend,
   colorSafe,
-  metrics
+  metrics,
+  regions=[]
 ){
   const ctx=aiCanvas.getContext("2d",{alpha:true});
 
@@ -843,6 +1001,10 @@ function composeFinal(
       ctx.drawImage(source,0,0,width,height);
       ctx.restore();
     }
+  }
+
+  if(regions?.length){
+    applyProtectedRegions(source,ctx,width,height,regions);
   }
 
   // Preserve original transparency exactly.
@@ -1086,10 +1248,271 @@ function setProgress(percent,title,text,provider){
   }
 }
 
-function setCompare(value){
-  const v=Math.max(0,Math.min(100,Number(value)||0));
-  compareWrap.style.clipPath=`inset(0 ${100-v}% 0 0)`;
-  compareLine.style.left=`${v}%`;
+function setCompare(_value){
+  // V25.5 uses separate Original and Enhanced panels instead of a drag slider.
+}
+
+function openImagePro(title,copy){
+  if(!imageProModal)return;
+  if(imageProModalTitle)imageProModalTitle.textContent=title||"RIVANI Pro";
+  if(imageProModalCopy)imageProModalCopy.textContent=copy||"This precision control is included with RIVANI Pro.";
+  imageProModal.classList.remove("hidden");
+  document.body.style.overflow="hidden";
+}
+
+function closeImagePro(){
+  imageProModal?.classList.add("hidden");
+  document.body.style.overflow="";
+}
+
+function previewImageRect(){
+  if(!previewShell||!sourceBitmap)return null;
+  const rect=previewShell.getBoundingClientRect();
+  const w=rect.width;
+  const h=rect.height;
+  if(w<2||h<2)return null;
+  const scale=Math.min(w/sourceBitmap.width,h/sourceBitmap.height);
+  const iw=sourceBitmap.width*scale;
+  const ih=sourceBitmap.height*scale;
+  return {left:(w-iw)/2,top:(h-ih)/2,width:iw,height:ih};
+}
+
+function resizeProtectCanvas(){
+  if(!protectCanvas||!previewShell)return;
+  const rect=previewShell.getBoundingClientRect();
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const width=Math.max(1,Math.round(rect.width*dpr));
+  const height=Math.max(1,Math.round(rect.height*dpr));
+  if(protectCanvas.width!==width||protectCanvas.height!==height){
+    protectCanvas.width=width;
+    protectCanvas.height=height;
+  }
+  protectCanvas.dataset.dpr=String(dpr);
+}
+
+function redrawProtectedRegions(temp=null){
+  if(!protectCanvas)return;
+  resizeProtectCanvas();
+  const dpr=Number(protectCanvas.dataset.dpr)||1;
+  const ctx=protectCanvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,protectCanvas.width/dpr,protectCanvas.height/dpr);
+  const imageRect=previewImageRect();
+  const visible=Boolean(sourceBitmap&&protectionSelectMode);
+  protectCanvas.classList.toggle("hidden",!visible);
+  protectCanvas.classList.toggle("selecting",Boolean(protectionSelectMode));
+  if(!imageRect){updateProtectedRegionStatus();return;}
+
+  const drawRegion=(r,temporary=false)=>{
+    const x=imageRect.left+r.x*imageRect.width;
+    const y=imageRect.top+r.y*imageRect.height;
+    const w=r.w*imageRect.width;
+    const h=r.h*imageRect.height;
+    ctx.save();
+    ctx.lineWidth=temporary?2:2.5;
+    ctx.strokeStyle=temporary?"rgba(120,220,255,.95)":"rgba(124,119,255,.95)";
+    ctx.fillStyle=temporary?"rgba(80,190,255,.10)":"rgba(105,84,255,.11)";
+    ctx.setLineDash(temporary?[7,5]:[]);
+    ctx.fillRect(x,y,w,h);
+    ctx.strokeRect(x+.5,y+.5,Math.max(0,w-1),Math.max(0,h-1));
+    ctx.restore();
+  };
+
+  protectedRegions.forEach(r=>drawRegion(r,false));
+  if(temp)drawRegion(temp,true);
+  updateProtectedRegionStatus();
+}
+
+function pointToProtectedRegion(start,end){
+  const r=previewImageRect();
+  if(!r)return null;
+  const x1=Math.max(r.left,Math.min(r.left+r.width,start.x));
+  const y1=Math.max(r.top,Math.min(r.top+r.height,start.y));
+  const x2=Math.max(r.left,Math.min(r.left+r.width,end.x));
+  const y2=Math.max(r.top,Math.min(r.top+r.height,end.y));
+  const left=Math.min(x1,x2),top=Math.min(y1,y2);
+  const width=Math.abs(x2-x1),height=Math.abs(y2-y1);
+  if(width<10||height<10)return null;
+  return {
+    x:(left-r.left)/r.width,
+    y:(top-r.top)/r.height,
+    w:width/r.width,
+    h:height/r.height
+  };
+}
+
+function protectPointer(event){
+  const rect=protectCanvas.getBoundingClientRect();
+  return {x:event.clientX-rect.left,y:event.clientY-rect.top};
+}
+
+function beginProtectionDrag(event){
+  if(!protectionSelectMode||!isImagePro()||!sourceBitmap)return;
+  if(protectedRegions.length>=5){
+    alert("Up to 5 protected areas can be selected per image.");
+    return;
+  }
+  const start=protectPointer(event);
+  const r=previewImageRect();
+  if(!r||start.x<r.left||start.x>r.left+r.width||start.y<r.top||start.y>r.top+r.height)return;
+  protectDrag={start,current:start};
+  protectCanvas.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+}
+
+function moveProtectionDrag(event){
+  if(!protectDrag)return;
+  protectDrag.current=protectPointer(event);
+  redrawProtectedRegions(pointToProtectedRegion(protectDrag.start,protectDrag.current));
+  event.preventDefault();
+}
+
+function endProtectionDrag(event){
+  if(!protectDrag)return;
+  const region=pointToProtectedRegion(protectDrag.start,protectPointer(event));
+  protectDrag=null;
+  if(region)protectedRegions.push(region);
+  redrawProtectedRegions();
+  event.preventDefault();
+}
+
+function cancelProtectionDrag(){
+  protectDrag=null;
+  redrawProtectedRegions();
+}
+
+function updateProtectedRegionStatus(){
+  const count=protectedRegions.length;
+  if(protectedRegionStatus){
+    protectedRegionStatus.textContent=count
+      ?`${count} protected area${count===1?"":"s"} selected`
+      :protectionSelectMode
+        ?"Drag over a logo, face, text or critical detail"
+        :"No protected areas";
+  }
+  clearProtectedRegionBtn?.classList.toggle("hidden",count===0);
+  if(protectedMeta){
+    protectedMeta.classList.toggle("hidden",count===0);
+    if(count)protectedMeta.textContent=`${count} precision-protected area${count===1?"":"s"}`;
+  }
+}
+
+function applyProtectedRegions(source,ctx,width,height,regions){
+  for(const r of regions.slice(0,5)){
+    const sx=Math.max(0,r.x*source.width);
+    const sy=Math.max(0,r.y*source.height);
+    const sw=Math.max(1,Math.min(source.width-sx,r.w*source.width));
+    const sh=Math.max(1,Math.min(source.height-sy,r.h*source.height));
+    const dx=r.x*width;
+    const dy=r.y*height;
+    const dw=r.w*width;
+    const dh=r.h*height;
+
+    // Feathered truth-anchor edge: a few low-alpha expanded passes avoid a
+    // hard rectangular seam, then the selected core is restored exactly.
+    for(let step=4;step>=1;step--){
+      const px=(dw*.004)*step;
+      const py=(dh*.004)*step;
+      ctx.save();
+      ctx.globalCompositeOperation="source-over";
+      ctx.globalAlpha=.055;
+      ctx.drawImage(source,sx,sy,sw,sh,dx-px,dy-py,dw+px*2,dh+py*2);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.globalCompositeOperation="source-over";
+    ctx.globalAlpha=1;
+    ctx.drawImage(source,sx,sy,sw,sh,dx,dy,dw,dh);
+    ctx.restore();
+  }
+}
+
+function repairVerifiedTone(source,canvas,metrics){
+  let current=metrics;
+  const ctx=canvas.getContext("2d",{alpha:true});
+  for(let pass=0;pass<2;pass++){
+    const luma=Math.abs(current.lumaDrift||0);
+    const color=current.colorDrift||0;
+    if(luma<=.028&&color<=.045)break;
+
+    if(color>.035){
+      ctx.save();
+      ctx.globalCompositeOperation="color";
+      ctx.globalAlpha=Math.min(.34,Math.max(.05,(color-.025)*4.0));
+      ctx.drawImage(source,0,0,canvas.width,canvas.height);
+      ctx.restore();
+    }
+    if(luma>.018){
+      ctx.save();
+      ctx.globalCompositeOperation="luminosity";
+      ctx.globalAlpha=Math.min(.62,Math.max(.08,luma*7.2));
+      ctx.drawImage(source,0,0,canvas.width,canvas.height);
+      ctx.restore();
+    }
+    current=measureFidelity(source,canvas);
+  }
+  return current;
+}
+
+function renderTruthMap(source,enhancedCanvas,metrics,decision){
+  if(!truthMapCanvas)return;
+  const width=240;
+  const height=Math.max(120,Math.round(width*(source.height/source.width)));
+  truthMapCanvas.width=width;
+  truthMapCanvas.height=height;
+  const a=document.createElement("canvas");
+  const b=document.createElement("canvas");
+  a.width=b.width=width;a.height=b.height=height;
+  const ac=a.getContext("2d",{willReadFrequently:true});
+  const bc=b.getContext("2d",{willReadFrequently:true});
+  ac.drawImage(source,0,0,width,height);
+  bc.drawImage(enhancedCanvas,0,0,width,height);
+  const A=ac.getImageData(0,0,width,height).data;
+  const B=bc.getImageData(0,0,width,height).data;
+  const ctx=truthMapCanvas.getContext("2d");
+  const map=ctx.createImageData(width,height);
+  let changed=0,sum=0;
+  for(let i=0;i<width*height;i++){
+    const p=i*4;
+    const d=(Math.abs(A[p]-B[p])+Math.abs(A[p+1]-B[p+1])+Math.abs(A[p+2]-B[p+2]))/(3*255);
+    const t=Math.min(1,d*5.5);
+    sum+=d;if(d>.075)changed++;
+    map.data[p]=Math.round(22+t*220);
+    map.data[p+1]=Math.round(82+(1-Math.abs(t-.45)*2)*Math.max(0,72));
+    map.data[p+2]=Math.round(155+(1-t)*85);
+    map.data[p+3]=230;
+  }
+  ctx.putImageData(map,0,0);
+
+  // Draw precision-protected regions as outlines on the Truth Map.
+  if(protectedRegions.length){
+    ctx.save();
+    ctx.strokeStyle="rgba(215,240,255,.95)";
+    ctx.lineWidth=2;
+    for(const r of protectedRegions){
+      ctx.strokeRect(r.x*width+.5,r.y*height+.5,r.w*width-1,r.h*height-1);
+    }
+    ctx.restore();
+  }
+
+  const avg=sum/(width*height);
+  const changedPct=Math.round(changed/(width*height)*100);
+  const level=avg<.025?"Low":avg<.055?"Moderate":"High";
+  if(truthMapStatus)truthMapStatus.textContent=`${level} change`;
+  if(truthMapNote){
+    truthMapNote.textContent=decision.risk==="high"
+      ?`Safe Result protection was triggered. ${changedPct}% of sampled pixels crossed the change threshold before protection.`
+      :`${changedPct}% of sampled pixels show meaningful verified change. Structure ${Math.round(metrics.structure*100)}% preserved.${protectedRegions.length?` ${protectedRegions.length} selected area${protectedRegions.length===1?"":"s"} anchored to the original.`:""}`;
+  }
+}
+
+function renderPrintProof(width,height){
+  if(!printProofValue)return;
+  const inchW=width/300;
+  const inchH=height/300;
+  const cmW=inchW*2.54;
+  const cmH=inchH*2.54;
+  printProofValue.textContent=`${cmW.toFixed(1)} × ${cmH.toFixed(1)} cm · ${inchW.toFixed(1)} × ${inchH.toFixed(1)} in at 300 DPI`;
 }
 
 function drawSample(bitmap,maxSize){
@@ -1171,6 +1594,12 @@ function resetForAnotherImage(){
   enhancedUrl="";
   enhancedBlob=null;
   currentScan=null;
+  protectedRegions=[];
+  protectionSelectMode=false;
+  protectDrag=null;
+  precisionProtectBtn?.classList.remove("active");
+  truthMapPanel?.classList.add("hidden");
+  printProofPanel?.classList.add("hidden");
 
   if(fileInput)fileInput.value="";
   originalPreview?.removeAttribute("src");
@@ -1183,7 +1612,7 @@ function resetForAnotherImage(){
   editor?.classList.add("hidden");
   dropZone?.classList.remove("hidden");
   enhanceBtn.disabled=true;
-  setCompare(50);
+  redrawProtectedRegions();
   setProgress(0,"Preparing enhancement…","Your image remains on this device.");
   dropZone?.scrollIntoView({behavior:"smooth",block:"center"});
 }

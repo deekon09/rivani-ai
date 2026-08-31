@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030616"><meta name="description" content="Improve clarity and perceived detail in low-quality images, with a preview before export."><title>Image Enhancer Guide — RIVANI AI</title><link rel="stylesheet" href="styles.css?v=25.0-image"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030616"><meta name="description" content="Improve clarity and perceived detail in low-quality images, with a preview before export."><title>Image Enhancer Guide — RIVANI AI</title><link rel="stylesheet" href="styles.css?v=25.5-image"></head><body>
     <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div><header class="site-header"><div class="container nav-wrap">
       <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI" /></a>
       <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
@@ -7,7 +7,7 @@
     </div></header><main><section class="tool-guide-hero section"><div class="container tool-guide-grid"><div class="reveal"><span class="status-pill">Live</span><span class="section-kicker">IMAGE TOOL GUIDE</span><h1>Image Enhancer</h1><p>A browser-based AI enhancement tool that combines real super-resolution with RIVANI Fidelity Guard so sharper results stay faithful to the source.</p><div class="hero-actions"><a class="btn btn-primary" href="image-enhancer.html">Open Image Enhancer →</a><a class="btn btn-secondary" href="articles.html">All guides</a></div></div><img class="tool-guide-art reveal delay-1" src="assets/image.svg" alt="Image Enhancer illustration"></div></section>
 <section class="section"><div class="container article-layout"><aside class="article-toc"><strong>On this page</strong><a href="#what">What it is</a><a href="#workflow">Planned workflow</a><a href="#usecases">Use cases</a><a href="#limits">Limits</a><a href="#privacy">Privacy note</a></aside><article class="long-article">
 <h2 id="what">What Image Enhancer does</h2>
-<p>RIVANI Image Enhancer runs a real Real-ESRGAN x4plus super-resolution model inside the browser. The source image itself is not uploaded to a RIVANI GPU server: the model is downloaded to the device and inference runs locally.</p>
+<p>RIVANI Image Enhancer runs a real super-resolution model inside the browser. The source image itself is not uploaded to a RIVANI GPU server: the model is downloaded to the device and inference runs locally.</p>
 <p>The main product difference is Fidelity Guard. RIVANI does not treat a model output as automatically trustworthy. It downsamples and compares the enhanced result against the source, measuring sampled structure similarity, color drift and edge amplification before deciding how much AI detail to keep.</p>
 
 <h2 id="workflow">Workflow</h2>
@@ -16,8 +16,8 @@
 <li>Smart Scan estimates blur, noise, compression risk, lighting, fine-edge sensitivity and transparency.</li>
 <li>Choose Natural, Strong or Restore and 2× or 4× output.</li>
 <li>RIVANI runs tiled Real-ESRGAN enhancement in the browser.</li>
-<li>Fidelity Guard checks the result and automatically reduces AI strength if the output starts drifting too far from the original.</li>
-<li>Use the Before / After slider and Fidelity Report before downloading.</li>
+<li>Fidelity Guard checks the result and automatically reduces AI strength if the output starts drifting too far from the original.</li><li>RIVANI Pro precision controls are designed for manual truth protection: select logo/text/face/product areas to anchor them to the original, inspect a Truth Map, and view a conservative 300 DPI Print Proof.</li>
+<li>Review separate Original and RIVANI Enhanced panels plus the Fidelity Report before downloading.</li>
 </ol>
 
 <h2 id="usecases">Where it works well</h2>

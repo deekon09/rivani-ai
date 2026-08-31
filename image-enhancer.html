@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
   <title>Image Enhancer — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=25.3-image">
+  <link rel="stylesheet" href="styles.css?v=25.5-image">
 </head>
 <body class="image-enhancer-page">
   <div class="ambient ambient-one"></div>
@@ -54,7 +54,7 @@
             <span>✓ Real 4× super-resolution model</span>
             <span>✓ Smart damage scan</span>
             <span>✓ Fidelity Guard</span>
-            <span>✓ Before / after verification</span>
+            <span>✓ Separate original / enhanced review</span>
           </div>
         </div>
 
@@ -132,6 +132,39 @@
               </button>
             </div>
 
+            <div class="image-control-block image-pro-tool-block">
+              <div class="image-pro-heading">
+                <label>Precision controls</label>
+                <span>RIVANI PRO</span>
+              </div>
+
+              <button class="image-pro-tool" id="precisionProtectBtn" type="button">
+                <span>
+                  <b>Logo / Critical Area Lock</b>
+                  <small>Select up to 5 important areas. RIVANI restores those exact regions from the original after AI enhancement.</small>
+                </span>
+                <em>PRO</em>
+              </button>
+              <div class="image-protect-status" id="protectedRegionStatus">No protected areas</div>
+              <button class="image-clear-protect hidden" id="clearProtectedRegionBtn" type="button">Clear protected areas</button>
+
+              <button class="image-pro-tool" id="truthMapToggle" type="button" aria-pressed="false">
+                <span>
+                  <b>RIVANI Truth Map</b>
+                  <small>Visualize where the verified result changed most, instead of relying on one score.</small>
+                </span>
+                <em>PRO</em>
+              </button>
+
+              <button class="image-pro-tool" id="printProofToggle" type="button" aria-pressed="false">
+                <span>
+                  <b>Print Proof</b>
+                  <small>Shows a conservative 300 DPI print-size estimate from the actual verified output dimensions.</small>
+                </span>
+                <em>PRO</em>
+              </button>
+            </div>
+
             <div class="image-format-row">
               <label for="imageExportFormat">Export</label>
               <select id="imageExportFormat">
@@ -175,25 +208,28 @@
                   <img id="imageOriginalPreview" alt="Original image preview">
                   <div class="image-preview-tag">ORIGINAL</div>
                 </div>
-
                 <div class="image-compare hidden" id="imageCompare">
-                  <img class="compare-before" id="compareBefore" alt="Original image">
-                  <div class="compare-after-wrap" id="compareAfterWrap">
-                    <img class="compare-after" id="compareAfter" alt="Enhanced image">
-                  </div>
-                  <div class="compare-line" id="compareLine"><span>↔</span></div>
-                  <input
-                    class="compare-range"
-                    id="compareRange"
-                    type="range"
-                    min="0"
-                    max="100"
-                    value="50"
-                    aria-label="Compare original and enhanced image"
-                  >
-                  <span class="compare-label before"><b>Before</b><small>Original</small></span>
-                  <span class="compare-label after"><b>After</b><small>RIVANI Enhanced</small></span>
+                  <article class="image-compare-card image-before-card">
+                    <div class="image-compare-card-head">
+                      <span class="compare-label before"><b>Before</b><small>Original source</small></span>
+                      <span class="image-compare-caption">Truth anchor</span>
+                    </div>
+                    <div class="image-compare-frame">
+                      <img class="compare-before" id="compareBefore" alt="Original image">
+                    </div>
+                  </article>
+                  <article class="image-compare-card image-after-card">
+                    <div class="image-compare-card-head">
+                      <span class="compare-label after"><b>After</b><small>RIVANI Enhanced</small></span>
+                      <span class="image-compare-caption">Verified result</span>
+                    </div>
+                    <div class="image-compare-frame">
+                      <img class="compare-after" id="compareAfter" alt="Enhanced image">
+                    </div>
+                  </article>
                 </div>
+
+                <canvas class="image-protect-canvas hidden" id="protectSelectionCanvas" aria-label="Select protected areas"></canvas>
 
                 <div class="image-processing-overlay hidden" id="imageProcessingOverlay">
                   <div class="image-processing-orb" aria-hidden="true"><img src="assets/rivani-r-mark.png" alt=""></div>
@@ -255,7 +291,31 @@
                   <span id="imageEffectiveScale">—</span>
                   <span id="imageRuntimeProvider">—</span>
                   <span id="imageRuntimeTime">—</span>
+                  <span id="imageProtectedMeta" class="hidden">—</span>
                 </div>
+
+                <section class="image-truth-map-panel hidden" id="imageTruthMapPanel">
+                  <div class="image-section-title image-truth-title">
+                    <div>
+                      <span class="section-kicker">RIVANI TRUTH MAP · PRO</span>
+                      <h3>See where AI changed the image</h3>
+                    </div>
+                    <span id="truthMapStatus">Verified</span>
+                  </div>
+                  <div class="image-truth-map-body">
+                    <canvas id="imageTruthMapCanvas" width="192" height="128" aria-label="AI change map"></canvas>
+                    <div>
+                      <div class="image-truth-legend"><span><i class="truth-low"></i>Preserved</span><span><i class="truth-mid"></i>Adjusted</span><span><i class="truth-high"></i>Changed more</span></div>
+                      <p id="imageTruthMapNote">RIVANI compares the verified result with the source to show where enhancement changed pixels most.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="image-print-proof hidden" id="imagePrintProof">
+                  <span class="section-kicker">PRINT PROOF · PRO</span>
+                  <strong id="imagePrintProofValue">—</strong>
+                  <small>Conservative 300 DPI estimate based on verified output pixels.</small>
+                </section>
 
                 <div class="image-result-actions">
                   <button class="btn btn-primary" id="downloadEnhancedBtn" type="button">Download Enhanced Image</button>
@@ -270,7 +330,7 @@
         <section class="image-feature-strip reveal">
           <article>
             <span>01</span>
-            <div><b>Real AI Upscaling</b><small>4× Real-ESRGAN inference runs locally in the browser.</small></div>
+            <div><b>Real AI Upscaling</b><small>Real 4× AI super-resolution runs locally in the browser.</small></div>
           </article>
           <article>
             <span>02</span>
@@ -284,6 +344,18 @@
       </div>
     </section>
   </main>
+
+  <div class="image-pro-modal hidden" id="imageProModal" role="dialog" aria-modal="true" aria-labelledby="imageProModalTitle">
+    <div class="image-pro-modal-backdrop" data-close-image-pro></div>
+    <div class="image-pro-modal-card">
+      <button class="image-pro-modal-close" type="button" data-close-image-pro aria-label="Close">×</button>
+      <span class="section-kicker">RIVANI PRO</span>
+      <h2 id="imageProModalTitle">Precision enhancement control</h2>
+      <p id="imageProModalCopy">This precision control is reserved for RIVANI Pro.</p>
+      <div class="image-pro-modal-note">Basic Fidelity Guard, Text & Logo Safe and Color Lock stay available to Free users. Paid entitlement will be connected to the secure account plan when billing launches.</div>
+      <button class="btn btn-primary" type="button" data-close-image-pro>Got it</button>
+    </div>
+  </div>
 
   <footer class="site-footer">
     <div class="container footer-grid">
@@ -299,7 +371,7 @@
   </footer>
 
   <script src="script.js?v=25.2-image"></script>
-  <script src="image-enhancer.js?v=25.4-image"></script>
+  <script src="image-enhancer.js?v=25.5-image"></script>
   <script type="module" src="auth-nav.js?v=25.2-image"></script>
 </body>
 </html>

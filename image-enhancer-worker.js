@@ -1,4 +1,4 @@
-// RIVANI AI · Image Enhancer V25.4
+// RIVANI AI · Image Enhancer V25.5
 // Real-ESRGAN x4plus ONNX · browser-side inference.
 // Fixed model contract: 1x3x128x128 -> 1x3x512x512.
 
@@ -234,6 +234,8 @@ async function enhanceImage(src,width,height,targetScale){
   let lastReported=-1;
   let lastReportAt=0;
   let paceBatchStarted=performance.now();
+  let tileEmaMs=0;
+  let tileBaselineMs=Infinity;
   const inputBuffer=new Float32Array(TILE*TILE*3);
 
   for(let gy=0;gy<height;gy+=CORE){
@@ -242,6 +244,7 @@ async function enhanceImage(src,width,height,targetScale){
     for(let gx=0;gx<width;gx+=CORE){
       const coreW=Math.min(CORE,width-gx);
 
+      const tileStarted=performance.now();
       fillTileTensor(inputBuffer,src,width,height,gx,gy);
       const outTensor=await runTile(inputBuffer);
 
@@ -267,10 +270,27 @@ async function enhanceImage(src,width,height,targetScale){
 
       completed++;
 
+      const tileMs=Math.max(1,performance.now()-tileStarted);
+      tileEmaMs=tileEmaMs?tileEmaMs*.88+tileMs*.12:tileMs;
+      if(completed<=8){
+        tileBaselineMs=Math.min(tileBaselineMs,tileMs);
+      }else{
+        // Baseline follows long-term improvements very slowly but never jumps up
+        // just because a device is temporarily hot or busy.
+        tileBaselineMs=Math.min(tileBaselineMs*1.0015,tileMs);
+      }
+
       // Adaptive GPU pacing: same model, same pixels, same tile/context math.
-      // We only insert tiny cooperative gaps so mid-range laptops/mobile devices
-      // are not fed an endless back-to-back GPU queue. Strong desktops remain fast.
-      paceBatchStarted=await adaptivePace(completed,total,paceBatchStarted);
+      // V25.5 also watches repeated tile latency. If a laptop/mobile GPU starts
+      // slowing under sustained load, RIVANI automatically gives it slightly
+      // more breathing room instead of continuing to hammer it at the same duty.
+      paceBatchStarted=await adaptivePace(
+        completed,
+        total,
+        paceBatchStarted,
+        tileEmaMs,
+        tileBaselineMs
+      );
 
       const progress=3+Math.round((completed/total)*94);
       const now=performance.now();
@@ -299,30 +319,49 @@ function normalizeProfile(value){
   return value==="fast"||value==="cool"?value:"balanced";
 }
 
-async function adaptivePace(completed,total,batchStarted){
+async function adaptivePace(completed,total,batchStarted,tileEmaMs,tileBaselineMs){
   if(completed>=total||!sessionMode.startsWith("webgpu"))return performance.now();
 
-  const batchSize=
+  const slowdown=Number.isFinite(tileBaselineMs)&&tileBaselineMs>0
+    ?Math.max(1,tileEmaMs/tileBaselineMs)
+    :1;
+  const throttling=Math.max(0,Math.min(1,(slowdown-1.18)/.55));
+
+  const normalBatch=
     performanceProfile==="fast"
       ?16
       :performanceProfile==="cool"
         ?3
         :6;
+  const hotBatch=
+    performanceProfile==="fast"
+      ?10
+      :performanceProfile==="cool"
+        ?2
+        :4;
+  const batchSize=throttling>.35?hotBatch:normalBatch;
 
   if(completed%batchSize!==0)return batchStarted;
 
   const elapsed=Math.max(1,performance.now()-batchStarted);
-  const duty=
+  const baseDuty=
     performanceProfile==="fast"
       ?.985
       :performanceProfile==="cool"
         ?.88
         :.93;
+  const minDuty=
+    performanceProfile==="fast"
+      ?.95
+      :performanceProfile==="cool"
+        ?.82
+        :.875;
+  const duty=Math.max(minDuty,baseDuty-throttling*.055);
 
-  // Duty-cycle pacing is proportional to real tile time. On a fast GPU the
-  // pause stays tiny; on a slower/hotter device it creates enough breathing
-  // room to reduce sustained utilization without changing a single model pixel.
-  const maxPause=performanceProfile==="cool"?60:performanceProfile==="balanced"?34:8;
+  // Duty-cycle pacing is proportional to actual tile time, not a fixed sleep.
+  // Fast devices therefore remain fast, while a device showing sustained
+  // slowdown gets a little extra breathing room. Output quality is unchanged.
+  const maxPause=performanceProfile==="cool"?72:performanceProfile==="balanced"?44:14;
   const pause=Math.min(maxPause,Math.max(0,elapsed*(1/duty-1)));
   if(pause>=1)await delay(Math.round(pause));
   else await delay(0);
