@@ -1,5 +1,6 @@
-# Audio-only cross-origin isolation for WASM SharedArrayBuffer threading.
+# RIVANI V23.3 — stability baseline
+# Clear Voice intentionally uses the proven single-thread full-WASM path.
 /audio-repair*
-  Cross-Origin-Opener-Policy: same-origin
-  Cross-Origin-Embedder-Policy: credentialless
-  Permissions-Policy: cross-origin-isolated=(self)
+  Cross-Origin-Opener-Policy: unsafe-none
+  Cross-Origin-Embedder-Policy: unsafe-none
+  Permissions-Policy: cross-origin-isolated=()

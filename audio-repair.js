@@ -739,8 +739,14 @@ async function loadAudioFile(file){
     editor.classList.remove("hidden");
     editor.scrollIntoView({behavior:"smooth",block:"start"});
 
-    // Automatic: no manual model download or installation for the user.
-    warmupEngine();
+    // V23.3: do not eagerly compile the 229 MB Clear Voice session while
+    // the user is still scanning/toggling controls. This removes a race where
+    // warmup and Enhance could wait on the same stuck session promise.
+    const engineStatus=$("clearEngineStatus");
+    if(engineStatus){
+      engineStatus.textContent="RIVANI AI Engine · Ready to start";
+      engineStatus.classList.remove("engine-error");
+    }
   }catch(error){
     console.error(error);
     alert(String(error?.message||"This browser could not decode that audio file."));
@@ -807,7 +813,7 @@ async function runScan(){
 
 function getWorker(){
   if(worker)return worker;
-  worker=new Worker("rivani-ai-worker.js?v=23.2",{type:"module"});
+  worker=new Worker("rivani-ai-worker.js?v=23.3",{type:"module"});
 
   worker.addEventListener("message",event=>{
     const d=event.data||{};
@@ -841,6 +847,24 @@ function getWorker(){
   });
 
   return worker;
+}
+
+function releaseClearVoiceWorker(){
+  if(worker){
+    try{worker.terminate();}catch{}
+  }
+  worker=null;
+  modelReady=false;
+  warmupStarted=false;
+  activeProvider="";
+}
+
+function markClearVoiceRetryState(text="RIVANI AI Engine · Ready to retry"){
+  const status=$("clearEngineStatus");
+  if(status){
+    status.textContent=text;
+    status.classList.add("engine-error");
+  }
 }
 
 async function warmupEngine(){
@@ -1610,58 +1634,176 @@ async function runMusicControlBeta(left,right,amount,onProgress){
   });
 }
 
-async function runMossFormer(mono,strength,onProgress,assistsOverride=null){
+async function runMossFormer(
+  mono,
+  strength,
+  onProgress,
+  assistsOverride=null,
+  retryCount=0
+){
   const w=getWorker();
   const copy=new Float32Array(mono);
 
-  return await new Promise((resolve,reject)=>{
-    const listener=event=>{
-      const d=event.data||{};
+  try{
+    return await new Promise((resolve,reject)=>{
+      let settled=false;
+      let inactivityTimer=null;
 
-      if(d.type==="modelProgress"){
-        onProgress?.(
-          Math.min(15,Number(d.progress||0)*.15),
-          d.text||"Preparing RIVANI AI Engine…",
-          d.provider
+      // Session compilation can be heavy, but it must not wait forever.
+      // Every real worker message refreshes this timer.
+      const INACTIVITY_MS=90000;
+
+      const cleanup=()=>{
+        clearTimeout(inactivityTimer);
+        w.removeEventListener("message",listener);
+        w.removeEventListener("error",workerError);
+        w.removeEventListener("messageerror",messageError);
+      };
+
+      const finishError=error=>{
+        if(settled)return;
+        settled=true;
+        cleanup();
+        reject(
+          error instanceof Error
+            ?error
+            :new Error(String(error||"RIVANI AI Engine stopped responding."))
         );
-        return;
+      };
+
+      const refreshWatchdog=()=>{
+        clearTimeout(inactivityTimer);
+        inactivityTimer=setTimeout(()=>{
+          finishError(
+            new Error(
+              "RIVANI AI Engine stopped responding while preparing. " +
+              "The worker will restart automatically."
+            )
+          );
+        },INACTIVITY_MS);
+      };
+
+      const workerError=event=>{
+        event?.preventDefault?.();
+        finishError(
+          new Error("RIVANI AI Engine worker could not start.")
+        );
+      };
+
+      const messageError=()=>{
+        finishError(
+          new Error("RIVANI AI Engine returned an unreadable worker message.")
+        );
+      };
+
+      const listener=event=>{
+        const d=event.data||{};
+        refreshWatchdog();
+
+        if(d.type==="modelProgress"){
+          // Give preparation a visibly useful section of the progress bar.
+          const prep=Math.max(
+            0,
+            Math.min(28,Number(d.progress||0)*.28)
+          );
+          onProgress?.(
+            prep,
+            d.text||"Preparing RIVANI AI Engine…",
+            d.provider
+          );
+          return;
+        }
+
+        if(d.type==="phase"){
+          onProgress?.(
+            30,
+            d.text||"Running RIVANI AI enhancement…",
+            d.provider
+          );
+          return;
+        }
+
+        if(d.type==="segmentProgress"){
+          const p=32+(Number(d.progress||0)*.68);
+          onProgress?.(
+            p,
+            d.text||"Enhancing speech…",
+            d.provider
+          );
+          return;
+        }
+
+        if(d.type==="error"){
+          finishError(
+            new Error(d.message||"RIVANI AI enhancement failed.")
+          );
+          return;
+        }
+
+        if(d.type==="done"){
+          if(settled)return;
+          settled=true;
+          cleanup();
+          activeProvider=d.provider||activeProvider;
+          modelReady=true;
+          resolve(new Float32Array(d.buffer));
+        }
+      };
+
+      w.addEventListener("message",listener);
+      w.addEventListener("error",workerError);
+      w.addEventListener("messageerror",messageError);
+      refreshWatchdog();
+
+      const effectiveAssists=assistsOverride||{
+        fanAssist,
+        trafficAssist
+      };
+
+      try{
+        w.postMessage({
+          type:"process",
+          strength,
+          fanAssist:Boolean(effectiveAssists.fanAssist),
+          trafficAssist:Boolean(effectiveAssists.trafficAssist),
+          buffer:copy.buffer
+        },[copy.buffer]);
+      }catch(error){
+        finishError(error);
       }
+    });
+  }catch(error){
+    // One clean retry with a brand-new Worker/session. Do not silently change
+    // the model or audio algorithm.
+    releaseClearVoiceWorker();
 
-      if(d.type==="phase"){
-        onProgress?.(18,d.text||"Running RIVANI AI enhancement…",d.provider);
-        return;
-      }
+    if(retryCount<1){
+      markClearVoiceRetryState(
+        "RIVANI AI Engine · Restarting compatibility mode…"
+      );
 
-      if(d.type==="segmentProgress"){
-        const p=20+(Number(d.progress||0)*.80);
-        onProgress?.(p,d.text||"Enhancing speech…",d.provider);
-        return;
-      }
+      onProgress?.(
+        2,
+        "Restarting RIVANI AI Engine in stable compatibility mode…",
+        "wasm-full"
+      );
 
-      if(d.type==="error"){
-        w.removeEventListener("message",listener);
-        reject(new Error(d.message||"RIVANI AI enhancement failed."));
-        return;
-      }
+      await new Promise(resolve=>setTimeout(resolve,250));
 
-      if(d.type==="done"){
-        w.removeEventListener("message",listener);
-        activeProvider=d.provider||activeProvider;
-        resolve(new Float32Array(d.buffer));
-      }
-    };
+      return runMossFormer(
+        mono,
+        strength,
+        onProgress,
+        assistsOverride,
+        retryCount+1
+      );
+    }
 
-    w.addEventListener("message",listener);
-    const effectiveAssists=assistsOverride||{fanAssist,trafficAssist};
-
-    w.postMessage({
-      type:"process",
-      strength,
-      fanAssist:Boolean(effectiveAssists.fanAssist),
-      trafficAssist:Boolean(effectiveAssists.trafficAssist),
-      buffer:copy.buffer
-    },[copy.buffer]);
-  });
+    markClearVoiceRetryState(
+      "RIVANI AI Engine · Could not start"
+    );
+    throw error;
+  }
 }
 
 async function applyAdvancedCleanup(buffer,opts){

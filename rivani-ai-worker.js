@@ -95,12 +95,13 @@ async function ensureRuntime() {
       const mod = await import(ORT_URL);
 
       mod.env.wasm.wasmPaths = ORT_WASM_BASE;
-      const cores=Math.max(1,Number(self.navigator?.hardwareConcurrency)||4);
 
-      mod.env.wasm.numThreads =
-        self.crossOriginIsolated
-          ? (cores>=12?5:cores>=8?4:cores>=6?3:cores>=4?2:1)
-          : 1;
+      // V23.3 stability rollback:
+      // Clear Voice's approved browser baseline is full WASM, single-thread.
+      // This avoids the SharedArrayBuffer / threaded-WASM initialization hang
+      // seen after cross-origin isolation was enabled for the speed experiment.
+      // Model weights, DSP, chunking and audio quality are unchanged.
+      mod.env.wasm.numThreads = 1;
 
       ort = mod;
       return ort;
