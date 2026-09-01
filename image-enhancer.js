@@ -1,6 +1,6 @@
 (()=>{"use strict";
 
-// RIVANI Image Enhancer V26 · Studio Engine · Smart routing + verified finish + live export
+// RIVANI Image Enhancer V26.2 · Adaptive Quality Boost · Smart routing + verified finish + live export
 
 const $=id=>document.getElementById(id);
 
@@ -80,10 +80,10 @@ let fidelityGuard=true;
 let textLogoSafe=true;
 let colorLock=true;
 let hdFinish=true;
-let hdFinishStrength=70;
+let hdFinishStrength=80;
 let aiStrength=100;
-let clarity=30;
-let sharpness=25;
+let clarity=40;
+let sharpness=30;
 let busy=false;
 let currentScan=null;
 let currentImagePlan="free";
@@ -702,7 +702,8 @@ async function enhanceCurrentImage(){
         currentScan?.profile||"photo",
         colorLock,
         clarity,
-        sharpness
+        sharpness,
+        currentScan
       );
       finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
     }
@@ -1790,9 +1791,9 @@ function drawSample(bitmap,maxSize){
 }
 
 
-async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,colorSafe,clarityAmount=0,sharpnessAmount=0){
+async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,colorSafe,clarityAmount=0,sharpnessAmount=0,scan=null){
   const ctx=canvas.getContext("2d",{alpha:true,willReadFrequently:true});
-  const worker=new Worker("image-finish-worker.js?v=26.1-studio",{type:"module"});
+  const worker=new Worker("image-finish-worker.js?v=26.2-quality",{type:"module"});
   const mobile=isMobileImageDevice();
   const stripHeight=mobile?224:512;
   const total=Math.ceil(canvas.height/stripHeight);
@@ -1800,7 +1801,7 @@ async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,color
     for(let index=0,y=0;y<canvas.height;index++,y+=stripHeight){
       const h=Math.min(stripHeight,canvas.height-y);
       const imageData=ctx.getImageData(0,y,canvas.width,h);
-      const processed=await finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clarityAmount,sharpnessAmount);
+      const processed=await finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clarityAmount,sharpnessAmount,scan);
       ctx.putImageData(processed,0,y);
       const pct=98+Math.min(.7,((index+1)/Math.max(1,total))*.7);
       setProgress(pct,"Applying RIVANI Studio Finish…",`Finishing detail and color ${index+1}/${total}.`);
@@ -1811,7 +1812,7 @@ async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,color
   }
 }
 
-function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clarityAmount=0,sharpnessAmount=0){
+function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clarityAmount=0,sharpnessAmount=0,scan=null){
   return new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>reject(new Error("Studio Finish took too long.")),60000);
     const cleanup=()=>{clearTimeout(timer);worker.onmessage=null;worker.onerror=null;};
@@ -1825,7 +1826,7 @@ function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clari
     worker.onerror=event=>{cleanup();reject(new Error(event.message||"Studio Finish worker failed."));};
     const buffer=imageData.data.buffer;
     worker.postMessage({
-      type:"finish",width:imageData.width,height:imageData.height,mode,strength,sceneProfile,colorLock:Boolean(colorSafe),clarity:clarityAmount,sharpness:sharpnessAmount,rgba:buffer
+      type:"finish",width:imageData.width,height:imageData.height,mode,strength,sceneProfile,colorLock:Boolean(colorSafe),clarity:clarityAmount,sharpness:sharpnessAmount,scan,rgba:buffer
     },[buffer]);
   });
 }

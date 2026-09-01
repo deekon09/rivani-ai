@@ -1,6 +1,7 @@
-// RIVANI AI V26 · Studio Finish worker
-// Lightweight, non-neural, content-aware finishing stage. Runs after Fidelity Guard
-// so the verified AI result keeps its visible crispness. No identity/geometry changes.
+// RIVANI AI V26.2 · Adaptive Quality Boost worker
+// Lightweight, non-neural, content-aware finishing after Fidelity Guard.
+// Uses Smart Scan metadata to tune deblur, cleanup, tone, vibrance, clarity and edge recovery.
+// No geometry changes or synthetic content generation.
 self.onmessage=event=>{
   const msg=event.data||{};
   if(msg.type!=="finish")return;
@@ -9,42 +10,58 @@ self.onmessage=event=>{
     const width=Number(msg.width)||0;
     const height=Number(msg.height)||0;
     if(!width||!height||rgba.length!==width*height*4)throw new Error("Invalid finish buffer.");
-    applyStudioFinish(rgba,width,height,msg.mode,msg.strength,msg.sceneProfile,msg.colorLock!==false,msg.clarity,msg.sharpness);
+    applyAdaptiveFinish(
+      rgba,width,height,msg.mode,msg.strength,msg.sceneProfile,
+      msg.colorLock!==false,msg.clarity,msg.sharpness,msg.scan||null
+    );
     self.postMessage({type:"done",rgba:rgba.buffer},[rgba.buffer]);
   }catch(error){
     self.postMessage({type:"error",message:error?.message||"Studio Finish failed."});
   }
 };
 
-function applyStudioFinish(rgba,width,height,mode,strength,sceneProfile,colorLock,clarityAmount=0,sharpnessAmount=0){
-  const power=Math.max(0,Math.min(1,Number(strength)||0)/100);
+function applyAdaptiveFinish(rgba,width,height,mode,strength,sceneProfile,colorLock,clarityAmount=0,sharpnessAmount=0,scan=null){
+  const power=clamp01((Number(strength)||0)/100);
   if(power<=0||width<3||height<3)return;
 
-  let params=mode==="strong"
-    ?{contrast:.225,vibrance:.44,detail:1.34,mid:.025,shadow:.034,highlight:.043}
+  const blurRisk=risk(scan?.blur?.[0],{High:.95,Medium:.52,Low:.08},.2);
+  const noiseRisk=risk(scan?.noise?.[0],{High:.90,Medium:.48,Low:.08},.16);
+  const compressionRisk=risk(scan?.compression?.[0],{High:.90,Medium:.50,Low:.08},.14);
+  const lighting=String(scan?.lighting?.[0]||"Balanced");
+
+  // V26.2 raises visible enhancement while keeping Strong/Restore distinct.
+  let p=mode==="strong"
+    ?{contrast:.285,vibrance:.54,detail:1.62,mid:.026,shadowDepth:.024,highlightSpark:.025,denoise:.24}
     :mode==="restore"
-      ?{contrast:.145,vibrance:.22,detail:.88,mid:.016,shadow:.024,highlight:.027}
-      :{contrast:.105,vibrance:.235,detail:.68,mid:.014,shadow:.017,highlight:.022};
+      ?{contrast:.190,vibrance:.29,detail:1.20,mid:.024,shadowDepth:.012,highlightSpark:.015,denoise:.42}
+      :{contrast:.145,vibrance:.31,detail:.94,mid:.019,shadowDepth:.012,highlightSpark:.016,denoise:.20};
 
   if(sceneProfile==="portrait"){
-    params={...params,vibrance:params.vibrance*.82,detail:params.detail*.92,contrast:params.contrast*.92};
+    p={...p,vibrance:p.vibrance*.84,detail:p.detail*.96,contrast:p.contrast*.95,denoise:p.denoise*1.08};
   }else if(sceneProfile==="graphics"){
-    params={...params,vibrance:params.vibrance*1.08,detail:params.detail*1.08,contrast:params.contrast*1.04};
+    p={...p,vibrance:p.vibrance*1.06,detail:p.detail*1.16,contrast:p.contrast*1.06,denoise:p.denoise*.66};
   }else if(sceneProfile==="scenery"){
-    params={...params,vibrance:params.vibrance*1.12,contrast:params.contrast*1.05};
+    p={...p,vibrance:p.vibrance*1.18,detail:p.detail*1.08,contrast:p.contrast*1.08};
   }
-  if(colorLock)params.vibrance*=.90;
+  if(colorLock)p.vibrance*=.92;
 
-  const clarity=Math.max(0,Math.min(1,(Number(clarityAmount)||0)/100));
-  const sharpness=Math.max(0,Math.min(1,(Number(sharpnessAmount)||0)/100));
-  // Clarity and Sharpness are additive Free controls on top of the verified
-  // Studio Finish. They never change geometry; skin/highlight gates below remain.
-  const contrast=params.contrast*power*(1+clarity*.46);
-  const vibrance=params.vibrance*power*(1+clarity*.12);
-  const detailAmount=params.detail*power*(1+sharpness*.90+clarity*.18);
-  const mid=params.mid*power*(1+clarity*.60);
-  const shadow=params.shadow*power*(1+clarity*.20);
-  const highlight=params.highlight*power*(1+clarity*.18);
+  const clarity=clamp01((Number(clarityAmount)||0)/100);
+  const sharpness=clamp01((Number(sharpnessAmount)||0)/100);
+  const cleanupRisk=Math.max(noiseRisk,compressionRisk*.88);
+
+  const contrast=p.contrast*power*(1+clarity*.58);
+  const vibrance=p.vibrance*power*(1+clarity*.18);
+  const deblurBoost=1+blurRisk*.36;
+  const detailAmount=p.detail*power*(1+sharpness*1.08+clarity*.26)*deblurBoost;
+  const mid=p.mid*power*(1+clarity*.72);
+  const denoise=p.denoise*power*(.32+cleanupRisk*.98)*(1-sharpness*.16);
+
+  // Lighting-aware tone balancing: dark sources get useful shadow lift; bright
+  // sources recover highlights. Balanced sources keep mild cinematic depth.
+  const shadowLift=(lighting==="Low"?.050:lighting==="Bright"?.006:.014)*power;
+  const highlightRecover=(lighting==="Bright"?.052:lighting==="Low"?.006:.014)*power;
+  const shadowDepth=p.shadowDepth*power*(lighting==="Balanced"?1:.35);
+  const highlightSpark=p.highlightSpark*power*(lighting==="Balanced"?1:.38);
 
   let prev=new Float32Array(width),curr=new Float32Array(width),next=new Float32Array(width);
   const fillLum=(y,row)=>{
@@ -59,36 +76,78 @@ function applyStudioFinish(rgba,width,height,mode,strength,sceneProfile,colorLoc
   for(let y=0;y<height;y++){
     const base=y*width*4;
     for(let x=0;x<width;x++){
-      const i=base+x*4;if(rgba[i+3]<8)continue;
+      const i=base+x*4;
+      if(rgba[i+3]<8)continue;
+
       const r0=rgba[i]/255,g0=rgba[i+1]/255,b0=rgba[i+2]/255;
-      const lum=curr[x],left=curr[x?x-1:x],right=curr[x<width-1?x+1:x];
-      const local=(prev[x]+next[x]+left+right)*.25;
-      const raw=Math.max(-.085,Math.min(.085,lum-local));
-      const gate=Math.min(1,.18+Math.abs(raw)*18);
-      const skin=r0>.26&&g0>.14&&b0>.07&&r0>g0&&g0>b0&&(r0-b0)>.065&&(r0-g0)<.32;
-      const d=detailAmount*(skin?.55:1);
-      const micro=Math.max(-.052,Math.min(.052,raw*d*gate));
+      const lum=curr[x];
+      const left=curr[x?x-1:x],right=curr[x<width-1?x+1:x];
+      const farL=curr[x>1?x-2:0],farR=curr[x<width-2?x+2:width-1];
+      const local=(prev[x]+next[x]+left+right)*.21+(farL+farR)*.08;
+      const raw=clampSigned(lum-local,.11);
+      const absRaw=Math.abs(raw);
 
+      const skin=isSkin(r0,g0,b0);
+      const edgeGate=Math.min(1,.12+absRaw*20);
+      const flatGate=Math.max(0,1-Math.min(1,absRaw*24));
+
+      // 1) Noise/JPEG cleanup on flat micro-variation only. Significant edges are
+      // protected by flatGate, so text/hair boundaries are not blurred away.
+      const darkNoiseGate=lum<.30?1.15:1;
+      const cleanupDelta=(local-lum)*denoise*flatGate*darkNoiseGate;
+
+      // 2) Deblur + fine detail. Skin gets a softer limit; portrait non-skin
+      // structures (hair, glasses, brows, fabric) keep more edge recovery.
+      let detailGate=skin?.50:1;
+      if(sceneProfile==="portrait"&&!skin)detailGate*=1.10;
+      if(sceneProfile==="graphics")detailGate*=1.08;
+      if(lum>.94)detailGate*=.42;
+      const micro=clampSigned(raw*detailAmount*edgeGate*detailGate,.072);
+
+      // 3) Local contrast/depth plus adaptive highlight/shadow balance.
       const centered=lum-.5;
-      const sCurve=centered*(1-Math.min(1,2.8*centered*centered));
-      const midShape=Math.max(0,1-Math.abs(lum-.53)/.53);
-      const shadowShape=Math.max(0,Math.min(1,(.43-lum)/.43));
-      const highlightShape=Math.max(0,Math.min(1,(lum-.50)/.50));
-      const target=Math.max(0,Math.min(1,lum+micro+sCurve*contrast+mid*midShape-highlight*0+highlight*highlightShape-shadow*shadowShape));
-      const delta=target-lum;
-      let r=Math.max(0,Math.min(1,r0+delta));
-      let g=Math.max(0,Math.min(1,g0+delta));
-      let b=Math.max(0,Math.min(1,b0+delta));
+      const sCurve=centered*(1-Math.min(1,2.65*centered*centered));
+      const midShape=Math.max(0,1-Math.abs(lum-.52)/.52);
+      const shadowShape=Math.max(0,Math.min(1,(.46-lum)/.46));
+      const deepShadow=Math.max(0,Math.min(1,(.30-lum)/.30));
+      const highlightShape=Math.max(0,Math.min(1,(lum-.56)/.44));
+      const hotHighlight=Math.max(0,Math.min(1,(lum-.78)/.22));
 
+      let target=lum+cleanupDelta+micro+sCurve*contrast+mid*midShape;
+      target+=shadowLift*deepShadow-highlightRecover*hotHighlight;
+      target-=shadowDepth*shadowShape;
+      target+=highlightSpark*highlightShape;
+      target=clamp01(target);
+
+      const delta=target-lum;
+      let r=clamp01(r0+delta),g=clamp01(g0+delta),b=clamp01(b0+delta);
+
+      // 4) Controlled vibrance. Low-saturation colors receive more boost than
+      // already-saturated colors. Skin/highlights stay restrained.
       const mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx>1e-5?(mx-mn)/mx:0;
-      let vib=vibrance*(1-sat*.58);
+      let vib=vibrance*(1-sat*.68);
       if(skin)vib*=.30;
-      if(target>.92)vib*=.45;
+      if(target>.90)vib*=.46;
+      if(cleanupRisk>.60&&flatGate>.70)vib*=.88; // don't magnify chroma artifacts
       const l=r*.2126+g*.7152+b*.0722;
       r=l+(r-l)*(1+vib);g=l+(g-l)*(1+vib);b=l+(b-l)*(1+vib);
-      rgba[i]=clamp(r*255);rgba[i+1]=clamp(g*255);rgba[i+2]=clamp(b*255);
+
+      rgba[i]=clamp255(r*255);
+      rgba[i+1]=clamp255(g*255);
+      rgba[i+2]=clamp255(b*255);
     }
-    if(y<height-1){const t=prev;prev=curr;curr=next;next=t;fillLum(Math.min(height-1,y+2),next);}
+    if(y<height-1){
+      const t=prev;prev=curr;curr=next;next=t;
+      fillLum(Math.min(height-1,y+2),next);
+    }
   }
 }
-function clamp(v){return v<0?0:v>255?255:Math.round(v)}
+
+function risk(label,map,fallback){
+  const key=String(label||"");
+  return Object.prototype.hasOwnProperty.call(map,key)?map[key]:fallback;
+}
+function isSkin(r,g,b){return r>.26&&g>.14&&b>.07&&r>g&&g>b&&(r-b)>.065&&(r-g)<.32;}
+function clampSigned(v,m){return v<-m?-m:v>m?m:v;}
+function clamp01(v){return v<0?0:v>1?1:v;}
+function clamp255(v){return v<0?0:v>255?255:Math.round(v);}

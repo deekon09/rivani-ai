@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
   <title>Image Enhancer — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=26.1-image">
+  <link rel="stylesheet" href="styles.css?v=26.2-quality">
 </head>
 <body class="image-enhancer-page">
   <div class="ambient ambient-one"></div>
@@ -115,13 +115,13 @@
                 <small>Controls how much verified AI reconstruction is kept. Fidelity Guard can still reduce unsafe changes.</small>
               </div>
               <div class="image-slider-control">
-                <div><span>Clarity</span><b id="clarityValue">30%</b></div>
-                <input id="clarityControl" type="range" min="0" max="100" step="5" value="30" aria-label="Clarity">
+                <div><span>Clarity</span><b id="clarityValue">40%</b></div>
+                <input id="clarityControl" type="range" min="0" max="100" step="5" value="40" aria-label="Clarity">
                 <small>Adds local contrast and texture presence without changing geometry.</small>
               </div>
               <div class="image-slider-control">
-                <div><span>Sharpness</span><b id="sharpnessValue">25%</b></div>
-                <input id="sharpnessControl" type="range" min="0" max="100" step="5" value="25" aria-label="Sharpness">
+                <div><span>Sharpness</span><b id="sharpnessValue">30%</b></div>
+                <input id="sharpnessControl" type="range" min="0" max="100" step="5" value="30" aria-label="Sharpness">
                 <small>Strengthens fine edges after AI verification. Skin and highlights are automatically restrained.</small>
               </div>
             </div>
@@ -132,15 +132,15 @@
               <button class="image-toggle-row enabled" id="hdFinishToggle" type="button" aria-pressed="true">
                 <span>
                   <b>Studio Finish</b>
-                  <small>Visible detail, color presence and dimensional contrast after AI restoration</small>
+                  <small>Adaptive deblur, cleanup, richer color, depth and fine-detail finishing after AI restoration</small>
                 </span>
                 <i></i>
               </button>
 
               <div class="image-finish-strength">
-                <div><span>Finish strength</span><b id="hdFinishStrengthValue">70%</b></div>
-                <input id="hdFinishStrength" type="range" min="0" max="100" step="5" value="70" aria-label="Studio Finish strength">
-                <small>Same finish math on mobile and PC. Strong adds the most visible crispness and color presence while Fidelity Guard protects the source.</small>
+                <div><span>Finish strength</span><b id="hdFinishStrengthValue">80%</b></div>
+                <input id="hdFinishStrength" type="range" min="0" max="100" step="5" value="80" aria-label="Studio Finish strength">
+                <small>Same quality rules on mobile and PC. Smart Scan now adapts blur cleanup, noise/compression cleanup, shadows/highlights, vibrance, clarity and fine-edge recovery while Fidelity Guard protects the source.</small>
               </div>
             </div>
 
@@ -412,7 +412,7 @@
   </footer>
 
   <script src="script.js?v=25.2-image"></script>
-  <script src="image-enhancer.js?v=26.1-image"></script>
+  <script src="image-enhancer.js?v=26.2-quality"></script>
   <script type="module" src="auth-nav.js?v=25.2-image"></script>
 </body>
 </html>
