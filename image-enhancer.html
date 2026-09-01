@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
   <title>Image Enhancer — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=26.2-quality">
+  <link rel="stylesheet" href="styles.css?v=26.3-precision">
 </head>
 <body class="image-enhancer-page">
   <div class="ambient ambient-one"></div>
@@ -172,39 +172,6 @@
               </button>
             </div>
 
-            <div class="image-control-block image-pro-tool-block">
-              <div class="image-pro-heading">
-                <label>Precision controls</label>
-                <span>RIVANI PRO</span>
-              </div>
-
-              <button class="image-pro-tool" id="precisionProtectBtn" type="button">
-                <span>
-                  <b>Logo / Critical Area Lock</b>
-                  <small>Select up to 5 important areas. RIVANI restores those exact regions from the original after AI enhancement.</small>
-                </span>
-                <em>PRO</em>
-              </button>
-              <div class="image-protect-status" id="protectedRegionStatus">No protected areas</div>
-              <button class="image-clear-protect hidden" id="clearProtectedRegionBtn" type="button">Clear protected areas</button>
-
-              <button class="image-pro-tool" id="truthMapToggle" type="button" aria-pressed="false">
-                <span>
-                  <b>RIVANI Truth Map</b>
-                  <small>Visualize where the verified result changed most, instead of relying on one score.</small>
-                </span>
-                <em>PRO</em>
-              </button>
-
-              <button class="image-pro-tool" id="printProofToggle" type="button" aria-pressed="false">
-                <span>
-                  <b>Print Proof</b>
-                  <small>Shows a conservative 300 DPI print-size estimate from the actual verified output dimensions.</small>
-                </span>
-                <em>PRO</em>
-              </button>
-            </div>
-
             <div class="image-format-row">
               <label for="imageExportFormat">Export · Free</label>
               <select id="imageExportFormat">
@@ -225,6 +192,11 @@
             <button class="btn btn-primary image-enhance-btn" id="enhanceImageBtn" type="button" disabled>
               <span>✦</span> Enhance Image →
             </button>
+
+            <div class="image-free-usage" id="imageFreeUsageCard">
+              <div><b>Free plan</b><span id="imageFreeUsageText">Sign in to start enhancing.</span></div>
+              <button type="button" id="imageFreeUsageProBtn">Go Pro</button>
+            </div>
 
             <div class="image-local-note">
               Your photo stays on this device. RIVANI downloads the AI model, then inference runs inside your browser.
@@ -265,7 +237,8 @@
                   <input class="compare-range" id="imageCompareRange" type="range" min="0" max="100" value="50" aria-label="Compare original and enhanced image">
                 </div>
 
-                <canvas class="image-protect-canvas hidden" id="protectSelectionCanvas" aria-label="Select protected areas"></canvas>
+                <canvas class="image-protect-canvas hidden" id="protectSelectionCanvas" aria-label="Select precision-protected areas"></canvas>
+                <canvas class="image-revert-brush-canvas hidden" id="revertBrushCanvas" aria-label="Selective revert brush"></canvas>
 
                 <div class="image-processing-overlay hidden" id="imageProcessingOverlay">
                   <div class="image-processing-orb" aria-hidden="true"><img src="assets/rivani-r-mark.png" alt=""></div>
@@ -366,6 +339,112 @@
               </div>
             </div>
           </div>
+
+          <aside class="image-right-panel reveal delay-2">
+            <div class="image-panel-head">
+              <span class="section-kicker">CREATIVE + PRECISION</span>
+              <h2>Finish & Protect</h2>
+              <p>Filters are Free. Identity, brand and verification controls are reserved for RIVANI Pro.</p>
+            </div>
+
+            <div class="image-control-block image-filter-block">
+              <div class="image-free-heading"><label>Filters</label><span>FREE</span></div>
+              <div class="image-filter-grid" id="imageFilterGrid">
+                <button class="active" type="button" data-image-filter="none"><b>Original+</b><small>No look</small></button>
+                <button type="button" data-image-filter="vivid"><b>Vivid</b><small>Rich color</small></button>
+                <button type="button" data-image-filter="clean"><b>Clean</b><small>Bright neutral</small></button>
+                <button type="button" data-image-filter="warm"><b>Warm</b><small>Golden tone</small></button>
+                <button type="button" data-image-filter="cool"><b>Cool</b><small>Cool crisp</small></button>
+                <button type="button" data-image-filter="cinematic"><b>Cinema</b><small>Depth + tone</small></button>
+                <button type="button" data-image-filter="mono"><b>Mono</b><small>B&W</small></button>
+              </div>
+              <div class="image-slider-control image-filter-strength">
+                <div><span>Filter strength</span><b id="filterStrengthValue">60%</b></div>
+                <input id="filterStrength" type="range" min="0" max="100" step="5" value="60" aria-label="Filter strength">
+              </div>
+            </div>
+
+            <div class="image-control-block image-pro-tool-block">
+              <div class="image-pro-heading">
+                <label>Precision controls</label>
+                <span>RIVANI PRO</span>
+              </div>
+
+              <button class="image-pro-tool" id="precisionProtectBtn" type="button">
+                <span><b>Critical Area Lock</b><small>Mark up to 5 areas that must stay exactly anchored to the original.</small></span><em>PRO</em>
+              </button>
+              <div class="image-protect-status" id="protectedRegionStatus">No protected areas</div>
+              <button class="image-clear-protect hidden" id="clearProtectedRegionBtn" type="button">Clear protected areas</button>
+
+              <button class="image-pro-tool" id="faceIdentityLockBtn" type="button" aria-pressed="false">
+                <span><b>Face Identity Lock</b><small>Mark up to 3 face regions. Facial geometry stays source-anchored while light detail enhancement is retained.</small></span><em>PRO</em>
+              </button>
+              <div class="image-protect-status" id="faceIdentityStatus">No face regions selected</div>
+              <div class="image-reference-row">
+                <button class="image-mini-pro" id="faceReferenceBtn" type="button">Add face reference</button>
+                <span id="faceReferenceStatus">Optional</span>
+                <input id="faceReferenceInput" type="file" accept="image/*" hidden>
+              </div>
+
+              <button class="image-pro-tool" id="logoReferenceLockBtn" type="button" aria-pressed="false">
+                <span><b>Logo Reference Lock</b><small>Mark brand/logo regions and optionally attach a clean logo reference for verification.</small></span><em>PRO</em>
+              </button>
+              <div class="image-protect-status" id="logoReferenceStatus">No logo regions selected</div>
+              <div class="image-reference-row">
+                <button class="image-mini-pro" id="logoReferenceBtn" type="button">Add logo reference</button>
+                <span id="logoReferenceFileStatus">Optional</span>
+                <input id="logoReferenceInput" type="file" accept="image/*" hidden>
+              </div>
+
+              <div class="image-exact-color-row">
+                <button class="image-pro-tool" id="exactColorLockToggle" type="button" aria-pressed="false">
+                  <span><b>Exact Brand Color Lock</b><small>Snaps near-matching brand colors back toward your selected HEX color.</small></span><em>PRO</em>
+                </button>
+                <input id="exactColorPicker" class="image-color-picker" type="color" value="#7c77ff" aria-label="Exact brand color">
+              </div>
+
+              <button class="image-pro-tool" id="revertBrushToggle" type="button" aria-pressed="false">
+                <span><b>Selective Revert Brush</b><small>After enhancement, paint any area back toward the original without rerunning AI.</small></span><em>PRO</em>
+              </button>
+              <div class="image-slider-control image-brush-size">
+                <div><span>Brush size</span><b id="revertBrushSizeValue">48px</b></div>
+                <input id="revertBrushSize" type="range" min="16" max="140" step="4" value="48" aria-label="Selective revert brush size">
+              </div>
+
+              <button class="image-pro-tool" id="qrGuardToggle" type="button" aria-pressed="false">
+                <span><b>QR / Barcode Guard</b><small>Verifies readable codes before and after enhancement and restores the source code area if needed.</small></span><em>PRO</em>
+              </button>
+              <div class="image-protect-status" id="qrGuardStatus">Verification off</div>
+
+              <button class="image-pro-tool" id="truthMapToggle" type="button" aria-pressed="false">
+                <span><b>RIVANI Truth Map</b><small>Visualize where the verified result changed most.</small></span><em>PRO</em>
+              </button>
+
+              <button class="image-pro-tool" id="printProofToggle" type="button" aria-pressed="false">
+                <span><b>Print Proof</b><small>300 DPI print-size estimate from the actual verified output.</small></span><em>PRO</em>
+              </button>
+              <div class="image-print-preset-row">
+                <label for="printPresetSelect">Print-ready fit</label>
+                <select id="printPresetSelect">
+                  <option value="none" selected>Off · Keep image size</option>
+                  <option value="a4p">A4 Portrait · 300 DPI</option>
+                  <option value="a4l">A4 Landscape · 300 DPI</option>
+                  <option value="a3p">A3 Portrait · 300 DPI</option>
+                  <option value="a3l">A3 Landscape · 300 DPI</option>
+                </select>
+                <small>Fits the image inside the selected print pixel box without cropping or changing aspect ratio.</small>
+              </div>
+
+              <button class="image-pro-tool" id="batchConsistencyBtn" type="button">
+                <span><b>Batch + Consistency Lock</b><small>Run up to 8 images sequentially with the exact same enhancement settings.</small></span><em>PRO</em>
+              </button>
+              <input id="batchImageInput" type="file" accept="image/*" multiple hidden>
+              <div class="image-batch-results hidden" id="batchResultsPanel">
+                <b id="batchResultsTitle">Batch results</b>
+                <div id="batchResultsList"></div>
+              </div>
+            </div>
+          </aside>
         </div>
 
         <section class="image-feature-strip reveal">
@@ -393,8 +472,10 @@
       <span class="section-kicker">RIVANI PRO</span>
       <h2 id="imageProModalTitle">Precision enhancement control</h2>
       <p id="imageProModalCopy">This precision control is reserved for RIVANI Pro.</p>
-      <div class="image-pro-modal-note">Basic Fidelity Guard, Text & Logo Safe and Color Lock stay available to Free users. Paid entitlement will be connected to the secure account plan when billing launches.</div>
-      <button class="btn btn-primary" type="button" data-close-image-pro>Got it</button>
+      <div class="image-pro-price"><strong>₹499<span>/month</span></strong><small>India price · international pricing can be localized at secure checkout.</small></div>
+      <div class="image-pro-modal-note">Free includes 9 image enhancements per day plus Fidelity Guard, Text & Logo Safe, Color Lock, filters and detail controls. Pro unlocks unlimited image jobs and precision controls.</div>
+      <button class="btn btn-primary" id="imageProBuyBtn" type="button">Get RIVANI Pro →</button>
+      <button class="pro-modal-secondary" type="button" data-close-image-pro>Not now</button>
     </div>
   </div>
 
@@ -412,7 +493,7 @@
   </footer>
 
   <script src="script.js?v=25.2-image"></script>
-  <script src="image-enhancer.js?v=26.2-quality"></script>
-  <script type="module" src="auth-nav.js?v=25.2-image"></script>
+  <script src="image-enhancer.js?v=26.3-precision"></script>
+  <script type="module" src="auth-nav.js?v=26.3-auth"></script>
 </body>
 </html>

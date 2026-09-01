@@ -21,6 +21,16 @@ let authMod;
 let mode = 'login';
 let userActionInProgress = false;
 
+function safeNextPath(raw){
+  const value=String(raw||'').trim();
+  if(!value)return '';
+  if(value.includes('://')||value.startsWith('//')||value.startsWith('/')||value.includes('\\'))return '';
+  if(!/^[A-Za-z0-9._?=&%#-]+$/.test(value))return '';
+  return value;
+}
+const authNext=safeNextPath(new URLSearchParams(location.search).get('next'));
+function authDestination(){return authNext||'dashboard.html';}
+
 const configured = Object.values(firebaseConfig).every(v => typeof v === 'string' && v.trim());
 const usernamePattern = /^[A-Za-z0-9]{3,20}$/;
 const passwordChecks = {
@@ -125,6 +135,7 @@ function friendlyAuthError(err, context='login'){
 
 function goToCreated(name){
   sessionStorage.setItem('rivani_signup_name', name || 'your account');
+  if(authNext)sessionStorage.setItem('rivani_auth_next',authNext);
   location.href = 'account-created.html';
 }
 
@@ -167,7 +178,7 @@ if (!configured) {
       message('Signing you in…');
       try {
         await authMod.signInWithEmailAndPassword(auth, email, password);
-        location.href = 'dashboard.html';
+        location.href = authDestination();
       } catch (err) {
         userActionInProgress = false;
         message(friendlyAuthError(err, 'login'), 'error');
@@ -211,7 +222,7 @@ if (!configured) {
           message('No RIVANI account exists for this Google account. Please use Sign up first.', 'warning');
           return;
         }
-        location.href = 'dashboard.html';
+        location.href = authDestination();
       }
     } catch (err) {
       userActionInProgress = false;
@@ -220,6 +231,6 @@ if (!configured) {
   });
 
   authMod.onAuthStateChanged(auth, user => {
-    if (user && !userActionInProgress) location.replace('dashboard.html');
+    if (user && !userActionInProgress) location.replace(authDestination());
   });
 }

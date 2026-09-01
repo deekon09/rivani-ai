@@ -98,6 +98,12 @@ function getAudioPlan(){
 function isProPlan(){
   return currentAudioPlan==="pro";
 }
+async function requireAudioAccount(){
+  if(window.RIVANI_REQUIRE_AUTH)return await window.RIVANI_REQUIRE_AUTH({tool:"Audio Repair"});
+  if(window.RIVANI_LUKI_CONTEXT?.signedIn)return true;
+  location.href="auth.html?mode=signup&next=audio-repair.html";
+  return false;
+}
 
 function detectRivaniDeviceProfile(){
   const cores=Math.max(1,Number(navigator.hardwareConcurrency)||4);
@@ -163,17 +169,21 @@ function todayKey(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
+function scopedAudioUsageKey(base){
+  const uid=String(window.RIVANI_LUKI_CONTEXT?.uid||"signed-user").replace(/[^A-Za-z0-9_-]/g,"");
+  return `${base}:${uid||"signed-user"}`;
+}
 
 function readFreeJobUsage(){
   try{
-    const parsed=JSON.parse(localStorage.getItem(FREE_JOB_USAGE_KEY)||"{}");
+    const parsed=JSON.parse(localStorage.getItem(scopedAudioUsageKey(FREE_JOB_USAGE_KEY))||"{}");
     if(parsed.date!==todayKey())return {date:todayKey(),count:0};
     return {date:parsed.date,count:Math.max(0,Math.floor(Number(parsed.count)||0))};
   }catch{return {date:todayKey(),count:0};}
 }
 
 function writeFreeJobUsage(count){
-  try{localStorage.setItem(FREE_JOB_USAGE_KEY,JSON.stringify({date:todayKey(),count:Math.max(0,Math.floor(Number(count)||0))}));}catch{}
+  try{localStorage.setItem(scopedAudioUsageKey(FREE_JOB_USAGE_KEY),JSON.stringify({date:todayKey(),count:Math.max(0,Math.floor(Number(count)||0))}));}catch{}
   renderDailyJobUsage();
 }
 function recordCompletedAudioJob(){
@@ -227,7 +237,7 @@ function startProCheckout(){
 
 function readProUsage(){
   try{
-    const parsed=JSON.parse(localStorage.getItem(PRO_USAGE_KEY)||"{}");
+    const parsed=JSON.parse(localStorage.getItem(scopedAudioUsageKey(PRO_USAGE_KEY))||"{}");
     if(parsed.date!==todayKey())return {date:todayKey(),seconds:0};
     return {date:parsed.date,seconds:Math.max(0,Number(parsed.seconds)||0)};
   }catch{
@@ -237,7 +247,7 @@ function readProUsage(){
 
 function writeProUsage(seconds){
   try{
-    localStorage.setItem(PRO_USAGE_KEY,JSON.stringify({
+    localStorage.setItem(scopedAudioUsageKey(PRO_USAGE_KEY),JSON.stringify({
       date:todayKey(),
       seconds:Math.max(0,Number(seconds)||0)
     }));
@@ -291,7 +301,7 @@ const uploadSourceTab=$("uploadSourceTab");
 const micSourceTab=$("micSourceTab");
 uploadSourceTab?.addEventListener("click",()=>setAudioSourcePane("upload"));
 micSourceTab?.addEventListener("click",()=>setAudioSourcePane("mic"));
-$("startMicBtn")?.addEventListener("click",startMicrophoneRecording);
+$("startMicBtn")?.addEventListener("click",async()=>{if(await requireAudioAccount())startMicrophoneRecording();});
 $("stopMicBtn")?.addEventListener("click",()=>stopMicrophoneRecording(true));
 $("cancelMicBtn")?.addEventListener("click",()=>stopMicrophoneRecording(false));
 function setAudioSourcePane(mode){
@@ -629,8 +639,8 @@ window.addEventListener("rivani:auth-context",renderPlanAccess);
 setTimeout(renderPlanAccess,0);
 setTimeout(renderPlanAccess,900);
 
-scanBtn?.addEventListener("click",runScan);
-repairBtn?.addEventListener("click",repairLocally);
+scanBtn?.addEventListener("click",async()=>{if(await requireAudioAccount())runScan();});
+repairBtn?.addEventListener("click",async()=>{if(await requireAudioAccount())repairLocally();});
 
 $("tryAgainBtn")?.addEventListener("click",()=>{
   result.classList.add("hidden");

@@ -1,4 +1,4 @@
-// RIVANI AI V26.2 · Adaptive Quality Boost worker
+// RIVANI AI V26.3 · Adaptive Quality + Filters + Exact Color worker
 // Lightweight, non-neural, content-aware finishing after Fidelity Guard.
 // Uses Smart Scan metadata to tune deblur, cleanup, tone, vibrance, clarity and edge recovery.
 // No geometry changes or synthetic content generation.
@@ -12,7 +12,8 @@ self.onmessage=event=>{
     if(!width||!height||rgba.length!==width*height*4)throw new Error("Invalid finish buffer.");
     applyAdaptiveFinish(
       rgba,width,height,msg.mode,msg.strength,msg.sceneProfile,
-      msg.colorLock!==false,msg.clarity,msg.sharpness,msg.scan||null
+      msg.colorLock!==false,msg.clarity,msg.sharpness,msg.scan||null,
+      msg.filterPreset||"none",msg.filterAmount||0,msg.exactColor||""
     );
     self.postMessage({type:"done",rgba:rgba.buffer},[rgba.buffer]);
   }catch(error){
@@ -20,9 +21,12 @@ self.onmessage=event=>{
   }
 };
 
-function applyAdaptiveFinish(rgba,width,height,mode,strength,sceneProfile,colorLock,clarityAmount=0,sharpnessAmount=0,scan=null){
+function applyAdaptiveFinish(rgba,width,height,mode,strength,sceneProfile,colorLock,clarityAmount=0,sharpnessAmount=0,scan=null,filterPreset="none",filterAmount=0,exactColor=""){
   const power=clamp01((Number(strength)||0)/100);
-  if(power<=0||width<3||height<3)return;
+  const filterMix=clamp01((Number(filterAmount)||0)/100);
+  const filter=String(filterPreset||"none").toLowerCase();
+  const exact=parseHexColor(exactColor);
+  if((power<=0&&filter==="none"&&!exact)||width<3||height<3)return;
 
   const blurRisk=risk(scan?.blur?.[0],{High:.95,Medium:.52,Low:.08},.2);
   const noiseRisk=risk(scan?.noise?.[0],{High:.90,Medium:.48,Low:.08},.16);
@@ -132,6 +136,21 @@ function applyAdaptiveFinish(rgba,width,height,mode,strength,sceneProfile,colorL
       const l=r*.2126+g*.7152+b*.0722;
       r=l+(r-l)*(1+vib);g=l+(g-l)*(1+vib);b=l+(b-l)*(1+vib);
 
+      if(filterMix>0&&filter!=="none"){
+        [r,g,b]=applyFilterLook(r,g,b,filter,filterMix,skin);
+      }
+      if(exact){
+        const dr=r-exact[0],dg=g-exact[1],db=b-exact[2];
+        const dist=Math.sqrt(dr*dr+dg*dg+db*db);
+        const gate=clamp01((.19-dist)/.13);
+        if(gate>0){
+          const snap=.82*gate;
+          r=r*(1-snap)+exact[0]*snap;
+          g=g*(1-snap)+exact[1]*snap;
+          b=b*(1-snap)+exact[2]*snap;
+        }
+      }
+
       rgba[i]=clamp255(r*255);
       rgba[i+1]=clamp255(g*255);
       rgba[i+2]=clamp255(b*255);
@@ -141,6 +160,37 @@ function applyAdaptiveFinish(rgba,width,height,mode,strength,sceneProfile,colorL
       fillLum(Math.min(height-1,y+2),next);
     }
   }
+}
+
+function applyFilterLook(r,g,b,filter,mix,skin){
+  let rr=r,gg=g,bb=b;
+  const lum=r*.2126+g*.7152+b*.0722;
+  if(filter==="vivid"){
+    const satBoost=skin?.10:.28;
+    rr=lum+(r-lum)*(1+satBoost);gg=lum+(g-lum)*(1+satBoost);bb=lum+(b-lum)*(1+satBoost);
+    rr=(rr-.5)*1.055+.5;gg=(gg-.5)*1.055+.5;bb=(bb-.5)*1.055+.5;
+  }else if(filter==="clean"){
+    rr=r*1.018+.012;gg=g*1.022+.014;bb=b*1.028+.018;
+    const nl=rr*.2126+gg*.7152+bb*.0722;
+    rr=nl+(rr-nl)*.96;gg=nl+(gg-nl)*.96;bb=nl+(bb-nl)*.96;
+  }else if(filter==="warm"){
+    rr=r*1.055+.010;gg=g*1.012+.004;bb=b*.955;
+  }else if(filter==="cool"){
+    rr=r*.965;gg=g*1.010+.002;bb=b*1.055+.008;
+  }else if(filter==="cinematic"){
+    const shadow=clamp01((.52-lum)/.52),high=clamp01((lum-.50)/.50);
+    rr=r+high*.035-shadow*.012;gg=g+shadow*.018;bb=b+shadow*.035-high*.018;
+    rr=(rr-.5)*1.075+.5;gg=(gg-.5)*1.075+.5;bb=(bb-.5)*1.075+.5;
+  }else if(filter==="mono"){
+    rr=gg=bb=lum;
+  }
+  return [clamp01(r*(1-mix)+rr*mix),clamp01(g*(1-mix)+gg*mix),clamp01(b*(1-mix)+bb*mix)];
+}
+function parseHexColor(value){
+  const m=/^#?([0-9a-f]{6})$/i.exec(String(value||""));
+  if(!m)return null;
+  const n=parseInt(m[1],16);
+  return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255];
 }
 
 function risk(label,map,fallback){

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Your RIVANI AI account was created successfully.">
   <title>Account Created — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=25.0-image">
+  <link rel="stylesheet" href="styles.css?v=26.3-precision">
 </head>
 <body>
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -21,7 +21,7 @@
     <span class="section-kicker">ACCOUNT CREATED</span>
     <h1>Your RIVANI account is ready.</h1>
     <p id="successMessage">Account created successfully. You are signed out now — log in to open your personal dashboard.</p>
-    <div class="success-actions"><a class="btn btn-primary" href="auth.html?mode=login">Log in now →</a><a class="btn btn-secondary" href="index.html">Back to home</a></div>
+    <div class="success-actions"><a class="btn btn-primary" id="createdLoginLink" href="auth.html?mode=login">Log in now →</a><a class="btn btn-secondary" href="index.html">Back to home</a></div>
     <div class="success-note"><b>Next step</b><span>Use the same email/password or Google account you used during signup.</span></div>
   </div></section></main>
 
@@ -29,7 +29,9 @@
   <script src="script.js?v=25.0-image"></script>
   <script>
     const signupName=sessionStorage.getItem('rivani_signup_name');
-    if(signupName){document.getElementById('successMessage').textContent=`Account created successfully for ${signupName}. You are signed out now — log in to open your personal dashboard.`;sessionStorage.removeItem('rivani_signup_name');}
+    if(signupName){document.getElementById('successMessage').textContent=`Account created successfully for ${signupName}. You are signed out now — log in to continue.`;sessionStorage.removeItem('rivani_signup_name');}
+    const authNext=sessionStorage.getItem('rivani_auth_next');
+    if(authNext){document.getElementById('createdLoginLink').href=`auth.html?mode=login&next=${encodeURIComponent(authNext)}`;}
   </script>
 </body>
 </html>
