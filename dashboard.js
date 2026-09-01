@@ -170,6 +170,45 @@ logoutBtn?.addEventListener('click',async()=>{
   finally { logoutBtn.disabled=false; }
 });
 
+
+async function loadAdminQueueBadge(){
+  const link=$('paymentReviewLink');
+  if(!link||!currentUser)return;
+  try{
+    const data=await accountApi('/api/admin/payments');
+    const pending=Array.isArray(data?.pending)?data.pending.length:0;
+    link.hidden=false;
+    const count=$('paymentReviewCount');
+    if(count)count.textContent=pending?String(pending):'';
+    link.title=pending?`${pending} payment proof${pending===1?'':'s'} waiting for review`:'No payment proofs waiting';
+  }catch(_error){
+    link.hidden=true;
+  }
+}
+
+async function loadPlanState(){
+  if(!currentUser)return;
+  try{
+    const data=await accountApi('/api/subscription/status');
+    const pro=String(data?.plan||'free').toLowerCase()==='pro';
+    const label=pro?'PRO':'FREE';
+    ['sidePlan','overviewPlan','currentPlan','planBadge','planPanelName'].forEach(id=>setText(id,label));
+    setText('membershipMark',label);
+    const offer=$('dashboardProOffer');
+    if(offer)offer.hidden=pro;
+    if(pro){
+      const expiry=data?.subscription?.expiresAt;
+      setText('currentPlanCopy',expiry?`RIVANI Pro is active on this account until ${formatDate(expiry)}.`:'RIVANI Pro is active on this account.');
+      setText('membershipCopy',expiry?`Your Pro membership remains active until ${formatDate(expiry)}.`:'Your RIVANI Pro membership is active.');
+    }else{
+      setText('currentPlanCopy','Free includes 9 successful jobs per day on each active AI media tool. Upgrade to Pro with the ₹199 launch offer after manual payment verification.');
+      setText('membershipCopy','No payment method is required for Free. Pro is available at the ₹199/month launch offer.');
+    }
+  }catch(error){
+    console.warn('Plan status unavailable',error);
+  }
+}
+
 function setText(id,value){ const el=$(id); if(el) el.textContent=value; }
 function setAvatar(el,user,name){
   if (!el) return;
@@ -204,5 +243,5 @@ authMod.onAuthStateChanged(auth,async user=>{
 
   loading.hidden = true;
   content.hidden = false;
-  await loadDeletionState();
+  await Promise.all([loadDeletionState(),loadPlanState(),loadAdminQueueBadge()]);
 });

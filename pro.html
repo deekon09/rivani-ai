@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#030616"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="description" content="RIVANI Pro launch-offer payment and verification."/>
+<title>RIVANI Pro — ₹199 Launch Offer</title>
+<link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
+</head>
+<body class="pro-checkout-page">
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+<header class="site-header"><div class="container nav-wrap"><a aria-label="RIVANI AI home" class="brand" href="index.html"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/></a><nav aria-label="Checkout navigation" class="main-nav"><a href="index.html#tools">Tools</a><a href="dashboard.html">Dashboard</a><a href="contact.html">Contact</a></nav><div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div></div></header>
+<main class="pro-checkout-main">
+<section class="section"><div class="container pro-checkout-shell">
+<div class="pro-checkout-intro reveal">
+<span class="section-kicker">RIVANI PRO · LAUNCH OFFER</span>
+<h1>All active AI tools. <span>One Pro plan.</span></h1>
+<p>Upgrade the same RIVANI account you use for Audio Repair, Image Enhancer and Background Remover. The Advanced Calculator stays free and unlimited.</p>
+<div class="pro-offer-price" aria-label="Launch price 199 rupees per month, regular price 499 rupees"><span class="pro-old-price">₹499</span><strong>₹199</strong><em>/ month</em><b>LAUNCH OFFER</b></div>
+<div class="pro-benefit-grid"><span>✓ Audio Repair Pro controls</span><span>✓ Unlimited Image Enhancer jobs</span><span>✓ Unlimited Background Remover jobs</span><span>✓ One account across active AI tools</span></div>
+<div class="pro-manual-note"><strong>Manual verification at launch</strong><p>Pay exactly ₹199 using the RIVANI QR, upload the successful-payment screenshot within 15 minutes, then submit it for review. Uploading a screenshot does <b>not</b> automatically approve payment. Pro activates only after RIVANI verifies the payment.</p></div>
+</div>
+<div class="pro-payment-card reveal delay-1" id="proPaymentCard">
+<div class="pro-payment-head"><div><span class="section-kicker">SECURE PAYMENT SESSION</span><h2 id="paymentTitle">Preparing your QR…</h2></div><span class="pro-session-status" id="paymentStatusChip">CHECKING</span></div>
+<div class="pro-account-line"><span>Account</span><strong id="paymentAccount">Sign in required</strong></div>
+<div class="pro-timer-row"><div><span>Session expires in</span><strong id="paymentTimer">15:00</strong></div><button type="button" class="pro-refresh-btn" id="restartPaymentBtn" hidden>Start new 15-minute session</button></div>
+<div class="pro-qr-wrap" id="paymentQrWrap"><canvas id="paymentQrCanvas" width="280" height="280" aria-label="RIVANI UPI payment QR"></canvas><div class="pro-qr-placeholder" id="paymentQrPlaceholder">Preparing payment QR…</div></div>
+<div class="pro-pay-meta"><div><span>Pay exactly</span><strong>₹199</strong></div><div><span>Payment reference</span><strong id="paymentReference">—</strong></div></div>
+<a class="btn btn-secondary pro-upi-link" id="upiPayLink" href="#" hidden>Open UPI app →</a>
+<div class="pro-payment-warning" id="paymentWarning">Do not pay until your unique payment reference and QR are visible.</div>
+<form id="paymentProofForm" class="pro-proof-form" hidden novalidate>
+<label><span>UPI transaction / UTR <small>optional but recommended</small></span><input id="paymentUtr" maxlength="60" autocomplete="off" placeholder="Example: transaction reference"/></label>
+<label class="pro-proof-upload"><span>Payment screenshot *</span><input id="paymentProof" type="file" accept="image/png,image/jpeg,image/webp" required/><b id="paymentProofLabel">Choose successful-payment screenshot</b><small>PNG/JPG/WebP · automatically compressed before secure upload.</small></label>
+<img id="paymentProofPreview" class="pro-proof-preview" alt="Selected payment screenshot preview" hidden/>
+<button class="btn btn-primary" id="submitPaymentProof" type="submit">Submit screenshot for verification →</button>
+<p class="pro-proof-status" id="paymentProofStatus" role="status" aria-live="polite">Payment is activated only after manual verification.</p>
+</form>
+<div class="pro-awaiting" id="paymentAwaiting" hidden><span class="pro-awaiting-pulse"></span><div><strong>Screenshot submitted</strong><p>Verification is pending. This page checks your status automatically. You may also return later from your dashboard.</p></div></div>
+<div class="pro-approved" id="paymentApproved" hidden><span>✓</span><div><strong>RIVANI Pro active</strong><p id="paymentApprovedCopy">Your account has been upgraded.</p><a class="btn btn-primary" href="dashboard.html">Open dashboard →</a></div></div>
+</div>
+</div></section>
+<section class="section pro-payment-steps"><div class="container"><div class="section-heading reveal"><span class="section-kicker">HOW IT WORKS</span><h2>Three clear steps.</h2></div><div class="pro-step-grid"><article><span>01</span><h3>Scan &amp; pay ₹199</h3><p>Use your bank or UPI app. The amount and payment reference belong to this 15-minute session.</p></article><article><span>02</span><h3>Upload proof</h3><p>Upload the successful-payment screenshot before the timer expires. RIVANI stores it privately for verification.</p></article><article><span>03</span><h3>RIVANI verifies</h3><p>After approval, your server-side subscription becomes Pro and the active tools unlock on your account.</p></article></div></div></section>
+</main>
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="features.html">Features</a><a href="articles.html">Guides</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="contact.html">Contact</a><a href="dashboard.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Manual UPI verification · Never share OTP, PIN or passwords.</span></div></footer>
+<script src="script.js?v=30.0-secure-launch"></script>
+<script src="pro-access.js?v=30.0-secure-launch"></script>
+<script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
+<script src="pro.js?v=30.0-secure-launch" type="module"></script>
+</body>
+</html>

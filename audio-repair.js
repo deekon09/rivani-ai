@@ -25,7 +25,8 @@ const PRO_USAGE_KEY = "rivani_pro_audio_usage_v1";
 
 const FREE_DAILY_JOBS = 9;
 const FREE_JOB_USAGE_KEY = "rivani_free_audio_jobs_v1";
-const PRO_PRICE_INR = 499;
+const PRO_PRICE_INR = 199;
+const PRO_REGULAR_PRICE_INR = 499;
 
 // Payment provider is configuration-driven. When the secure checkout is
 // ready, define this before audio-repair.js loads:
@@ -225,14 +226,11 @@ function showFreeLimitReached(){
 }
 
 function startProCheckout(){
-  if(PRO_CHECKOUT_URL){
-    window.location.href=PRO_CHECKOUT_URL;
+  if(typeof window.RIVANI_OPEN_PRO_CHECKOUT==='function'){
+    window.RIVANI_OPEN_PRO_CHECKOUT('audio-repair');
     return;
   }
-
-  alert(
-    `RIVANI Pro is ₹${PRO_PRICE_INR}/month. Secure checkout is being connected now.`
-  );
+  window.location.href='pro.html?from=audio-repair';
 }
 
 function readProUsage(){
@@ -463,7 +461,7 @@ $("proBuyBtn")?.addEventListener("click",startProCheckout);
 $("freeLimitProBtn")?.addEventListener("click",()=>{
   openProMessage(
     "Upgrade to RIVANI Pro",
-    `Unlimited enhancement jobs, advanced audio controls and lossless WAV export for ₹${PRO_PRICE_INR}/month in India.`
+    `Launch offer: RIVANI Pro is ₹${PRO_PRICE_INR}/month (regular ₹${PRO_REGULAR_PRICE_INR}) and unlocks advanced audio controls plus lossless WAV export.`
   );
 });
 
@@ -635,7 +633,17 @@ function renderPlanAccess(){
 }
 
 
-window.addEventListener("rivani:auth-context",renderPlanAccess);
+window.addEventListener("rivani:auth-context",event=>{
+  renderPlanAccess();
+  if(event.detail?.signedIn && window.RIVANI_USAGE){
+    window.RIVANI_USAGE.getUsage("audio-repair").catch(()=>{});
+  }
+});
+window.addEventListener("rivani:usage-update",event=>{
+  const d=event.detail||{};
+  if(d.tool!=="audio-repair"||d.plan==="pro"||!Number.isFinite(Number(d.count)))return;
+  writeFreeJobUsage(Number(d.count));
+});
 setTimeout(renderPlanAccess,0);
 setTimeout(renderPlanAccess,900);
 
@@ -1039,7 +1047,23 @@ async function warmupEngine(){
 
 async function repairLocally(){
   if(!sourceBuffer)return;
-  if(!canStartAnotherFreeJob()){showFreeLimitReached();return;}
+  if(!window.RIVANI_USAGE){
+    alert("Secure RIVANI usage verification is unavailable. Refresh the page and try again.");
+    return;
+  }
+
+  let usageJobId=null;
+  if(window.RIVANI_USAGE){
+    try{
+      const authz=await window.RIVANI_USAGE.authorize("audio-repair");
+      usageJobId=authz?.jobId||null;
+      if(authz?.plan==="free"&&Number.isFinite(Number(authz.count)))writeFreeJobUsage(Number(authz.count));
+    }catch(error){
+      if(error?.code==="DAILY_LIMIT_REACHED"){writeFreeJobUsage(FREE_DAILY_JOBS);showFreeLimitReached();return;}
+      alert(error?.message||"RIVANI could not verify today’s usage securely. Please try again.");
+      return;
+    }
+  }
 
   if(isProPlan()){
     const remaining=remainingProSeconds();
@@ -1380,11 +1404,20 @@ async function repairLocally(){
     result.classList.remove("hidden");
 
     recordProUsage(sourceBuffer.duration);
-    recordCompletedAudioJob();
+    if(window.RIVANI_USAGE){
+      if(usageJobId){
+        try{
+          const usage=await window.RIVANI_USAGE.complete(usageJobId);
+          usageJobId=null;
+          if(usage?.plan==="free"&&Number.isFinite(Number(usage.count)))writeFreeJobUsage(Number(usage.count));
+        }catch(error){console.warn("RIVANI usage completion sync failed",error);}
+      }
+    }
     renderPlanAccess();
 
     result.scrollIntoView({behavior:"smooth",block:"start"});
   }catch(error){
+    if(usageJobId&&window.RIVANI_USAGE){window.RIVANI_USAGE.cancel(usageJobId);usageJobId=null;}
     console.error(error);
     processing.classList.add("hidden");
     repairPanel.classList.remove("hidden");

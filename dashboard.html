@@ -7,7 +7,7 @@
 <meta content="#030616" name="theme-color"/>
 <meta content="Manage your RIVANI AI profile, plan, security and account settings." name="description"/>
 <title>My Dashboard — RIVANI AI</title>
-<link href="styles.css?v=26.3-precision" rel="stylesheet"/>
+<link href="styles.css?v=30.0-secure-launch" rel="stylesheet"/>
 </head>
 <body class="account-dashboard-page dashboard-v2-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -33,7 +33,7 @@
 <button class="side-nav-link" data-target="planPanel" type="button"><span>◇</span>My plan</button>
 <button class="side-nav-link" data-target="profilePanel" type="button"><span>◎</span>Profile</button>
 <button class="side-nav-link" data-target="securityPanel" type="button"><span>⌾</span>Security</button>
-<a class="side-nav-link" href="index.html#tools"><span>✦</span>Explore tools</a>
+<a class="side-nav-link" href="index.html#tools"><span>✦</span>Explore tools</a><a class="side-nav-link" href="admin-payments.html" id="paymentReviewLink" hidden><span>₹</span>Payment reviews <b id="paymentReviewCount"></b></a>
 </nav>
 <div class="side-plan-chip"><span>Current plan</span><strong id="sidePlan">FREE</strong></div>
 <button class="side-logout" id="logoutBtn" type="button">Log out</button>
@@ -53,7 +53,7 @@
 <div class="dashboard-two-col">
 <article class="premium-plan-card reveal delay-2">
 <div class="plan-glow"></div>
-<div class="plan-card-copy"><span class="section-kicker">CURRENT PLAN</span><h2 id="currentPlan">FREE</h2><p>You are currently on the Free plan. Pro and Premium will appear here automatically when billing and plan management are connected.</p><div class="plan-feature-row"><span>✓ Account access</span><span>✓ RIVANI tools</span><span>✓ Secure sign-in</span></div></div>
+<div class="plan-card-copy"><span class="section-kicker">CURRENT PLAN</span><h2 id="currentPlan">FREE</h2><p id="currentPlanCopy">Free includes 9 successful jobs per day on each active AI media tool. Upgrade to Pro with the ₹199 launch offer after manual payment verification.</p><div class="plan-feature-row"><span>✓ Account access</span><span>✓ RIVANI tools</span><span>✓ Server-checked daily limits</span></div><div class="dashboard-pro-offer" id="dashboardProOffer"><div><strong>RIVANI Pro launch offer</strong><span class="price"><s>₹499</s> <b>₹199/month</b> · one plan across active AI tools</span></div><a class="btn btn-primary" href="pro.html?from=dashboard">Upgrade with QR →</a></div></div>
 <div class="plan-orb"><span id="planBadge">FREE</span><small>PLAN</small></div>
 </article>
 <article class="quick-tools-card reveal delay-3">
@@ -72,16 +72,16 @@
 </article>
 </section>
 <section class="dashboard-panel" hidden="" id="planPanel">
-<div class="panel-heading"><span class="section-kicker">MY PLAN</span><h2>Plan &amp; membership</h2><p>Your current plan is linked to this RIVANI account. Billing is not connected yet, so all new accounts remain on Free.</p></div>
+<div class="panel-heading"><span class="section-kicker">MY PLAN</span><h2>Plan &amp; membership</h2><p>Your plan is checked by the RIVANI backend. The launch checkout uses UPI/QR payment plus manual screenshot verification.</p></div>
 <div class="membership-current-card">
-<div><span class="membership-label">ACTIVE PLAN</span><h3 id="planPanelName">FREE</h3><p>No payment method is required for your current plan.</p></div><div class="membership-mark">FREE</div>
+<div><span class="membership-label">ACTIVE PLAN</span><h3 id="planPanelName">FREE</h3><p id="membershipCopy">No payment method is required for Free. Pro is available at the ₹199/month launch offer.</p></div><div class="membership-mark" id="membershipMark">FREE</div>
 </div>
 <div class="future-plan-grid">
 <article><span>FREE</span><h3>Free</h3><p>Current starter access for RIVANI accounts.</p><b>Active now</b></article>
-<article class="future"><span>PRO</span><h3>Pro</h3><p>Future upgrade tier for higher usage and advanced tools.</p><b>Coming later</b></article>
+<article class="future"><span>PRO</span><h3>Pro</h3><p>One subscription across the active AI tools, with tool-specific Pro features and higher usage.</p><b><s>₹499</s> ₹199/month launch offer</b></article>
 <article class="future premium"><span>PREMIUM</span><h3>Premium</h3><p>Future highest tier for expanded limits and premium features.</p><b>Coming later</b></article>
 </div>
-<div class="info-note"><strong>No billing is active yet.</strong><span>We will connect real plan limits and payments separately before Pro or Premium can be purchased.</span></div>
+<div class="info-note"><strong>Manual payment verification is active.</strong><span>Start a 15-minute QR session, pay exactly ₹199, upload the successful-payment screenshot, then wait for RIVANI approval. Screenshot upload alone does not activate Pro.</span></div>
 </section>
 <section class="dashboard-panel" hidden="" id="profilePanel">
 <div class="panel-heading"><span class="section-kicker">PROFILE</span><h2>Profile details</h2><p>These details come from your authenticated RIVANI account.</p></div>
@@ -135,7 +135,7 @@
 </div>
 </div>
 <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a></div><div><strong>Account</strong><a href="dashboard.html">Dashboard</a><a href="privacy.html">Privacy</a></div><div><strong>Legal</strong><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Account access secured with Firebase Authentication.</span></div></footer>
-<script src="script.js?v=28.0-live-suite"></script>
-<script src="dashboard.js?v=8" type="module"></script>
+<script src="script.js?v=30.0-secure-launch"></script>
+<script src="dashboard.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>

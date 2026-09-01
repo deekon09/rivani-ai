@@ -3,7 +3,8 @@
   const $=id=>document.getElementById(id);
   const FREE_DAILY=9;
   const TESTING_UNLIMITED=false; // Production Free plan: 9 successful removals per local day
-  const PRO_PRICE_INR=499;
+  const PRO_PRICE_INR=199;
+  const PRO_REGULAR_PRICE_INR=499;
   const IS_MOBILE=(()=>{
     const ua=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
     const touch=Number(navigator.maxTouchPoints||0)>=2;
@@ -38,7 +39,7 @@
     engine:null,provider:null,inferenceMs:0,mode:'auto',bgMode:'transparent',shadow:false,brush:false,brushMode:'erase',
     undoMask:null,components:null,selectedComponent:'all',hardEdge:null,worker:null,jobId:0,painting:false,renderTimer:null,
     running:false,currentEngine:'precision',precisionAttempts:0,mobileAttempts:0,usedSafetyFallback:false,
-    attemptTimer:null,progressPulseTimer:null,visualProgress:0,currentInputSize:0,maskGuide:null,
+    attemptTimer:null,progressPulseTimer:null,visualProgress:0,currentInputSize:0,maskGuide:null,usageJobId:null,
   };
 
   function isPro(){return String(window.RIVANI_LUKI_CONTEXT?.plan||'').toLowerCase()==='pro';}
@@ -65,8 +66,9 @@
     usageText.textContent=left?`${left} of ${FREE_DAILY} removals left today`:'Daily limit reached · upgrade to Pro for unlimited removals';
     removeBtn.disabled=!state.file||left<=0;
   }
-  window.addEventListener('rivani:auth-context',updateUsage);
-  window.RIVANI_AUTH_READY?.then(updateUsage).catch(()=>{});
+  window.addEventListener('rivani:auth-context',event=>{updateUsage();if(event.detail?.signedIn&&window.RIVANI_USAGE)window.RIVANI_USAGE.getUsage('background-remover').catch(()=>{});});
+  window.addEventListener('rivani:usage-update',event=>{const d=event.detail||{};if(d.tool!=='background-remover'||d.plan==='pro'||!Number.isFinite(Number(d.count)))return;try{localStorage.setItem(usageKey(),String(Math.max(0,Number(d.count))));}catch(_e){}updateUsage();});
+  window.RIVANI_AUTH_READY?.then(()=>{updateUsage();if(signedIn()&&window.RIVANI_USAGE)window.RIVANI_USAGE.getUsage('background-remover').catch(()=>{});}).catch(()=>{});
 
   function openPro(title='Free daily limit reached',copy=`You used all ${FREE_DAILY} free background removals for today. Upgrade to RIVANI Pro for unlimited daily removals.`){
     if(!proModal)return;
@@ -74,8 +76,8 @@
   }
   function closePro(){proModal?.classList.add('hidden');document.body.style.overflow='';}
   document.querySelectorAll('[data-close-bg-pro]').forEach(el=>el.addEventListener('click',closePro));
-  usageProBtn?.addEventListener('click',()=>openPro('RIVANI Pro',`All Cutout Studio quality controls are included on Free. Free has ${FREE_DAILY} successful removals per day; Pro removes the daily cap. Secure checkout will connect here when billing is enabled.`));
-  proBuy?.addEventListener('click',()=>openPro('Pro checkout coming next',`RIVANI Pro is planned at ₹${PRO_PRICE_INR}/month in India. The purchase button is ready for the payment gateway; billing is not connected yet.`));
+  usageProBtn?.addEventListener('click',()=>openPro('RIVANI Pro',`Launch offer: ₹${PRO_PRICE_INR}/month (regular ₹${PRO_REGULAR_PRICE_INR}). Free has ${FREE_DAILY} successful removals per day; Pro removes the daily cap while keeping Precision quality.`));
+  proBuy?.addEventListener('click',()=>{closePro();if(typeof window.RIVANI_OPEN_PRO_CHECKOUT==='function')window.RIVANI_OPEN_PRO_CHECKOUT('background-remover');else location.href='pro.html?from=background-remover';});
 
   function setProgress(value,title,text,provider){
     const v=Math.max(0,Math.min(100,Math.round(value||0)));
@@ -147,13 +149,13 @@
     if(IS_MOBILE){
       if(failedEngine==='mobile' && state.mobileAttempts<2){
         state.mobileAttempts++;
-        setProgress(24,'Restarting Precision safely…','Retrying the SAME BiRefNet 512 model in a fresh CPU session.','RIVANI Precision · CPU safe');
+        setProgress(24,'Restarting Precision safely…','Retrying RIVANI Precision in a fresh safe session.','RIVANI Precision · safe retry');
         setTimeout(()=>runInferenceAttempt('mobile',512).catch(err=>failRemoval(err.message||err)),220);
         return;
       }
       if(failedEngine!=='fast'&&!state.usedSafetyFallback){
         state.usedSafetyFallback=true;
-        setProgress(30,'Starting final safety fallback…','BiRefNet could not complete on this run. The lightweight model is used only as the last emergency fallback.','Safety fallback');
+        setProgress(30,'Starting final safety fallback…','The main Precision path could not complete on this run. A compatibility path is being used only to finish safely.','Compatibility safety');
         setTimeout(()=>runInferenceAttempt('fast',320).catch(err=>failRemoval(err.message||err)),220);
         return;
       }
@@ -246,14 +248,25 @@
     if(!state.file||state.running)return;
     const ok=await window.RIVANI_REQUIRE_AUTH?.({tool:'Background Remover'});
     if(ok===false)return;
-    if(!TESTING_UNLIMITED&&!isPro()&&usageCount()>=FREE_DAILY){openPro();updateUsage();return;}
+    if(!window.RIVANI_USAGE){alert('Secure RIVANI usage verification is unavailable. Refresh the page and try again.');return;}
+    state.usageJobId=null;
+    if(window.RIVANI_USAGE){
+      try{
+        const authz=await window.RIVANI_USAGE.authorize('background-remover');
+        state.usageJobId=authz?.jobId||null;
+        if(authz?.plan==='free'&&Number.isFinite(Number(authz.count))){try{localStorage.setItem(usageKey(),String(Number(authz.count)));}catch(_e){}updateUsage();}
+      }catch(error){
+        if(error?.code==='DAILY_LIMIT_REACHED'){try{localStorage.setItem(usageKey(),String(FREE_DAILY));}catch(_e){}openPro();updateUsage();return;}
+        alert(error?.message||'RIVANI could not verify today’s usage securely. Please try again.');return;
+      }
+    }
     state.running=true;state.precisionAttempts=1;state.mobileAttempts=1;state.usedSafetyFallback=false;
     const firstEngine=IS_MOBILE?'mobile':'precision';
     state.currentEngine=firstEngine;
     removeBtn.disabled=true;
     showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.',IS_MOBILE?'RIVANI Precision · CPU safe':'RIVANI Precision');
     try{await runInferenceAttempt(firstEngine,512);}
-    catch(e){state.running=false;destroyWorker();showProcessing(false);updateUsage();throw e;}
+    catch(e){if(state.usageJobId&&window.RIVANI_USAGE){window.RIVANI_USAGE.cancel(state.usageJobId);state.usageJobId=null;}state.running=false;destroyWorker();showProcessing(false);updateUsage();throw e;}
   }
 
   async function finishRemoval(m){
@@ -267,10 +280,15 @@
     compareWrap.style.setProperty('--compare-position','100%');
     setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':m.engine==='mobile'?'Precision · mobile-safe':'Compatibility safety');
     setTimeout(()=>showProcessing(false),220);
-    incrementUsage();
+    if(window.RIVANI_USAGE&&state.usageJobId){
+      try{
+        const usage=await window.RIVANI_USAGE.complete(state.usageJobId);state.usageJobId=null;
+        if(usage?.plan==='free'&&Number.isFinite(Number(usage.count))){try{localStorage.setItem(usageKey(),String(Number(usage.count)));}catch(_e){}updateUsage();}
+      }catch(error){console.warn('RIVANI usage completion sync failed',error);}
+    }
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
     const stats=maskStats(state.effectiveMask);
-    const engineLabel=m.engine==='precision'?'RIVANI Precision · WebGPU':m.engine==='mobile'?'RIVANI Precision · same BiRefNet/WASM':'Safety fallback';
+    const engineLabel=m.engine==='precision'?'RIVANI Precision · accelerated':m.engine==='mobile'?'RIVANI Precision · mobile-safe':'Compatibility safety';
     resultMeta.textContent=`Background removed · foreground ${stats.coverage.toFixed(0)}% · ${state.outW} × ${state.outH} · ${engineLabel} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · Precision unavailable on this run':''}`;
   }
 

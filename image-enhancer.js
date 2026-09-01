@@ -95,7 +95,8 @@ const DEFAULT_OUTPUT_PIXELS=36_000_000;
 const DEFAULT_OUTPUT_EDGE=9000;
 const FREE_IMAGE_DAILY_JOBS=9;
 const FREE_IMAGE_USAGE_PREFIX="rivani_free_image_usage_v1";
-const PRO_PRICE_INR=499;
+const PRO_PRICE_INR=199;
+const PRO_REGULAR_PRICE_INR=499;
 const PRO_CHECKOUT_URL=String(window.RIVANI_PRO_CHECKOUT_URL||"").trim();
 
 let sourceFile=null;
@@ -356,8 +357,8 @@ async function requireImageAccount(){
   return false;
 }
 function startImageProCheckout(){
-  if(PRO_CHECKOUT_URL){location.href=PRO_CHECKOUT_URL;return;}
-  openImagePro("RIVANI Pro",`Free includes ${FREE_IMAGE_DAILY_JOBS} image enhancements per day. RIVANI Pro is ₹${PRO_PRICE_INR}/month in India and unlocks unlimited image jobs plus all precision controls. Secure checkout will open here once billing is connected.`);
+  if(typeof window.RIVANI_OPEN_PRO_CHECKOUT==="function"){window.RIVANI_OPEN_PRO_CHECKOUT("image-enhancer");return;}
+  location.href="pro.html?from=image-enhancer";
 }
 function showImageDailyLimit(){
   openImagePro("Free daily limit reached",`You used all ${FREE_IMAGE_DAILY_JOBS} free image enhancements for today. Upgrade to RIVANI Pro for unlimited image enhancement jobs and the full Precision Suite.`);
@@ -369,7 +370,15 @@ function requireSignedForPrecisionAction(){
   return false;
 }
 
-window.addEventListener("rivani:auth-context",event=>syncImagePlan(event.detail));
+window.addEventListener("rivani:auth-context",event=>{
+  syncImagePlan(event.detail);
+  if(event.detail?.signedIn&&window.RIVANI_USAGE)window.RIVANI_USAGE.getUsage("image-enhancer").catch(()=>{});
+});
+window.addEventListener("rivani:usage-update",event=>{
+  const d=event.detail||{};
+  if(d.tool!=="image-enhancer"||d.plan==="pro"||!Number.isFinite(Number(d.count)))return;
+  writeImageDailyUsage(Number(d.count));
+});
 syncImagePlan(window.RIVANI_LUKI_CONTEXT||{});
 imageFreeUsageProBtn?.addEventListener("click",startImageProCheckout);
 imageProBuyBtn?.addEventListener("click",startImageProCheckout);
@@ -847,10 +856,25 @@ function renderSmartScan(scan){
 async function enhanceCurrentImage(options={}){
   const batchRun=Boolean(options?.batch);
   if(!sourceBitmap||busy)return null;
+  let usageJobId=null;
   if(!batchRun){
     const signedIn=await requireImageAccount();
     if(!signedIn)return null;
-    if(!isImagePro()&&imageJobsRemaining()<=0){showImageDailyLimit();renderImageDailyUsage();return null;}
+    if(!window.RIVANI_USAGE){
+      alert("Secure RIVANI usage verification is unavailable. Refresh the page and try again.");
+      return null;
+    }
+    if(window.RIVANI_USAGE){
+      try{
+        const authz=await window.RIVANI_USAGE.authorize("image-enhancer");
+        usageJobId=authz?.jobId||null;
+        if(authz?.plan==="free"&&Number.isFinite(Number(authz.count)))writeImageDailyUsage(Number(authz.count));
+      }catch(error){
+        if(error?.code==="DAILY_LIMIT_REACHED"){writeImageDailyUsage(FREE_IMAGE_DAILY_JOBS);showImageDailyLimit();renderImageDailyUsage();return null;}
+        alert(error?.message||"RIVANI could not verify today’s usage securely. Please try again.");
+        return null;
+      }
+    }
   }
 
   busy=true;
@@ -1089,9 +1113,18 @@ async function enhanceCurrentImage(options={}){
     processing.classList.add("hidden");
     resultPanel.classList.remove("hidden");
     if(!batchRun)resultPanel.scrollIntoView({behavior:"smooth",block:"nearest"});
-    if(!batchRun)recordCompletedImageJob();
+    if(!batchRun){
+      if(window.RIVANI_USAGE&&usageJobId){
+        try{
+          const usage=await window.RIVANI_USAGE.complete(usageJobId);
+          usageJobId=null;
+          if(usage?.plan==="free"&&Number.isFinite(Number(usage.count)))writeImageDailyUsage(Number(usage.count));
+        }catch(error){console.warn("RIVANI usage completion sync failed",error);}
+      }
+    }
     return {blob:enhancedBlob,format:enhancedFormat,fileBytes:enhancedFileBytes,fileName:sourceFile?.name||"image",url:enhancedUrl};
   }catch(error){
+    if(usageJobId&&window.RIVANI_USAGE){window.RIVANI_USAGE.cancel(usageJobId);usageJobId=null;}
     processing.classList.add("hidden");
     if(!batchRun)alert(error?.message||"RIVANI Image Enhancer could not finish this image.");
     return null;

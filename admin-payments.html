@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow,noarchive"/>
+<meta name="theme-color" content="#030616"/>
+<title>RIVANI Payment Review</title>
+<link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
+</head>
+<body class="admin-payment-page">
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+<header class="site-header"><div class="container nav-wrap"><a class="brand" href="index.html"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/></a><nav class="main-nav"><a href="dashboard.html">Dashboard</a><a href="index.html">Website</a></nav><div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="dashboard.html">Account</a></div></div></header>
+<main class="section admin-payment-main"><div class="container">
+<div class="admin-pay-head"><div><span class="section-kicker">PRIVATE ADMIN</span><h1>Payment verification</h1><p>Only Firebase accounts listed in the Worker <code>ADMIN_EMAILS</code> environment variable can use this page.</p></div><button class="btn btn-secondary" id="refreshPayments" type="button">Refresh queue</button></div>
+<div class="admin-pay-alert" id="adminPayStatus" role="status" aria-live="polite">Checking admin access…</div>
+<div class="admin-pay-stats" id="adminPayStats" hidden><article><span>PENDING</span><strong id="pendingCount">0</strong></article><article><span>RECENT APPROVED</span><strong id="approvedCount">0</strong></article><article><span>PRICE</span><strong>₹199</strong></article></div>
+<section class="admin-pay-list" id="paymentList" hidden></section>
+</div></main>
+<div class="admin-proof-modal" id="proofModal" hidden><div class="admin-proof-backdrop" data-proof-close></div><div class="admin-proof-card"><button type="button" class="admin-proof-close" data-proof-close aria-label="Close">×</button><span class="section-kicker">PAYMENT PROOF</span><h2 id="proofTitle">Screenshot</h2><img id="proofImage" alt="Uploaded payment screenshot"/><div class="admin-proof-meta" id="proofMeta"></div></div></div>
+<script src="script.js?v=30.0-secure-launch"></script>
+<script src="pro-access.js?v=30.0-secure-launch"></script>
+<script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
+<script src="admin-payments.js?v=30.0-secure-launch" type="module"></script>
+</body>
+</html>
