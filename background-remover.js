@@ -11,7 +11,7 @@
   const fileName=$('bgFileName'),fileMeta=$('bgFileMeta'),editor=$('bgEditor');
   const stage=$('bgStage'),beforeCanvas=$('bgBeforeCanvas'),afterCanvas=$('bgAfterCanvas'),compareRange=$('bgCompareRange'),compareWrap=$('bgCompareWrap');
   const processing=$('bgProcessingOverlay'),progressFill=$('bgProgressFill'),progressPct=$('bgProgressPercent'),processingTitle=$('bgProcessingTitle'),processingText=$('bgProcessingText'),providerText=$('bgProviderText');
-  const engineSelect=$('bgEngineSelect'),modeGroup=$('bgModeGroup');
+  const modeGroup=$('bgModeGroup');
   const edgeClean=$('bgEdgeClean'),edgeCleanValue=$('bgEdgeCleanValue'),edgeShift=$('bgEdgeShift'),edgeShiftValue=$('bgEdgeShiftValue'),feather=$('bgFeather'),featherValue=$('bgFeatherValue'),decontam=$('bgDecontam'),decontamValue=$('bgDecontamValue');
   const bgModeGroup=$('bgBackgroundGroup'),customColor=$('bgCustomColor'),customBgInput=$('bgCustomBackgroundInput'),customBgBtn=$('bgCustomBackgroundBtn');
   const shadowToggle=$('bgShadowToggle'),shadowStrength=$('bgShadowStrength'),shadowStrengthValue=$('bgShadowStrengthValue');
@@ -75,7 +75,7 @@
 
   function makeWorker(){
     if(state.worker)return state.worker;
-    const w=new Worker('background-remover-worker.js?v=27.3-alpha-fix',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.4-precision-default',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -84,7 +84,7 @@
     if(m.type==='progress'){setProgress(m.value,m.title,m.text,m.value<50?'Loading model':'RIVANI Cutout Engine');return;}
     if(m.type==='error'){
       showProcessing(false);setProgress(0);
-      alert(`Background removal failed: ${m.message}\n\nRIVANI already tried the safe local path automatically. Retry once with Auto; if the browser blocked local AI, refresh the page and try again.`);
+      alert(`Background removal failed: ${m.message}\n\nRIVANI already tried the hidden safety fallback automatically. Retry once; if the browser blocked local AI, refresh the page and try again.`);
       updateUsage();return;
     }
     if(m.type==='result'){
@@ -141,8 +141,7 @@
     const worker=makeWorker();state.jobId++;
     showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.','RIVANI Cutout Engine');
     const bitmap=await createImageBitmap(state.file);
-    const chosen=engineSelect.value||'auto';
-    worker.postMessage({type:'remove',id:state.jobId,bitmap,engine:chosen},[bitmap]);
+    worker.postMessage({type:'remove',id:state.jobId,bitmap,engine:'auto'},[bitmap]);
   }
 
   async function finishRemoval(m){
@@ -159,7 +158,8 @@
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
     const stats=maskStats(state.effectiveMask);
-    resultMeta.textContent=`Background removed · foreground ${stats.coverage.toFixed(0)}% · ${state.outW} × ${state.outH} · ${m.engine==='precision'?'Precision AI':(m.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · compatibility')} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · automatic safe fallback used':''}`;
+    const engineLabel=m.engine==='precision'?'RIVANI Precision':'Safety fallback';
+    resultMeta.textContent=`Background removed · foreground ${stats.coverage.toFixed(0)}% · ${state.outW} × ${state.outH} · ${engineLabel} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · Precision unavailable on this run':''}`;
   }
 
   function maskStats(mask){
@@ -183,8 +183,8 @@
     state.mode=mode;
     modeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgMode===mode));
     const preset={
-      auto:[22,0,1,35],portrait:[12,1,1.5,38],product:[34,-1,0.5,48],glass:[5,3,1.5,20],logo:[48,-2,0,55]
-    }[mode]||[22,0,1,35];
+      auto:[22,0,1,40],portrait:[12,1,1.5,42],product:[34,-1,0.5,50],glass:[5,3,1.5,20],logo:[48,-2,0,55]
+    }[mode]||[22,0,1,40];
     [edgeClean.value,edgeShift.value,feather.value,decontam.value]=preset;
     syncSliderLabels();if(!quiet)scheduleRebuild();
   }
@@ -331,7 +331,7 @@
     if(!state.effectiveMask)return;const m=state.effectiveMask;let fg=0,soft=0;for(const a of m){if(a>20)fg++;if(a>30&&a<225)soft++;}
     const coverage=fg/m.length*100,softPct=fg?soft/fg*100:0;const bgCons=state.bgEstimate.variance<28?'Uniform':state.bgEstimate.variance<60?'Mixed':'Complex';
     const modeName={auto:'Auto',portrait:'Portrait / Hair',product:'Product',glass:'Glass / Soft',logo:'Logo / Text'}[state.mode];
-    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'Precision AI':(state.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · safe')}</span></div>`;
+    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'RIVANI Precision':'Safety fallback'}</span></div>`;
   }
   function updateHardEdge(){
     if(!state.effectiveMask||!state.sourceCanvas)return;const m=state.effectiveMask,w=state.maskW,h=state.maskH,block=Math.max(12,Math.round(Math.min(w,h)/12));let best=-1,bx=0,by=0;

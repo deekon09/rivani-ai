@@ -39,9 +39,9 @@
     <section class="section bg-workspace-section"><div class="container">
       <div class="bg-workspace-grid">
         <aside class="bg-panel bg-left-panel reveal">
-          <div class="bg-panel-head"><span class="section-kicker">CUTOUT CONTROL</span><h2>Background Remover</h2><p>All quality controls are Free. Pro only removes the daily usage cap.</p></div>
+          <div class="bg-panel-head"><span class="section-kicker">CUTOUT CONTROL</span><h2>Background Remover</h2><p>Testing mode is active: unlimited removals while we validate cutout quality. All quality controls are Free.</p></div>
 
-          <div class="bg-control-block"><label for="bgEngineSelect">Cutout engine · Free</label><select id="bgEngineSelect"><option value="auto" selected>Auto · Fast AI Recommended</option><option value="precision">Precision · Ultra edges (optional)</option><option value="fast">Fast · Compatibility</option></select><small>Auto uses the lightweight general-object engine for fast reliable removal. Precision is optional and downloads a larger 512px edge model only when you choose it.</small></div>
+          <div class="bg-control-block"><label>Cutout engine · Free</label><div class="bg-usage-card"><div><b>RIVANI Precision</b><span>Automatic high-quality human + object cutout</span></div><span>DEFAULT</span></div><small>One visible quality engine. RIVANI uses Precision automatically; the lightweight compatibility model is kept only as a hidden emergency fallback if Precision cannot start on a device.</small></div>
 
           <div class="bg-control-block"><label>Subject preset · Free</label><div class="bg-segmented" id="bgModeGroup"><button class="active" data-bg-mode="auto" type="button"><b>Auto</b><small>General</small></button><button data-bg-mode="portrait" type="button"><b>Hair</b><small>Portrait / fur</small></button><button data-bg-mode="product" type="button"><b>Product</b><small>Clean edge</small></button><button data-bg-mode="glass" type="button"><b>Glass</b><small>Soft alpha</small></button><button data-bg-mode="logo" type="button"><b>Logo</b><small>Text / graphic</small></button></div></div>
 
@@ -112,7 +112,7 @@
 
   <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
   <script src="script.js?v=27.1-reliable"></script>
-  <script src="background-remover.js?v=27.3-alpha-fix"></script>
+  <script src="background-remover.js?v=27.4-precision-default"></script>
   <script type="module" src="auth-nav.js?v=26.3-auth"></script>
 </body>
 </html>

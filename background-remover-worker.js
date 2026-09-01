@@ -1,7 +1,7 @@
-/* RIVANI Cutout Studio inference worker — V27.3 Alpha Composite Fix
+/* RIVANI Cutout Studio inference worker — V27.4 Precision Default
    Image pixels stay local. Only model weights are fetched from the RIVANI model-delivery Worker.
-   Auto defaults to the lightweight general-object model for fast, reliable completion.
-   Precision is opt-in and uses a browser-safe 512px BiRefNet graph. */
+   Auto always starts with the browser-safe 512px Precision model.
+   The lightweight compatibility model is hidden and used only as an emergency fallback. */
 const MODEL_BASE='https://rivani-models.rivani.workers.dev';
 const MODEL_URLS={
   precision:`${MODEL_BASE}/background-remover-birefnet-512.onnx`,
@@ -21,16 +21,17 @@ self.onmessage=async(event)=>{
     post(id,'progress',{value:3,title:'Preparing cutout engine…',text:'RIVANI is preparing private browser inference.'});
     const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent||'');
 
-    // V27.1: Auto is intentionally lightweight-first. It avoids a 90–120 MB
-    // first-use download and prevents the 1024px WebGPU "access out of bounds" failure.
-    const choice=engine==='precision'?'precision':'fast';
+    // V27.4: quality-first product decision. There is one visible engine in the UI:
+    // RIVANI Precision. The small compatibility model is retained only as a hidden
+    // emergency fallback when the 512px Precision WebGPU session cannot start.
+    const choice='precision';
     let result;
 
     if(choice==='precision'){
       try{
         result=await inferPrecision(bitmap,id);
       }catch(error){
-        post(id,'progress',{value:46,title:'Switching to Fast AI…',text:'Precision was not stable here. RIVANI is continuing automatically with the reliable engine.'});
+        post(id,'progress',{value:46,title:'Starting safety fallback…',text:'Precision could not start on this device. RIVANI is completing the cutout with its local compatibility fallback.'});
         result=await inferFast(bitmap,id,mobile);
         result.fallbackFrom='precision';
         result.fallbackReason=String(error?.message||error||'Precision unavailable');
