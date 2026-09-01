@@ -148,6 +148,7 @@ async function infer(bitmap,kind,id,inputSize){
     mask=decodeFast(raw,size);
   }
   mask=sanitizeMask(mask,size);
+  mask=polishMask(mask,size,kind);
   post(id,'progress',{value:94,title:'Running Cutout Guard…',text:'Checking edge confidence and transparent detail.',stage:'post'});
   return {
     mask,
@@ -212,6 +213,100 @@ function decodeFast(raw,size){
     mask[i]=Math.round(v*255);
   }
   return mask;
+}
+
+
+function polishMask(mask,size,kind){
+  // V27.7 Edge Rescue: keep real hair/soft alpha while removing low-confidence
+  // haze and isolated scraps that mobile saliency models can leave behind.
+  const src=mask;
+  const n=src.length;
+  const sharpened=new Uint8ClampedArray(n);
+  const strength=kind==='precision'?0.08:kind==='mobile'?0.20:0.24;
+
+  // Conservative 3x3 alpha unsharp. This tightens shoulder/glasses boundaries
+  // without turning the matte into a hard binary cutout.
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const i=y*size+x;
+      let sum=0,c=0;
+      for(let yy=Math.max(0,y-1);yy<=Math.min(size-1,y+1);yy++){
+        const row=yy*size;
+        for(let xx=Math.max(0,x-1);xx<=Math.min(size-1,x+1);xx++){
+          sum+=src[row+xx];c++;
+        }
+      }
+      const a=src[i];
+      const blur=sum/c;
+      let v=a+(a-blur)*strength;
+      if(v<10)v=0;
+      else if(v<34)v*=0.58; // suppress faint background fog
+      else if(v>248)v=255;
+      sharpened[i]=Math.max(0,Math.min(255,Math.round(v)));
+    }
+  }
+
+  suppressWeakIslands(sharpened,size);
+  fillTinyPinholes(sharpened,size);
+  return sharpened;
+}
+
+function suppressWeakIslands(mask,size){
+  // Remove only tiny/weak disconnected alpha scraps. Large secondary subjects
+  // remain untouched, so multi-subject photos still work.
+  const n=mask.length;
+  const seen=new Uint8Array(n);
+  const queue=new Int32Array(n);
+  const members=[];
+  let largest=0;
+  const comps=[];
+  const threshold=42;
+
+  for(let start=0;start<n;start++){
+    if(seen[start]||mask[start]<=threshold)continue;
+    let head=0,tail=0,sum=0,max=0;
+    queue[tail++]=start;seen[start]=1;
+    members.length=0;
+    while(head<tail){
+      const idx=queue[head++];members.push(idx);
+      const v=mask[idx];sum+=v;if(v>max)max=v;
+      const x=idx%size,y=(idx/size)|0;
+      const a=idx-1,b=idx+1,c=idx-size,d=idx+size;
+      if(x>0&&!seen[a]&&mask[a]>threshold){seen[a]=1;queue[tail++]=a;}
+      if(x<size-1&&!seen[b]&&mask[b]>threshold){seen[b]=1;queue[tail++]=b;}
+      if(y>0&&!seen[c]&&mask[c]>threshold){seen[c]=1;queue[tail++]=c;}
+      if(y<size-1&&!seen[d]&&mask[d]>threshold){seen[d]=1;queue[tail++]=d;}
+    }
+    const copy=Int32Array.from(members);
+    const comp={pixels:copy,area:copy.length,avg:sum/Math.max(1,copy.length),max};
+    comps.push(comp);if(comp.area>largest)largest=comp.area;
+  }
+
+  const absoluteTiny=Math.max(20,Math.round(n*0.00018));
+  for(const comp of comps){
+    const weakSmall=comp.area<Math.max(absoluteTiny,largest*0.012)&&comp.avg<142&&comp.max<232;
+    const dust=comp.area<absoluteTiny&&comp.max<245;
+    if(!weakSmall&&!dust)continue;
+    for(const idx of comp.pixels)mask[idx]=0;
+  }
+}
+
+function fillTinyPinholes(mask,size){
+  const src=mask.slice();
+  for(let y=1;y<size-1;y++){
+    const row=y*size;
+    for(let x=1;x<size-1;x++){
+      const i=row+x;
+      if(src[i]>48)continue;
+      let strong=0,sum=0;
+      for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){
+        if(!xx&&!yy)continue;
+        const v=src[i+yy*size+xx];
+        if(v>190){strong++;sum+=v;}
+      }
+      if(strong>=7)mask[i]=Math.round(sum/strong);
+    }
+  }
 }
 
 function sanitizeMask(mask,size){

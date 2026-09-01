@@ -46,10 +46,10 @@
           <div class="bg-control-block"><label>Subject preset · Free</label><div class="bg-segmented" id="bgModeGroup"><button class="active" data-bg-mode="auto" type="button"><b>Auto</b><small>General</small></button><button data-bg-mode="portrait" type="button"><b>Hair</b><small>Portrait / fur</small></button><button data-bg-mode="product" type="button"><b>Product</b><small>Clean edge</small></button><button data-bg-mode="glass" type="button"><b>Glass</b><small>Soft alpha</small></button><button data-bg-mode="logo" type="button"><b>Logo</b><small>Text / graphic</small></button></div></div>
 
           <div class="bg-control-block"><div class="bg-free-heading"><label>Edge precision</label><span>FREE</span></div>
-            <div class="bg-slider"><div><span>Edge Clean</span><b id="bgEdgeCleanValue">22%</b></div><input id="bgEdgeClean" type="range" min="0" max="100" step="1" value="22"><small>Strengthens uncertain boundaries without changing source geometry.</small></div>
-            <div class="bg-slider"><div><span>Expand / Contract</span><b id="bgEdgeShiftValue">0</b></div><input id="bgEdgeShift" type="range" min="-10" max="10" step="1" value="0"><small>Positive keeps more fringe detail; negative tightens the cutout.</small></div>
-            <div class="bg-slider"><div><span>Feather</span><b id="bgFeatherValue">1px</b></div><input id="bgFeather" type="range" min="0" max="6" step="0.5" value="1"><small>Softens the alpha boundary for hair, fur and translucent edges.</small></div>
-            <div class="bg-slider"><div><span>Edge Decontaminate</span><b id="bgDecontamValue">35%</b></div><input id="bgDecontam" type="range" min="0" max="100" step="5" value="35"><small>Reduces old-background color spill on semi-transparent edge pixels.</small></div>
+            <div class="bg-slider"><div><span>Edge Clean</span><b id="bgEdgeCleanValue">32%</b></div><input id="bgEdgeClean" type="range" min="0" max="100" step="1" value="32"><small>Strengthens uncertain boundaries without changing source geometry.</small></div>
+            <div class="bg-slider"><div><span>Expand / Contract</span><b id="bgEdgeShiftValue">-1</b></div><input id="bgEdgeShift" type="range" min="-10" max="10" step="1" value="-1"><small>Positive keeps more fringe detail; negative tightens the cutout.</small></div>
+            <div class="bg-slider"><div><span>Feather</span><b id="bgFeatherValue">0.5px</b></div><input id="bgFeather" type="range" min="0" max="6" step="0.5" value="0.5"><small>Softens the alpha boundary for hair, fur and translucent edges.</small></div>
+            <div class="bg-slider"><div><span>Edge Decontaminate</span><b id="bgDecontamValue">70%</b></div><input id="bgDecontam" type="range" min="0" max="100" step="5" value="70"><small>Reduces old-background color spill on semi-transparent edge pixels.</small></div>
           </div>
 
           <button class="btn btn-primary bg-remove-btn" id="bgRemoveBtn" type="button" disabled><span>✦</span> Remove Background →</button>
@@ -112,7 +112,7 @@
 
   <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
   <script src="script.js?v=27.1-reliable"></script>
-  <script src="background-remover.js?v=27.6-mobile-precision"></script>
+  <script src="background-remover.js?v=27.7-edge-rescue"></script>
   <script type="module" src="auth-nav.js?v=26.3-auth"></script>
 </body>
 </html>

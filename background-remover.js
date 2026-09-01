@@ -29,7 +29,7 @@
     engine:null,provider:null,inferenceMs:0,mode:'auto',bgMode:'transparent',shadow:false,brush:false,brushMode:'erase',
     undoMask:null,components:null,selectedComponent:'all',hardEdge:null,worker:null,jobId:0,painting:false,renderTimer:null,
     running:false,currentEngine:'precision',precisionAttempts:0,mobileAttempts:0,usedSafetyFallback:false,
-    attemptTimer:null,progressPulseTimer:null,visualProgress:0,currentInputSize:0,
+    attemptTimer:null,progressPulseTimer:null,visualProgress:0,currentInputSize:0,maskGuide:null,
   };
 
   function isPro(){return String(window.RIVANI_LUKI_CONTEXT?.plan||'').toLowerCase()==='pro';}
@@ -90,7 +90,7 @@
     // Precision intentionally uses a separate WASM model so mobile GPU/JSEP hangs
     // cannot freeze the job at "Scanning subject".
     destroyWorker();
-    const w=new Worker('background-remover-worker.js?v=27.6-mobile-precision',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.7-edge-rescue',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -225,7 +225,7 @@
     state.bitmap=null;
   }
   function resetResultState(){
-    state.mask=state.baseMask=state.effectiveMask=state.subjectCanvas=state.shadowCanvas=null;state.components=null;state.selectedComponent='all';state.undoMask=null;state.engine=null;
+    state.mask=state.baseMask=state.effectiveMask=state.subjectCanvas=state.shadowCanvas=null;state.maskGuide=null;state.components=null;state.selectedComponent='all';state.undoMask=null;state.engine=null;
     subjectPicker?.classList.add('hidden');guardCard?.classList.add('hidden');resultMeta.textContent='Run Remove Background to create a transparent cutout.';
     downloadBtn.disabled=true;newImageBtn.classList.add('hidden');brushToggle.disabled=true;brushControls.classList.add('hidden');brushOverlay.classList.add('hidden');
     scanGrid.innerHTML='<div><b>Subject</b><span>Waiting</span></div><div><b>Edges</b><span>Waiting</span></div><div><b>Background</b><span>Waiting</span></div><div><b>Engine</b><span>Auto</span></div>';
@@ -284,8 +284,8 @@
     state.mode=mode;
     modeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgMode===mode));
     const preset={
-      auto:[22,0,1,40],portrait:[12,1,1.5,42],product:[34,-1,0.5,50],glass:[5,3,1.5,20],logo:[48,-2,0,55]
-    }[mode]||[22,0,1,40];
+      auto:[32,-1,0.5,70],portrait:[20,0,0.5,75],product:[42,-1,0,68],glass:[6,2,1,28],logo:[55,-2,0,72]
+    }[mode]||[32,-1,0.5,70];
     [edgeClean.value,edgeShift.value,feather.value,decontam.value]=preset;
     syncSliderLabels();if(!quiet)scheduleRebuild();
   }
@@ -309,9 +309,66 @@
       v=.5+(v-center)*contrast;
       out[i]=Math.round(clamp(v*255));
     }
+    let refined=sourceGuidedEdgeRefine(out,w,h);
     const f=Number(feather.value);
-    return f>0.01?blurMask(out,w,h,f):out;
+    if(f>0.01)refined=blurMask(refined,w,h,f);
+    return refined;
   }
+
+  function getMaskGuide(w,h){
+    if(state.maskGuide&&state.maskGuide.w===w&&state.maskGuide.h===h)return state.maskGuide.data;
+    const c=document.createElement('canvas');c.width=w;c.height=h;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(state.sourceCanvas,0,0,w,h);
+    const data=x.getImageData(0,0,w,h).data;
+    state.maskGuide={w,h,data};return data;
+  }
+
+  function sourceGuidedEdgeRefine(mask,w,h){
+    // Recover one-pixel hair/glasses detail only next to an existing AI edge,
+    // while suppressing pixels whose color still looks like the old background.
+    // This never invents a new distant foreground region.
+    if(!state.sourceCanvas||state.mode==='glass')return mask;
+    const rgb=getMaskGuide(w,h),src=mask,out=mask.slice();
+    const recoverThreshold=state.mode==='portrait'?34:state.mode==='product'||state.mode==='logo'?52:42;
+    const suppressThreshold=state.mode==='portrait'?30:38;
+    for(let y=2;y<h-2;y++){
+      for(let x=2;x<w-2;x++){
+        const i=y*w+x,a=src[i];
+        let nmax=0,nmin=255;
+        for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){
+          if(!xx&&!yy)continue;const v=src[i+yy*w+xx];if(v>nmax)nmax=v;if(v<nmin)nmin=v;
+        }
+        if(nmax-nmin<34&&!(a>10&&a<235))continue;
+
+        let br=0,bg=0,bb=0,bn=0;
+        for(let yy=-2;yy<=2;yy+=2){
+          for(let xx=-2;xx<=2;xx+=2){
+            if(!xx&&!yy)continue;const ni=i+yy*w+xx;if(src[ni]>26)continue;const j=ni*4;br+=rgb[j];bg+=rgb[j+1];bb+=rgb[j+2];bn++;
+          }
+        }
+        if(!bn)continue;
+        br/=bn;bg/=bn;bb/=bn;const j=i*4;
+        const dr=rgb[j]-br,dg=rgb[j+1]-bg,db=rgb[j+2]-bb;
+        const dist=Math.sqrt(dr*dr+dg*dg+db*db);
+
+        let v=a;
+        if(a<150&&nmax>145&&dist>recoverThreshold){
+          const confidence=Math.min(1,(dist-recoverThreshold)/92);
+          const target=Math.min(198,nmax*(0.30+0.48*confidence));
+          v=Math.max(v,target*confidence);
+        }
+        if(a<205&&dist<suppressThreshold){
+          const closeness=1-dist/Math.max(1,suppressThreshold);
+          v*=1-closeness*(state.mode==='portrait'?0.72:0.82);
+        }
+        if(v<9)v=0;else if(v>249)v=255;
+        out[i]=Math.round(clamp(v));
+      }
+    }
+    return out;
+  }
+
   function blurMask(data,w,h,radius){
     const a=document.createElement('canvas'),b=document.createElement('canvas');a.width=b.width=w;a.height=b.height=h;
     const c=a.getContext('2d',{willReadFrequently:true}),d=c.createImageData(w,h);
@@ -350,12 +407,71 @@
     const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(state.sourceCanvas,0,0);
     const m=fullMaskCanvas();x.globalCompositeOperation='destination-in';x.drawImage(m,0,0);x.globalCompositeOperation='source-over';
     const amount=Number(decontam.value)/100;
-    if(amount>.01&&state.bgEstimate.variance<80){
-      const img=x.getImageData(0,0,c.width,c.height),p=img.data,bg=state.bgEstimate.rgb;
-      for(let i=0;i<p.length;i+=4){const a=p[i+3]/255;if(a<.04||a>.96)continue;const strength=amount*(1-a)*Math.max(0,1-state.bgEstimate.variance/100)*.72;if(strength<=.01)continue;const den=Math.max(.12,a);for(let k=0;k<3;k++){const corrected=clamp((p[i+k]-bg[k]*(1-a))/den);p[i+k]=Math.round(p[i+k]*(1-strength)+corrected*strength);}}
-      x.putImageData(img,0,0);
-    }
+    if(amount>.01)applyLocalEdgeDecontamination(c,m,amount);
     return c;
+  }
+
+  function applyLocalEdgeDecontamination(subject,fullMask,amount){
+    const w=subject.width,h=subject.height,pixels=w*h;
+    const sx=subject.getContext('2d',{willReadFrequently:true});
+    // Avoid allocating several huge RGBA buffers on very large mobile originals.
+    const localLimit=IS_MOBILE?6500000:16000000;
+    if(pixels>localLimit){
+      const img=sx.getImageData(0,0,w,h),p=img.data,bg=state.bgEstimate.rgb;
+      for(let i=0;i<p.length;i+=4){
+        const a=p[i+3]/255;if(a<.06||a>.94)continue;
+        const strength=amount*(1-a)*.34,den=Math.max(.18,a);
+        for(let k=0;k<3;k++){const corrected=clamp((p[i+k]-bg[k]*(1-a))/den);p[i+k]=Math.round(p[i+k]*(1-strength)+corrected*strength);}
+      }
+      sx.putImageData(img,0,0);return;
+    }
+
+    const src=state.sourceCanvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
+    const img=sx.getImageData(0,0,w,h),p=img.data;
+    const ma=fullMask.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
+    const globalBg=state.bgEstimate.rgb;
+    const step=Math.max(1,Math.round(Math.min(w,h)/720));
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
+
+    for(let y=0;y<h;y++){
+      for(let x0=0;x0<w;x0++){
+        const pi=(y*w+x0)*4,a=p[pi+3]/255;
+        if(a<.025||a>.965)continue;
+        let br=0,bg=0,bb=0,bn=0,bestA=255;
+        for(const radius of [2*step,4*step]){
+          for(const [dx,dy] of dirs){
+            const nx=x0+dx*radius,ny=y+dy*radius;if(nx<0||ny<0||nx>=w||ny>=h)continue;
+            const ni=(ny*w+nx)*4,na=ma[ni+3];
+            if(na>72||na>bestA+20)continue;
+            bestA=na;br+=src[ni];bg+=src[ni+1];bb+=src[ni+2];bn++;
+          }
+          if(bn>=2)break;
+        }
+        if(bn){br/=bn;bg/=bn;bb/=bn;}else{br=globalBg[0];bg=globalBg[1];bb=globalBg[2];}
+
+        const sr=src[pi],sg=src[pi+1],sb=src[pi+2];
+        const dr=sr-br,dg=sg-bg,db=sb-bb,dist=Math.sqrt(dr*dr+dg*dg+db*db);
+        // Pixels still very similar to the sampled old background are residual halo/haze.
+        if(a<.78&&dist<58){
+          const closeness=1-dist/58;
+          const reduce=amount*closeness*(1-a)*.92;
+          p[pi+3]=Math.round(p[pi+3]*(1-reduce));
+        }
+
+        const currentA=Math.max(.08,p[pi+3]/255);
+        const edgeWeight=Math.min(1,(1-currentA)*1.55);
+        const recoverStrength=amount*edgeWeight*(bn?0.78:0.34);
+        if(recoverStrength>.015&&currentA>.10){
+          const den=Math.max(.16,currentA);
+          const bgWeight=1-currentA;
+          const cr=clamp((sr-br*bgWeight)/den),cg=clamp((sg-bg*bgWeight)/den),cb=clamp((sb-bb*bgWeight)/den);
+          p[pi]=Math.round(p[pi]*(1-recoverStrength)+cr*recoverStrength);
+          p[pi+1]=Math.round(p[pi+1]*(1-recoverStrength)+cg*recoverStrength);
+          p[pi+2]=Math.round(p[pi+2]*(1-recoverStrength)+cb*recoverStrength);
+        }
+      }
+    }
+    sx.putImageData(img,0,0);
   }
 
   function renderPreview(){
