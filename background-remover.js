@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const FREE_DAILY=9;
-  const TESTING_UNLIMITED=true; // TEMP: disable daily/Pro cap while Cutout Studio is being tested
+  const TESTING_UNLIMITED=false; // Production Free plan: 9 successful removals per local day
   const PRO_PRICE_INR=499;
   const IS_MOBILE=(()=>{
     const ua=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
@@ -49,7 +49,7 @@
     return `rivani:bgremove:${uid}:${day}`;
   }
   function usageCount(){return Math.max(0,Number(localStorage.getItem(usageKey())||0)||0);}
-  function incrementUsage(){if(TESTING_UNLIMITED){updateUsage();return;}if(!isPro())localStorage.setItem(usageKey(),String(usageCount()+1));updateUsage();}
+  function incrementUsage(){if(TESTING_UNLIMITED){updateUsage();return;}if(!isPro()){const next=usageCount()+1;localStorage.setItem(usageKey(),String(next));updateUsage();if(next>=FREE_DAILY)setTimeout(()=>openPro('Daily free limit reached',`You completed ${FREE_DAILY} free background removals today. RIVANI Pro removes the daily cap while keeping the same Precision quality.`),700);return;}updateUsage();}
   function updateUsage(){
     if(!usageText)return;
     if(TESTING_UNLIMITED){
@@ -139,7 +139,7 @@
   }
   function failRemoval(message){
     state.running=false;destroyWorker();showProcessing(false);setProgress(0);updateUsage();
-    alert(`Background removal failed: ${message}\n\nRIVANI already tried the high-quality device-safe paths and the final hidden fallback automatically.`);
+    alert(`Background removal failed: ${message}\n\nRIVANI already retried the high-quality path and its safety fallback automatically.`);
   }
   function handleAttemptFailure(reason,timedOut=false){
     const failedEngine=state.currentEngine;
@@ -265,7 +265,7 @@
     // Show the completed result immediately. The user can drag back to Before at any time.
     compareRange.value='100';
     compareWrap.style.setProperty('--compare-position','100%');
-    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':m.engine==='mobile'?'Same BiRefNet · CPU safe':'Compatibility engine');
+    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':m.engine==='mobile'?'Precision · mobile-safe':'Compatibility safety');
     setTimeout(()=>showProcessing(false),220);
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;

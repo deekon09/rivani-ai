@@ -1,393 +1,360 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#030616">
-  <meta name="description" content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine.">
-  <title>AI Audio Repair — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=26.3-precision">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="#030616" name="theme-color"/>
+<meta content="RIVANI AI Clear Voice repairs noisy speech with a AI speech-enhancement engine." name="description"/>
+<title>AI Audio Repair — RIVANI AI</title>
+<link href="styles.css?v=26.3-precision" rel="stylesheet"/>
 </head>
 <body class="audio-repair-page">
-  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
-
-  <header class="site-header">
-    <div class="container nav-wrap">
-      <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
-      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
-      <nav class="main-nav" id="mainNav" aria-label="Primary navigation">
-        <a href="index.html">Home</a><a class="active" href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a>
-      </nav>
-      <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
-    </div>
-  </header>
-
-  <main>
-    <section class="audio-tool-hero section">
-      <div class="container audio-tool-hero-grid">
-        <div class="reveal">
-          <span class="status-pill live-beta">AI Clear Voice</span>
-          <span class="section-kicker">RIVANI AUDIO</span>
-          <h1>Make the voice the focus.</h1>
-          <p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated AI-powered voice enhancement built to reduce background noise while keeping speech clear, smooth and natural.</p>
-          <div class="audio-hero-points">
-            <span>✓ One clear repair workflow</span>
-            <span>✓ AI Powered Enhancement</span>
-            <span>✓ Before / after preview</span>
-            <span>✓ MP3 / WAV export</span>
-          </div>
-        </div>
-        <div class="audio-health-demo reveal delay-1">
-          <span class="audio-health-label">AI CLEAR VOICE</span>
-          <strong>AI<span> POWERED</span></strong>
-          <div class="health-demo-bar"><i style="width:82%"></i></div>
-          <ul>
-            <li><b>Noise cleanup</b><span>AI Powered</span></li>
-            <li><b>Voice clarity</b><span>Adaptive</span></li>
-            <li><b>Final polish</b><span>Studio Ready</span></li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section class="section audio-workspace-section">
-      <div class="container">
-        <div class="audio-workspace">
-          <div class="audio-upload-zone" id="audioDropZone">
-            <input type="file" id="audioFileInput" accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,audio/wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/flac">
-
-            <div class="audio-source-switch" role="tablist" aria-label="Choose audio source">
-              <button id="uploadSourceTab" class="audio-source-tab active" type="button" role="tab" aria-selected="true">
-                <span>↥</span> Upload Audio
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+<header class="site-header">
+<div class="container nav-wrap">
+<a aria-label="RIVANI AI home" class="brand" href="index.html"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/></a>
+<button aria-expanded="false" aria-label="Open menu" class="mobile-menu-btn" id="mobileMenuBtn"><span></span><span></span><span></span></button>
+<nav aria-label="Primary navigation" class="main-nav" id="mainNav">
+<a href="index.html">Home</a><a class="active" href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a>
+</nav>
+<div class="nav-account"><a class="nav-login" data-auth-login="" href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup="" href="auth.html?mode=signup">Sign up</a></div>
+</div>
+</header>
+<main>
+<section class="audio-tool-hero section">
+<div class="container audio-tool-hero-grid">
+<div class="reveal">
+<span class="status-pill live-beta">AI Clear Voice</span>
+<span class="section-kicker">RIVANI AUDIO</span>
+<h1>Make the voice the focus.</h1>
+<p>Upload a noisy voice recording. RIVANI scans it first, then sends it through a dedicated AI-powered voice enhancement built to reduce background noise while keeping speech clear, smooth and natural.</p>
+<div class="audio-hero-points">
+<span>✓ One clear repair workflow</span>
+<span>✓ AI Powered Enhancement</span>
+<span>✓ Before / after preview</span>
+<span>✓ MP3 / WAV export</span>
+</div>
+</div>
+<div class="audio-health-demo reveal delay-1">
+<span class="audio-health-label">AI CLEAR VOICE</span>
+<strong>AI<span> POWERED</span></strong>
+<div class="health-demo-bar"><i style="width:82%"></i></div>
+<ul>
+<li><b>Noise cleanup</b><span>AI Powered</span></li>
+<li><b>Voice clarity</b><span>Adaptive</span></li>
+<li><b>Final polish</b><span>Studio Ready</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="section audio-workspace-section">
+<div class="container">
+<div class="audio-workspace">
+<div class="audio-upload-zone" id="audioDropZone">
+<input accept=".wav,.mp3,.m4a,.aac,.ogg,.flac,audio/wav,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/flac" id="audioFileInput" type="file"/>
+<div aria-label="Choose audio source" class="audio-source-switch" role="tablist">
+<button aria-selected="true" class="audio-source-tab active" id="uploadSourceTab" role="tab" type="button">
+<span>↥</span> Upload Audio
               </button>
-              <button id="micSourceTab" class="audio-source-tab" type="button" role="tab" aria-selected="false">
-                <span>●</span> Record Microphone
+<button aria-selected="false" class="audio-source-tab" id="micSourceTab" role="tab" type="button">
+<span>●</span> Record Microphone
               </button>
-            </div>
-
-            <div id="uploadSourcePane" class="audio-source-pane">
-              <div class="upload-orb">≋</div>
-              <h2>Drop your voice recording here</h2>
-              <p>or choose a file from your device</p>
-              <button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
-            </div>
-
-            <div id="micSourcePane" class="audio-source-pane hidden">
-              <div class="mic-record-shell">
-                <div class="mic-record-orb" id="micRecordOrb"><span>●</span><i></i></div>
-                <div class="mic-record-copy">
-                  <span class="section-kicker">LIVE RECORDING</span>
-                  <h2>Record directly with your microphone</h2>
-                  <p>Record first, then scan and enhance the recording through the same RIVANI audio workflow.</p>
-                </div>
-
-                <div class="mic-live-meter" aria-hidden="true"><i id="micLevelFill"></i></div>
-
-                <div class="mic-record-status">
-                  <strong id="micTimer">00:00</strong>
-                  <span id="micStatus">Microphone is ready when you are.</span>
-                </div>
-
-                <div class="mic-record-actions">
-                  <button class="btn btn-primary" id="startMicBtn" type="button">● Start Recording</button>
-                  <button class="small-ghost-btn hidden" id="stopMicBtn" type="button">■ Stop & Use Recording</button>
-                  <button class="small-ghost-btn hidden" id="cancelMicBtn" type="button">Cancel</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="upload-support-info">
-              <div class="support-line"><b>Upload:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
-              <div class="support-line"><b>Free:</b> 30 min · 500 MB · 9 enhancements/day</div>
-              <div class="support-line"><b>Pro:</b> 1 GB/file · 5 h processing/day · unlimited jobs</div>
-              <div class="support-line"><b>Mic:</b> same duration/plan limits as uploaded audio</div>
-              <small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
-            </div>
-          </div>
-
-          <div class="audio-editor hidden" id="audioEditor">
-            <div class="audio-file-top">
-              <div class="audio-file-meta">
-                <div class="file-icon">♫</div>
-                <div><strong id="audioFileName">recording.wav</strong><span id="audioFileDetails">—</span></div>
-              </div>
-              <button class="small-ghost-btn" id="replaceAudioBtn" type="button">Replace file</button>
-            </div>
-
-            <div class="audio-wave-card">
-              <canvas id="waveCanvas" width="1400" height="220" aria-label="Audio waveform"></canvas>
-              <div class="wave-time-row"><span>Original waveform</span><span id="audioDuration">00:00</span></div>
-            </div>
-
-            <div class="audio-analysis-grid">
-              <article class="audio-score-card">
-                <div class="score-ring" id="scoreRing"><strong id="healthScore">--</strong><span>/100</span></div>
-                <div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">RIVANI will inspect clipping, recording level and background-noise indicators before AI enhancement.</p></div>
-              </article>
-              <div class="audio-issues-card">
-                <div class="audio-card-title"><strong>Detected issues</strong><span id="issueCount">0 found</span></div>
-                <div class="issue-list" id="issueList"><div class="issue-empty">Run the audio scan to see findings.</div></div>
-              </div>
-            </div>
-
-            <div class="audio-actions-center">
-              <button class="btn btn-primary audio-main-action" id="scanAudioBtn" type="button">✦ Scan Audio</button>
-            </div>
-
-            <div class="repair-panel hidden" id="repairPanel">
-              <div class="repair-head">
-                <div>
-                  <span class="section-kicker">AI POWERED CLEAR VOICE</span>
-                  <h2>One repair. You control how much noise goes.</h2>
-                  <p class="repair-subcopy">One focused AI enhancement path designed to reduce unwanted background sound while keeping speech clear and natural.</p>
-                </div>
-                <div class="repair-plan-badges">
-                  <span class="gpu-badge">AI POWERED</span>
-                  <span class="free-badge">FREE</span>
-                </div>
-              </div>
-
-              <div class="clear-engine-card">
-                <div class="clear-engine-orb rivani-r-crop clear-r-logo" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""><i></i><i></i></div>
-                <div>
-                  <div class="neural-title-row">
-                    <strong>RIVANI AI Clear Voice</strong>
-                    <span class="engine-live" id="clearEngineStatus">RIVANI AI Engine · Preparing</span>
-                  </div>
-                  <p>RIVANI AI enhances speech clarity, reduces unwanted background sound and applies a restrained final polish.</p>
-                </div>
-              </div>
-
-              <div class="clear-control-card">
-                <label for="repairStrength">
-                  <span><b>AI Enhancement</b><small>85% is the recommended starting point. Lower keeps more ambience; higher removes background sound more strongly.</small></span>
-                  <strong id="repairStrengthValue">85%</strong>
-                </label>
-                <input id="repairStrength" type="range" min="25" max="100" value="85">
-                <div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
-              </div>
-
-              <div class="studio-finish-card">
-                <div>
-                  <span class="studio-finish-kicker">STUDIO FINISH</span>
-                  <strong>Polish the enhanced voice</strong>
-                  <small>Smooth tone balance, gentle harshness control, light compression, seamless chunk transitions and final loudness polish.</small>
-                </div>
-                <button id="studioFinishToggle" class="studio-toggle active" type="button" aria-pressed="true">
-                  <span class="studio-toggle-dot"></span>
-                  <b id="studioFinishState">ON</b>
-                </button>
-              </div>
-
-              <div class="repair-feature-row">
-                <span><i>✓</i> AI noise cleanup</span>
-                <span><i>✓</i> Voice detail protection</span>
-                <span><i>✓</i> Seamless background control</span>
-                <span><i>✓</i> Studio Finish</span>
-                <span><i>✓</i> Peak protection</span>
-              </div>
+</div>
+<div class="audio-source-pane" id="uploadSourcePane">
+<div class="upload-orb">≋</div>
+<h2>Drop your voice recording here</h2>
+<p>or choose a file from your device</p>
+<button class="btn btn-primary" id="chooseAudioBtn" type="button">Choose audio file</button>
+</div>
+<div class="audio-source-pane hidden" id="micSourcePane">
+<div class="mic-record-shell">
+<div class="mic-record-orb" id="micRecordOrb"><span>●</span><i></i></div>
+<div class="mic-record-copy">
+<span class="section-kicker">LIVE RECORDING</span>
+<h2>Record directly with your microphone</h2>
+<p>Record first, then scan and enhance the recording through the same RIVANI audio workflow.</p>
+</div>
+<div aria-hidden="true" class="mic-live-meter"><i id="micLevelFill"></i></div>
+<div class="mic-record-status">
+<strong id="micTimer">00:00</strong>
+<span id="micStatus">Microphone is ready when you are.</span>
+</div>
+<div class="mic-record-actions">
+<button class="btn btn-primary" id="startMicBtn" type="button">● Start Recording</button>
+<button class="small-ghost-btn hidden" id="stopMicBtn" type="button">■ Stop &amp; Use Recording</button>
+<button class="small-ghost-btn hidden" id="cancelMicBtn" type="button">Cancel</button>
+</div>
+</div>
+</div>
+<div class="upload-support-info">
+<div class="support-line"><b>Upload:</b> WAV · MP3 · M4A · AAC · OGG · FLAC</div>
+<div class="support-line"><b>Free:</b> 30 min · 500 MB · 9 enhancements/day</div>
+<div class="support-line"><b>Pro:</b> 1 GB/file · 5 h processing/day · unlimited jobs</div>
+<div class="support-line"><b>Mic:</b> same duration/plan limits as uploaded audio</div>
+<small>Processing speed depends on your device. Keep this tab open until enhancement is complete.</small>
+</div>
+</div>
+<div class="audio-editor hidden" id="audioEditor">
+<div class="audio-file-top">
+<div class="audio-file-meta">
+<div class="file-icon">♫</div>
+<div><strong id="audioFileName">recording.wav</strong><span id="audioFileDetails">—</span></div>
+</div>
+<button class="small-ghost-btn" id="replaceAudioBtn" type="button">Replace file</button>
+</div>
+<div class="audio-wave-card">
+<canvas aria-label="Audio waveform" height="220" id="waveCanvas" width="1400"></canvas>
+<div class="wave-time-row"><span>Original waveform</span><span id="audioDuration">00:00</span></div>
+</div>
+<div class="audio-analysis-grid">
+<article class="audio-score-card">
+<div class="score-ring" id="scoreRing"><strong id="healthScore">--</strong><span>/100</span></div>
+<div><span class="section-kicker">AUDIO HEALTH</span><h3 id="healthLabel">Ready to scan</h3><p id="healthSummary">RIVANI will inspect clipping, recording level and background-noise indicators before AI enhancement.</p></div>
+</article>
+<div class="audio-issues-card">
+<div class="audio-card-title"><strong>Detected issues</strong><span id="issueCount">0 found</span></div>
+<div class="issue-list" id="issueList"><div class="issue-empty">Run the audio scan to see findings.</div></div>
+</div>
+</div>
+<div class="audio-actions-center">
+<button class="btn btn-primary audio-main-action" id="scanAudioBtn" type="button">✦ Scan Audio</button>
+</div>
+<div class="repair-panel hidden" id="repairPanel">
+<div class="repair-head">
+<div>
+<span class="section-kicker">AI POWERED CLEAR VOICE</span>
+<h2>One repair. You control how much noise goes.</h2>
+<p class="repair-subcopy">One focused AI enhancement path designed to reduce unwanted background sound while keeping speech clear and natural.</p>
+</div>
+<div class="repair-plan-badges">
+<span class="gpu-badge">AI POWERED</span>
+<span class="free-badge">FREE</span>
+</div>
+</div>
+<div class="clear-engine-card">
+<div aria-hidden="true" class="clear-engine-orb rivani-r-crop clear-r-logo"><img alt="" src="assets/rivani-ai-logo.png"/><i></i><i></i></div>
+<div>
+<div class="neural-title-row">
+<strong>RIVANI AI Clear Voice</strong>
+<span class="engine-live" id="clearEngineStatus">RIVANI AI Engine · Preparing</span>
+</div>
+<p>RIVANI AI enhances speech clarity, reduces unwanted background sound and applies a restrained final polish.</p>
+</div>
+</div>
+<div class="clear-control-card">
+<label for="repairStrength">
+<span><b>AI Enhancement</b><small>85% is the recommended starting point. Lower keeps more ambience; higher removes background sound more strongly.</small></span>
+<strong id="repairStrengthValue">85%</strong>
+</label>
+<input id="repairStrength" max="100" min="25" type="range" value="85"/>
+<div class="range-labels"><span>Natural</span><span>Balanced</span><span>Aggressive</span></div>
+</div>
+<div class="studio-finish-card">
+<div>
+<span class="studio-finish-kicker">STUDIO FINISH</span>
+<strong>Polish the enhanced voice</strong>
+<small>Smooth tone balance, gentle harshness control, light compression, seamless chunk transitions and final loudness polish.</small>
+</div>
+<button aria-pressed="true" class="studio-toggle active" id="studioFinishToggle" type="button">
+<span class="studio-toggle-dot"></span>
+<b id="studioFinishState">ON</b>
+</button>
+</div>
+<div class="repair-feature-row">
+<span><i>✓</i> AI noise cleanup</span>
+<span><i>✓</i> Voice detail protection</span>
+<span><i>✓</i> Seamless background control</span>
+<span><i>✓</i> Studio Finish</span>
+<span><i>✓</i> Peak protection</span>
+</div>
 <button class="btn btn-primary audio-main-action gpu-repair-button" id="repairAudioBtn" type="button">
-                <span class="repair-btn-spark">✦</span> Repair My Audio →
+<span class="repair-btn-spark">✦</span> Repair My Audio →
               </button>
-
-              <div class="free-limit-lock hidden" id="freeDailyLimitCard" role="status" aria-live="polite">
-                <div class="free-limit-lock-icon">🔒</div>
-                <div class="free-limit-lock-copy">
-                  <span class="section-kicker">DAILY LIMIT REACHED</span>
-                  <h3>Your 9 free enhancements are used for today.</h3>
-                  <p>Free plan daily limit is over. Try again tomorrow, or upgrade to RIVANI Pro for unlimited enhancement jobs and advanced audio controls.</p>
-                  <div class="free-limit-lock-meta">
-                    <span><b>RIVANI PRO</b> ₹499/month</span>
-                    <span>Unlimited enhancement jobs · 5 h processing/day</span>
-                  </div>
-                </div>
-                <button class="btn btn-primary free-limit-pro-btn" id="freeLimitProBtn" type="button">
+<div aria-live="polite" class="free-limit-lock hidden" id="freeDailyLimitCard" role="status">
+<div class="free-limit-lock-icon">🔒</div>
+<div class="free-limit-lock-copy">
+<span class="section-kicker">DAILY LIMIT REACHED</span>
+<h3>Your 9 free enhancements are used for today.</h3>
+<p>Free plan daily limit is over. Try again tomorrow, or upgrade to RIVANI Pro for unlimited enhancement jobs and advanced audio controls.</p>
+<div class="free-limit-lock-meta">
+<span><b>RIVANI PRO</b> ₹499/month</span>
+<span>Unlimited enhancement jobs · 5 h processing/day</span>
+</div>
+</div>
+<button class="btn btn-primary free-limit-pro-btn" id="freeLimitProBtn" type="button">
                   Get Pro — ₹499/month
                 </button>
-              </div>
-
-              <section class="pro-noise-mixer" aria-label="RIVANI Pro audio controls">
-                <div class="pro-mixer-head">
-                  <div>
-                    <div class="pro-title-row">
-                      <span class="pro-chip">PRO</span>
-                      <h3>Advanced Audio</h3>
-                    </div>
-                    <p>Advanced cleanup and specialist separation controls are included with RIVANI Pro.</p>
-                  </div>
-                  <span class="pro-lock-badge" id="proAudioBadge">🔒 PRO</span>
-                </div>
+</div>
+<section aria-label="RIVANI Pro audio controls" class="pro-noise-mixer">
+<div class="pro-mixer-head">
+<div>
+<div class="pro-title-row">
+<span class="pro-chip">PRO</span>
+<h3>Advanced Audio</h3>
+</div>
+<p>Advanced cleanup and specialist separation controls are included with RIVANI Pro.</p>
+</div>
+<span class="pro-lock-badge" id="proAudioBadge">🔒 PRO</span>
+</div>
 <div class="pro-locked-grid" id="proBuiltControls">
-                  <button class="pro-feature-lock" type="button" data-pro-control="fan" data-pro-lock="Fan / AC Assist" aria-pressed="false">
-                    <span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>OFF</em>
-                  </button>
-                  <button class="pro-feature-lock" type="button" data-pro-control="traffic" data-pro-lock="Traffic Assist" aria-pressed="false">
-                    <span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>OFF</em>
-                  </button>
-                  <button class="pro-feature-lock" type="button" data-pro-control="click" data-pro-lock="Click Repair" aria-pressed="false">
-                    <span><b>Click Repair</b><small>Keyboard, mouth-click and impulse repair</small></span><em>OFF</em>
-                  </button>
-                </div>
+<button aria-pressed="false" class="pro-feature-lock" data-pro-control="fan" data-pro-lock="Fan / AC Assist" type="button">
+<span><b>Fan / AC Assist</b><small>Steady fan, AC and hum cleanup</small></span><em>OFF</em>
+</button>
+<button aria-pressed="false" class="pro-feature-lock" data-pro-control="traffic" data-pro-lock="Traffic Assist" type="button">
+<span><b>Traffic Assist</b><small>Road and engine-band cleanup</small></span><em>OFF</em>
+</button>
+<button aria-pressed="false" class="pro-feature-lock" data-pro-control="click" data-pro-lock="Click Repair" type="button">
+<span><b>Click Repair</b><small>Keyboard, mouth-click and impulse repair</small></span><em>OFF</em>
+</button>
+</div>
+<div class="pro-specialist-title">
+<strong>Specialist AI Engines</strong>
+<small>Dedicated controls for difficult recordings.</small>
+</div>
+<div class="pro-specialist-grid">
+<button aria-pressed="false" class="pro-specialist-card" data-specialist-engine="Background Voices" id="backgroundVoicesBtn" type="button">
+<span class="pro-specialist-icon">◉</span>
+<span><b>Background Voices</b><small>Separate two overlapping speakers, then keep the selected primary voice.</small></span>
+<em id="backgroundVoicesState">PRO 🔒</em>
+</button>
+<button aria-pressed="false" class="pro-specialist-card" data-specialist-engine="Music Control" id="musicControlBtn" type="button">
+<span class="pro-specialist-icon">♫</span>
+<span><b>Music Control</b><small>Separate voice from instrumental/background music before Clear Voice.</small></span>
+<em id="musicControlState">PRO 🔒</em>
+</button>
+<button class="pro-specialist-card" data-specialist-engine="De-Reverb" id="dereverbSpecialistBtn" type="button">
+<span class="pro-specialist-icon">⌁</span>
+<span><b>De-Reverb</b><small>Dedicated room-echo and late-reflection reduction.</small></span>
+<em id="dereverbSpecialistState">PRO 🔒</em>
+</button>
+</div>
+<div class="specialist-settings-grid">
+<div class="specialist-setting hidden" id="backgroundVoiceSettings">
+<div>
+<span class="specialist-setting-kicker">PRIMARY SPEAKER</span>
+<strong>Which separated voice should RIVANI keep?</strong>
+<small>Auto keeps the more dominant speech stream. Switch to A or B if the wrong speaker is selected.</small>
+</div>
+<button class="mini-cycle-btn" id="speakerModeBtn" type="button">AUTO</button>
+</div>
+<div class="specialist-setting hidden" id="musicControlSettings">
+<div class="specialist-setting-range">
+<label for="musicRemoval">
+<span>
+<span class="specialist-setting-kicker">MUSIC REMOVAL</span>
+<strong>How strongly should separated music be removed?</strong>
+</span>
+<b id="musicRemovalValue">100%</b>
+</label>
+<input id="musicRemoval" max="100" min="60" type="range" value="100"/>
+</div>
+</div>
+</div>
+</section>
+</div></div></div></div></section>
 
-                <div class="pro-specialist-title">
-                  <strong>Specialist AI Engines</strong>
-                  <small>Dedicated controls for difficult recordings.</small>
-                </div>
+<div class="audio-processing hidden" id="audioProcessing">
+<div class="processing-visual gpu-processing-visual">
+<div class="processing-orbit orbit-one"></div>
+<div class="processing-orbit orbit-two"></div>
+<div aria-hidden="true" class="processing-orb rivani-r-crop processing-r-logo"><img alt="" src="assets/rivani-ai-logo.png"/></div>
+<div aria-hidden="true" class="processing-wave">
+<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+</div>
+</div>
+<span class="processing-kicker">RIVANI AI CLEAR VOICE</span>
+<h3 id="processingTitle">Preparing your repair…</h3>
+<p id="processingText">Preparing RIVANI AI…</p>
+<div class="processing-stages" id="processingStages">
+<span class="active" data-stage="upload">Prepare</span>
+<span data-stage="model">AI Enhance</span>
+<span data-stage="restore">Smooth</span>
+<span data-stage="level">Finish</span>
+<span data-stage="export">Result</span>
+</div>
+<div class="processing-bar"><i id="processingBar"></i></div>
+<span id="processingPercent">0%</span>
+</div>
+<div class="audio-result hidden" id="audioResult">
+<div class="result-head">
+<div>
+<span class="status-pill live-beta">Clear Voice complete</span>
+<h2>Listen before you download.</h2>
+<p>Your repaired audio is ready. Compare it with the original at a similar listening volume, then choose your export format.</p>
+</div>
+<div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">AI</strong></div>
+</div>
+<div class="compare-grid">
+<article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio controls="" id="beforePlayer"></audio></article>
+<article class="compare-card after"><span>AFTER</span><strong id="afterPresetLabel">Clear Voice</strong><audio controls="" id="afterPlayer"></audio></article>
+</div>
+<div class="export-format-card">
+<div class="export-format-head">
+<div><strong>Export format</strong><small>Choose how you want to save the enhanced audio.</small></div>
+</div>
+<div class="export-format-options">
+<button class="export-format-option active" id="exportMp3Btn" type="button">
+<span><b>MP3</b><small>192 kbps · Free</small></span>
+<em>SELECTED</em>
+</button>
+<button class="export-format-option locked" id="exportWavBtn" type="button">
+<span><b>WAV</b><small>Lossless quality</small></span>
+<em>PRO 🔒</em>
+</button>
+</div>
+</div>
+<div class="result-actions">
+<button class="btn btn-primary result-gradient-btn" id="downloadAudioBtn" type="button">Download MP3 ↓</button>
+<button class="btn btn-primary result-gradient-btn" id="anotherAudioBtn" type="button">Enhance Another Audio ＋</button>
+<button class="small-ghost-btn result-adjust-btn" id="tryAgainBtn" type="button">Adjust Settings ↻</button>
+</div>
+<div class="repair-disclosure">
+<strong>Processing disclosure</strong>
+<p>Your selected recording is processed by RIVANI AI in this browser workflow. Keep this tab open until enhancement and export are complete.</p>
+</div>
+</div>
 
-                <div class="pro-specialist-grid">
-                  <button class="pro-specialist-card" id="backgroundVoicesBtn" type="button" data-specialist-engine="Background Voices" aria-pressed="false">
-                    <span class="pro-specialist-icon">◉</span>
-                    <span><b>Background Voices</b><small>Separate two overlapping speakers, then keep the selected primary voice.</small></span>
-                    <em id="backgroundVoicesState">PRO 🔒</em>
-                  </button>
-                  <button class="pro-specialist-card" id="musicControlBtn" type="button" data-specialist-engine="Music Control" aria-pressed="false">
-                    <span class="pro-specialist-icon">♫</span>
-                    <span><b>Music Control</b><small>Separate voice from instrumental/background music before Clear Voice.</small></span>
-                    <em id="musicControlState">PRO 🔒</em>
-                  </button>
-                  <button class="pro-specialist-card" id="dereverbSpecialistBtn" type="button" data-specialist-engine="De-Reverb">
-                    <span class="pro-specialist-icon">⌁</span>
-                    <span><b>De-Reverb</b><small>Dedicated room-echo and late-reflection reduction.</small></span>
-                    <em id="dereverbSpecialistState">PRO 🔒</em>
-                  </button>
-                </div>
 
-                
+<div class="audio-beta-note">
+<span>AUDIO PLAN LIMITS</span>
+<p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: 30 minutes, 500 MB and 9 enhancements per day · Pro: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
+</div>
 
-                <div class="specialist-settings-grid">
-                  <div class="specialist-setting hidden" id="backgroundVoiceSettings">
-                    <div>
-                      <span class="specialist-setting-kicker">PRIMARY SPEAKER</span>
-                      <strong>Which separated voice should RIVANI keep?</strong>
-                      <small>Auto keeps the more dominant speech stream. Switch to A or B if the wrong speaker is selected.</small>
-                    </div>
-                    <button class="mini-cycle-btn" id="speakerModeBtn" type="button">AUTO</button>
-                  </div>
 
-                  <div class="specialist-setting hidden" id="musicControlSettings">
-                    <div class="specialist-setting-range">
-                      <label for="musicRemoval">
-                        <span>
-                          <span class="specialist-setting-kicker">MUSIC REMOVAL</span>
-                          <strong>How strongly should separated music be removed?</strong>
-                        </span>
-                        <b id="musicRemovalValue">100%</b>
-                      </label>
-                      <input id="musicRemoval" type="range" min="60" max="100" value="100">
-                    </div>
-                  </div>
-                </div>
-              </section>
-              </section>
-            </div>
-
-            <div class="audio-processing hidden" id="audioProcessing">
-              <div class="processing-visual gpu-processing-visual">
-                <div class="processing-orbit orbit-one"></div>
-                <div class="processing-orbit orbit-two"></div>
-                <div class="processing-orb rivani-r-crop processing-r-logo" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""></div>
-                <div class="processing-wave" aria-hidden="true">
-                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-                </div>
-              </div>
-              <span class="processing-kicker">RIVANI AI CLEAR VOICE</span>
-              <h3 id="processingTitle">Preparing your repair…</h3>
-              <p id="processingText">Preparing RIVANI AI…</p>
-              <div class="processing-stages" id="processingStages">
-                <span class="active" data-stage="upload">Prepare</span>
-                <span data-stage="model">AI Enhance</span>
-                <span data-stage="restore">Smooth</span>
-                <span data-stage="level">Finish</span>
-                <span data-stage="export">Result</span>
-              </div>
-              <div class="processing-bar"><i id="processingBar"></i></div>
-              <span id="processingPercent">0%</span>
-            </div>
-
-            <div class="audio-result hidden" id="audioResult">
-              <div class="result-head">
-                <div>
-                  <span class="status-pill live-beta">Clear Voice complete</span>
-                  <h2>Listen before you download.</h2>
-                  <p>Your repaired audio is ready. Compare it with the original at a similar listening volume, then choose your export format.</p>
-                </div>
-                <div class="result-score"><span>Repair path</span><strong class="gpu-result-mark">AI</strong></div>
-              </div>
-              <div class="compare-grid">
-                <article class="compare-card"><span>BEFORE</span><strong>Original</strong><audio id="beforePlayer" controls></audio></article>
-                <article class="compare-card after"><span>AFTER</span><strong id="afterPresetLabel">Clear Voice</strong><audio id="afterPlayer" controls></audio></article>
-              </div>
-              <div class="export-format-card">
-                <div class="export-format-head">
-                  <div><strong>Export format</strong><small>Choose how you want to save the enhanced audio.</small></div>
-                </div>
-                <div class="export-format-options">
-                  <button id="exportMp3Btn" class="export-format-option active" type="button">
-                    <span><b>MP3</b><small>192 kbps · Free</small></span>
-                    <em>SELECTED</em>
-                  </button>
-                  <button id="exportWavBtn" class="export-format-option locked" type="button">
-                    <span><b>WAV</b><small>Lossless quality</small></span>
-                    <em>PRO 🔒</em>
-                  </button>
-                </div>
-              </div>
-
-              <div class="result-actions">
-                <button class="btn btn-primary result-gradient-btn" id="downloadAudioBtn" type="button">Download MP3 ↓</button>
-                <button class="btn btn-primary result-gradient-btn" id="anotherAudioBtn" type="button">Enhance Another Audio ＋</button>
-                <button class="small-ghost-btn result-adjust-btn" id="tryAgainBtn" type="button">Adjust Settings ↻</button>
-              </div>
-              <div class="repair-disclosure">
-                <strong>Processing disclosure</strong>
-                <p>Your selected recording is processed by RIVANI AI in this browser workflow. Keep this tab open until enhancement and export are complete.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="audio-beta-note">
-          <span>AUDIO PLAN LIMITS</span>
-          <p>WAV, MP3, M4A, AAC, OGG and FLAC · Free: 30 minutes, 500 MB and 9 enhancements per day · Pro: 1 GB per file, 5 hours processing per day and unlimited enhancement jobs. Microphone recordings use the same plan limits.</p>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <div class="pro-preview-modal hidden" id="proPreviewModal" role="dialog" aria-modal="true" aria-labelledby="proPreviewTitle">
-    <div class="pro-preview-backdrop" data-close-pro></div>
-    <div class="pro-preview-card">
-      <button class="pro-modal-close" type="button" data-close-pro aria-label="Close">×</button>
-      <span class="pro-chip">RIVANI PRO</span>
-      <h2 id="proPreviewTitle">Unlock RIVANI Pro</h2>
-      <p id="proPreviewCopy">Get unlimited enhancement jobs, advanced audio controls and lossless WAV export.</p>
-      <div class="pro-price-panel">
-        <strong>₹499<span>/month</span></strong>
-        <small>India price · international pricing is shown at secure checkout.</small>
-      </div>
-      <div class="pro-modal-points">
-        <span>✓ Unlimited enhancement jobs</span>
-        <span>✓ 5 h processing/day</span>
-        <span>✓ Advanced audio controls</span>
-        <span>✓ Lossless WAV export</span>
-      </div>
-      <button class="btn btn-primary pro-buy-btn" id="proBuyBtn" type="button">Get Pro — ₹499/month</button>
-      <button class="pro-modal-secondary" type="button" data-close-pro>Not now</button>
-    </div>
-  </div>
-
-  <footer class="site-footer">
-    <div class="container footer-grid">
-      <div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div>
-      <div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
-      <div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div>
-      <div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
-    </div>
-    <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
-  </footer>
-
-  <script src="script.js?v=25.0-image"></script>
-  <script type="module" src="auth-nav.js?v=26.3-auth"></script>
-  <script type="module" src="audio-repair.js?v=26.3-auth"></script>
+</main>
+<div aria-labelledby="proPreviewTitle" aria-modal="true" class="pro-preview-modal hidden" id="proPreviewModal" role="dialog">
+<div class="pro-preview-backdrop" data-close-pro=""></div>
+<div class="pro-preview-card">
+<button aria-label="Close" class="pro-modal-close" data-close-pro="" type="button">×</button>
+<span class="pro-chip">RIVANI PRO</span>
+<h2 id="proPreviewTitle">Unlock RIVANI Pro</h2>
+<p id="proPreviewCopy">Get unlimited enhancement jobs, advanced audio controls and lossless WAV export.</p>
+<div class="pro-price-panel">
+<strong>₹499<span>/month</span></strong>
+<small>India price · international pricing is shown at secure checkout.</small>
+</div>
+<div class="pro-modal-points">
+<span>✓ Unlimited enhancement jobs</span>
+<span>✓ 5 h processing/day</span>
+<span>✓ Advanced audio controls</span>
+<span>✓ Lossless WAV export</span>
+</div>
+<button class="btn btn-primary pro-buy-btn" id="proBuyBtn" type="button">Get Pro — ₹499/month</button>
+<button class="pro-modal-secondary" data-close-pro="" type="button">Not now</button>
+</div>
+</div>
+<footer class="site-footer">
+<div class="container footer-grid">
+<div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div>
+<div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
+<div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div>
+<div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
+</div>
+<div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
+</footer>
+<script src="script.js?v=28.0-live-suite"></script>
+<script src="auth-nav.js?v=26.3-auth" type="module"></script>
+<script src="audio-repair.js?v=26.3-auth" type="module"></script>
 </body>
 </html>
