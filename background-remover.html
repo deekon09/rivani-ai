@@ -41,7 +41,7 @@
         <aside class="bg-panel bg-left-panel reveal">
           <div class="bg-panel-head"><span class="section-kicker">CUTOUT CONTROL</span><h2>Background Remover</h2><p>Testing mode is active: unlimited removals while we validate cutout quality. All quality controls are Free.</p></div>
 
-          <div class="bg-control-block"><label>Cutout engine · Free</label><div class="bg-usage-card"><div><b>RIVANI Precision</b><span>Automatic high-quality human + object cutout</span></div><span>DEFAULT</span></div><small>One visible quality engine. RIVANI uses Precision automatically; the lightweight compatibility model is kept only as a hidden emergency fallback if Precision cannot start on a device.</small></div>
+          <div class="bg-control-block"><label>Cutout engine · Free</label><div class="bg-usage-card"><div><b>RIVANI Precision</b><span>Automatic high-quality human + object cutout</span></div><span>DEFAULT</span></div><small>One visible quality engine. Desktop uses high-quality GPU Precision. Mobile uses a separate high-quality device-safe Precision path, with the lightweight model kept only as a final hidden emergency fallback.</small></div>
 
           <div class="bg-control-block"><label>Subject preset · Free</label><div class="bg-segmented" id="bgModeGroup"><button class="active" data-bg-mode="auto" type="button"><b>Auto</b><small>General</small></button><button data-bg-mode="portrait" type="button"><b>Hair</b><small>Portrait / fur</small></button><button data-bg-mode="product" type="button"><b>Product</b><small>Clean edge</small></button><button data-bg-mode="glass" type="button"><b>Glass</b><small>Soft alpha</small></button><button data-bg-mode="logo" type="button"><b>Logo</b><small>Text / graphic</small></button></div></div>
 
@@ -54,7 +54,7 @@
 
           <button class="btn btn-primary bg-remove-btn" id="bgRemoveBtn" type="button" disabled><span>✦</span> Remove Background →</button>
           <div class="bg-usage-card"><div><b>Testing mode</b><span id="bgUsageText">Unlimited removals while we test Cutout Studio.</span></div><button id="bgUsageProBtn" class="hidden" type="button">Go Pro</button></div>
-          <div class="bg-local-note">Your image pixels are not uploaded. Auto starts with the lightweight local cutout model; the larger Precision model downloads only if you select it.</div>
+          <div class="bg-local-note">Your image pixels are not uploaded. RIVANI automatically chooses desktop Precision or mobile-safe Precision. The low-quality lightweight model is not used unless both quality paths fail.</div>
         </aside>
 
         <section class="bg-main reveal delay-1">
@@ -104,7 +104,7 @@
         </aside>
       </div>
 
-      <section class="bg-feature-strip reveal"><article><span>01</span><div><b>Fast-first + optional Precision</b><small>Auto prioritizes quick reliable cutouts; the heavier edge model is opt-in.</small></div></article><article><span>02</span><div><b>Cutout Guard</b><small>Shows edge confidence and the hardest alpha region instead of hiding uncertainty.</small></div></article><article><span>03</span><div><b>Full repair workflow</b><small>Multi-subject selection, erase/restore brush, backgrounds, shadow, mask and asset-pack exports.</small></div></article></section>
+      <section class="bg-feature-strip reveal"><article><span>01</span><div><b>Precision on every device</b><small>Desktop uses GPU Precision; mobile uses a separate quantized Precision path designed to avoid mobile WebGPU hangs.</small></div></article><article><span>02</span><div><b>Cutout Guard</b><small>Shows edge confidence and the hardest alpha region instead of hiding uncertainty.</small></div></article><article><span>03</span><div><b>Full repair workflow</b><small>Multi-subject selection, erase/restore brush, backgrounds, shadow, mask and asset-pack exports.</small></div></article></section>
     </div></section>
   </main>
 
@@ -112,7 +112,7 @@
 
   <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
   <script src="script.js?v=27.1-reliable"></script>
-  <script src="background-remover.js?v=27.5-mobile-session-fix"></script>
+  <script src="background-remover.js?v=27.6-mobile-precision"></script>
   <script type="module" src="auth-nav.js?v=26.3-auth"></script>
 </body>
 </html>

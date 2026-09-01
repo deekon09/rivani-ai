@@ -28,7 +28,8 @@
     effectiveMask:null,subjectCanvas:null,shadowCanvas:null,customBgBitmap:null,bgEstimate:{rgb:[255,255,255],variance:1},
     engine:null,provider:null,inferenceMs:0,mode:'auto',bgMode:'transparent',shadow:false,brush:false,brushMode:'erase',
     undoMask:null,components:null,selectedComponent:'all',hardEdge:null,worker:null,jobId:0,painting:false,renderTimer:null,
-    running:false,currentEngine:'precision',precisionAttempts:0,usedSafetyFallback:false,
+    running:false,currentEngine:'precision',precisionAttempts:0,mobileAttempts:0,usedSafetyFallback:false,
+    attemptTimer:null,progressPulseTimer:null,visualProgress:0,currentInputSize:0,
   };
 
   function isPro(){return String(window.RIVANI_LUKI_CONTEXT?.plan||'').toLowerCase()==='pro';}
@@ -74,56 +75,116 @@
   }
   function showProcessing(on){processing?.classList.toggle('hidden',!on);document.body.classList.toggle('bg-processing',!!on);}
 
+  function clearAttemptTimers(){
+    if(state.attemptTimer){clearTimeout(state.attemptTimer);state.attemptTimer=null;}
+    if(state.progressPulseTimer){clearInterval(state.progressPulseTimer);state.progressPulseTimer=null;}
+  }
   function destroyWorker(){
+    clearAttemptTimers();
     if(!state.worker)return;
     try{state.worker.terminate();}catch(_e){}
     state.worker=null;
   }
   function makeWorker(){
-    // V27.5: every inference attempt gets a fresh worker/runtime. On some mobile
-    // Chromium builds ONNX Runtime's JSEP state can become dirty after a failed
-    // WebGPU session and then report "Session mismatch". A fresh worker makes
-    // each retry isolated instead of reusing that runtime state.
+    // Every attempt gets a fresh runtime. Desktop Precision uses WebGPU; mobile
+    // Precision intentionally uses a separate WASM model so mobile GPU/JSEP hangs
+    // cannot freeze the job at "Scanning subject".
     destroyWorker();
-    const w=new Worker('background-remover-worker.js?v=27.5-mobile-session-fix',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.6-mobile-precision',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
-  async function runInferenceAttempt(engine){
+  async function runInferenceAttempt(engine,inputSize=0){
     if(!state.file)throw new Error('Choose an image first.');
-    state.currentEngine=engine;
+    state.currentEngine=engine;state.currentInputSize=inputSize||0;
     state.jobId++;
     const id=state.jobId;
     const worker=makeWorker();
     const bitmap=await createImageBitmap(state.file);
-    worker.postMessage({type:'remove',id,bitmap,engine},[bitmap]);
+    worker.postMessage({type:'remove',id,bitmap,engine,inputSize},[bitmap]);
+  }
+  function startSessionWatchdog(){
+    clearAttemptTimers();
+    const id=state.jobId;
+    const timeoutMs=state.currentEngine==='mobile'?45000:state.currentEngine==='precision'?45000:30000;
+    state.attemptTimer=setTimeout(()=>{
+      if(!state.running||id!==state.jobId)return;
+      handleAttemptFailure(`AI session initialization timed out on ${state.currentEngine}`,true);
+    },timeoutMs);
+  }
+  function startInferenceWatchdog(m){
+    clearAttemptTimers();
+    state.visualProgress=Math.round(Number(m.value)||52);
+    const engine=state.currentEngine;
+    const size=Number(m.inputSize||state.currentInputSize||0);
+    const timeoutMs=engine==='precision'?50000:engine==='mobile'?(size<=384?35000:45000):45000;
+    state.progressPulseTimer=setInterval(()=>{
+      state.visualProgress=Math.min(78,state.visualProgress+1);
+      setProgress(state.visualProgress,null,null,engine==='mobile'?'Mobile Precision':'RIVANI Cutout Engine');
+    },1400);
+    const id=state.jobId;
+    state.attemptTimer=setTimeout(()=>{
+      if(!state.running||id!==state.jobId)return;
+      handleAttemptFailure(`AI inference timed out on ${engine}${size?` ${size}px`:''}`,true);
+    },timeoutMs);
   }
   function failRemoval(message){
     state.running=false;destroyWorker();showProcessing(false);setProgress(0);updateUsage();
-    alert(`Background removal failed: ${message}\n\nThe mobile-safe retry and hidden safety fallback were both attempted. Please refresh once if the browser has disabled WebGPU for this tab.`);
+    alert(`Background removal failed: ${message}\n\nRIVANI already tried the high-quality device-safe paths and the final hidden fallback automatically.`);
   }
-  function onWorkerMessage(e){
-    const m=e.data||{};if(m.id!==state.jobId)return;
-    if(m.type==='progress'){setProgress(m.value,m.title,m.text,m.value<50?'Loading model':'RIVANI Cutout Engine');return;}
-    if(m.type==='error'){
-      const reason=String(m.message||'Local AI failed');
-      destroyWorker();
-      if(state.currentEngine==='precision' && state.precisionAttempts<2){
-        state.precisionAttempts++;
-        setProgress(18,'Restarting Precision safely…','Fresh mobile AI session · no page refresh needed.','RIVANI Precision');
-        setTimeout(()=>runInferenceAttempt('precision').catch(err=>failRemoval(err.message||err)),180);
+  function handleAttemptFailure(reason,timedOut=false){
+    const failedEngine=state.currentEngine;
+    destroyWorker();
+    if(IS_MOBILE){
+      if(failedEngine==='mobile' && state.mobileAttempts<2){
+        state.mobileAttempts++;
+        const nextSize=384;
+        setProgress(24,'Switching to lighter Mobile Precision…','Retrying the high-quality mobile cutout at a smaller device-safe working size.','Mobile Precision');
+        setTimeout(()=>runInferenceAttempt('mobile',nextSize).catch(err=>failRemoval(err.message||err)),180);
         return;
       }
-      if(state.currentEngine==='precision' && !state.usedSafetyFallback){
+      if(failedEngine!=='fast'&&!state.usedSafetyFallback){
         state.usedSafetyFallback=true;
-        setProgress(28,'Starting safety fallback…','Precision could not start after a clean retry. Completing locally with the hidden compatibility engine.','Safety fallback');
-        setTimeout(()=>runInferenceAttempt('fast').catch(err=>failRemoval(err.message||err)),180);
+        setProgress(30,'Starting final safety fallback…','Only used if both Mobile Precision attempts cannot complete.','Safety fallback');
+        setTimeout(()=>runInferenceAttempt('fast',320).catch(err=>failRemoval(err.message||err)),180);
         return;
       }
       failRemoval(reason);return;
     }
+    if(failedEngine==='precision'&&state.precisionAttempts<2){
+      state.precisionAttempts++;
+      setProgress(18,'Restarting Precision safely…','Fresh isolated GPU session.','RIVANI Precision');
+      setTimeout(()=>runInferenceAttempt('precision',512).catch(err=>failRemoval(err.message||err)),180);
+      return;
+    }
+    if(failedEngine==='precision'){
+      setProgress(25,'Switching to CPU Precision…','GPU Precision could not finish, so RIVANI is using the higher-quality CPU safety path.','RIVANI Precision');
+      setTimeout(()=>runInferenceAttempt('mobile',512).catch(err=>handleAttemptFailure(err.message||err)),180);
+      return;
+    }
+    if(failedEngine==='mobile'&&!state.usedSafetyFallback){
+      state.usedSafetyFallback=true;
+      setProgress(30,'Starting final safety fallback…','High-quality CPU Precision could not complete.','Safety fallback');
+      setTimeout(()=>runInferenceAttempt('fast',320).catch(err=>failRemoval(err.message||err)),180);
+      return;
+    }
+    failRemoval(reason);
+  }
+  function onWorkerMessage(e){
+    const m=e.data||{};if(m.id!==state.jobId)return;
+    if(m.type==='progress'){
+      if(m.stage==='session')startSessionWatchdog();
+      else if(m.stage==='inference')startInferenceWatchdog(m);
+      else if(m.stage==='post')clearAttemptTimers();
+      setProgress(m.value,m.title,m.text,m.value<45?'Loading model':state.currentEngine==='mobile'?'Mobile Precision':'RIVANI Cutout Engine');
+      return;
+    }
+    if(m.type==='error'){
+      handleAttemptFailure(String(m.message||'Local AI failed'));return;
+    }
     if(m.type==='result'){
-      if(state.currentEngine==='fast'&&state.usedSafetyFallback){m.fallbackFrom='precision';}
+      clearAttemptTimers();
+      if(state.currentEngine==='fast'&&state.usedSafetyFallback){m.fallbackFrom=IS_MOBILE?'mobile':'precision';}
       destroyWorker();
       finishRemoval(m).then(()=>{state.running=false;updateUsage();}).catch(err=>{state.running=false;showProcessing(false);updateUsage();alert(`Could not build the cutout: ${err.message||err}`);});
     }
@@ -175,10 +236,12 @@
     const ok=await window.RIVANI_REQUIRE_AUTH?.({tool:'Background Remover'});
     if(ok===false)return;
     if(!TESTING_UNLIMITED&&!isPro()&&usageCount()>=FREE_DAILY){openPro();updateUsage();return;}
-    state.running=true;state.precisionAttempts=1;state.usedSafetyFallback=false;state.currentEngine='precision';
+    state.running=true;state.precisionAttempts=1;state.mobileAttempts=1;state.usedSafetyFallback=false;
+    const firstEngine=IS_MOBILE?'mobile':'precision';
+    state.currentEngine=firstEngine;
     removeBtn.disabled=true;
-    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.','RIVANI Precision');
-    try{await runInferenceAttempt('precision');}
+    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.',IS_MOBILE?'Mobile Precision':'RIVANI Precision');
+    try{await runInferenceAttempt(firstEngine,512);}
     catch(e){state.running=false;destroyWorker();showProcessing(false);updateUsage();throw e;}
   }
 
@@ -191,12 +254,12 @@
     // Show the completed result immediately. The user can drag back to Before at any time.
     compareRange.value='100';
     compareWrap.style.setProperty('--compare-position','100%');
-    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':'Compatibility engine');
+    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':m.engine==='mobile'?'Mobile-safe Precision':'Compatibility engine');
     setTimeout(()=>showProcessing(false),220);
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
     const stats=maskStats(state.effectiveMask);
-    const engineLabel=m.engine==='precision'?'RIVANI Precision':'Safety fallback';
+    const engineLabel=m.engine==='precision'?'RIVANI Precision':m.engine==='mobile'?'RIVANI Mobile Precision':'Safety fallback';
     resultMeta.textContent=`Background removed · foreground ${stats.coverage.toFixed(0)}% · ${state.outW} × ${state.outH} · ${engineLabel} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · Precision unavailable on this run':''}`;
   }
 
@@ -369,7 +432,7 @@
     if(!state.effectiveMask)return;const m=state.effectiveMask;let fg=0,soft=0;for(const a of m){if(a>20)fg++;if(a>30&&a<225)soft++;}
     const coverage=fg/m.length*100,softPct=fg?soft/fg*100:0;const bgCons=state.bgEstimate.variance<28?'Uniform':state.bgEstimate.variance<60?'Mixed':'Complex';
     const modeName={auto:'Auto',portrait:'Portrait / Hair',product:'Product',glass:'Glass / Soft',logo:'Logo / Text'}[state.mode];
-    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'RIVANI Precision':'Safety fallback'}</span></div>`;
+    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'RIVANI Precision':state.engine==='mobile'?'Mobile Precision':'Safety fallback'}</span></div>`;
   }
   function updateHardEdge(){
     if(!state.effectiveMask||!state.sourceCanvas)return;const m=state.effectiveMask,w=state.maskW,h=state.maskH,block=Math.max(12,Math.round(Math.min(w,h)/12));let best=-1,bx=0,by=0;
