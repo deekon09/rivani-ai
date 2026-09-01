@@ -7,7 +7,7 @@
   <meta name="description" content="Remove image backgrounds locally with RIVANI Cutout Studio, precision alpha edges, manual refine controls and transparent exports.">
   <title>Background Remover — RIVANI AI</title>
   <link rel="stylesheet" href="styles.css?v=26.3-precision">
-  <link rel="stylesheet" href="background-remover.css?v=27.0-cutout">
+  <link rel="stylesheet" href="background-remover.css?v=27.2-preview-fix">
 </head>
 <body class="bg-remover-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -92,7 +92,7 @@
         <aside class="bg-panel bg-right-panel reveal delay-2">
           <div class="bg-panel-head"><span class="section-kicker">FINISH & EXPORT</span><h2>Cutout Studio</h2><p>Change backgrounds and repair the alpha mask without rerunning AI.</p></div>
 
-          <div class="bg-control-block"><div class="bg-free-heading"><label>Background</label><span>FREE</span></div><div class="bg-background-grid" id="bgBackgroundGroup"><button class="active" data-bg-background="transparent" type="button"><i class="checker"></i><b>Transparent</b></button><button data-bg-background="white" type="button"><i class="white"></i><b>White</b></button><button data-bg-background="black" type="button"><i class="black"></i><b>Black</b></button><button data-bg-background="blur" type="button"><i class="blur"></i><b>Blur</b></button><button data-bg-background="gradient" type="button"><i class="gradient"></i><b>Studio</b></button><button data-bg-background="custom" type="button"><i class="custom"></i><b>Color</b></button></div><div class="bg-color-row"><input id="bgCustomColor" type="color" value="#f4f5fa"><button id="bgCustomBackgroundBtn" type="button">Custom image</button><input id="bgCustomBackgroundInput" type="file" accept="image/*" hidden></div></div>
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Background</label><span>FREE</span></div><small style="display:block;margin:-2px 0 9px">After removal: Transparent, solid colors, blur, studio gradient, or your own image.</small><div class="bg-background-grid" id="bgBackgroundGroup"><button class="active" data-bg-background="transparent" type="button"><i class="checker"></i><b>Transparent</b></button><button data-bg-background="white" type="button"><i class="white"></i><b>White</b></button><button data-bg-background="black" type="button"><i class="black"></i><b>Black</b></button><button data-bg-background="blur" type="button"><i class="blur"></i><b>Blur</b></button><button data-bg-background="gradient" type="button"><i class="gradient"></i><b>Studio</b></button><button data-bg-background="custom" type="button"><i class="custom"></i><b>Color</b></button></div><div class="bg-color-row"><input id="bgCustomColor" type="color" value="#f4f5fa"><button id="bgCustomBackgroundBtn" type="button">Custom image</button><input id="bgCustomBackgroundInput" type="file" accept="image/*" hidden></div></div>
 
           <div class="bg-control-block"><div class="bg-free-heading"><label>Shadow Studio</label><span>FREE</span></div><button class="bg-toggle" id="bgShadowToggle" type="button" aria-pressed="false"><span><b>Studio Shadow</b><small>Generate a soft contact-style shadow from the verified cutout.</small></span><i></i></button><div class="bg-slider"><div><span>Shadow strength</span><b id="bgShadowStrengthValue">45%</b></div><input id="bgShadowStrength" type="range" min="0" max="100" step="5" value="45"></div></div>
 
@@ -112,7 +112,7 @@
 
   <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
   <script src="script.js?v=27.1-reliable"></script>
-  <script src="background-remover.js?v=27.1-reliable"></script>
+  <script src="background-remover.js?v=27.2-preview-fix"></script>
   <script type="module" src="auth-nav.js?v=26.3-auth"></script>
 </body>
 </html>

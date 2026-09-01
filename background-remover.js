@@ -67,7 +67,7 @@
 
   function makeWorker(){
     if(state.worker)return state.worker;
-    const w=new Worker('background-remover-worker.js?v=27.1-reliable',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.2-preview-fix',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -143,11 +143,14 @@
     state.components=detectComponents(state.baseMask,state.maskW,state.maskH);renderSubjectPicker();
     await rebuildAll();
     updateGuard();updateScan();
-    setProgress(100,'Cutout ready','Background removed. Use Refine if an edge needs manual correction.',m.provider==='WebGPU'?'GPU accelerated':'Compatibility engine');
+    // Show the completed result immediately. The user can drag back to Before at any time.
+    compareRange.value='100';
+    compareWrap.style.setProperty('--compare-position','100%');
+    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':'Compatibility engine');
     setTimeout(()=>showProcessing(false),220);
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
-    resultMeta.textContent=`${state.outW} × ${state.outH} · ${m.engine==='precision'?'Precision AI':(m.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · compatibility')} · ${(state.inferenceMs/1000).toFixed(1)}s inference${m.fallbackFrom?' · automatic safe fallback used':''}`;
+    resultMeta.textContent=`Background removed · ${state.outW} × ${state.outH} · ${m.engine==='precision'?'Precision AI':(m.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · compatibility')} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · automatic safe fallback used':''}`;
   }
 
   function estimateBackground(canvas){
@@ -232,13 +235,21 @@
 
   function renderPreview(){
     const c=afterCanvas;c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);
-    drawBackground(x,c.width,c.height);
+    // A transparent After canvas would reveal the Before canvas beneath it and make
+    // a successful cutout look unchanged. Checkerboard is preview-only, never exported.
+    drawBackground(x,c.width,c.height,true);
     if(state.shadow)drawShadow(x,state.subjectCanvas,0,0,c.width,c.height);
     x.drawImage(state.subjectCanvas,0,0);
   }
-  function drawBackground(ctx,w,h){
+  function drawCheckerPreview(ctx,w,h){
+    const cell=Math.max(10,Math.min(28,Math.round(Math.min(w,h)/28)));
+    ctx.fillStyle='#f1f3f7';ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#d8dce4';
+    for(let y=0;y<h;y+=cell)for(let x=0;x<w;x+=cell){if(((x/cell)+(y/cell))%2===0)ctx.fillRect(x,y,cell,cell);}
+  }
+  function drawBackground(ctx,w,h,preview=false){
     const mode=state.bgMode;
-    if(mode==='transparent')return;
+    if(mode==='transparent'){if(preview)drawCheckerPreview(ctx,w,h);return;}
     if(mode==='white'||mode==='black'||mode==='custom'){
       ctx.fillStyle=mode==='white'?'#ffffff':mode==='black'?'#000000':customColor.value;ctx.fillRect(0,0,w,h);return;
     }
@@ -250,6 +261,7 @@
     }
     if(mode==='image'&&state.customBgBitmap){drawCover(ctx,state.customBgBitmap,w,h);return;}
   }
+
   function drawCover(ctx,img,w,h){const ar=img.width/img.height,t=w/h;let sx=0,sy=0,sw=img.width,sh=img.height;if(ar>t){sw=img.height*t;sx=(img.width-sw)/2;}else{sh=img.width/t;sy=(img.height-sh)/2;}ctx.drawImage(img,sx,sy,sw,sh,0,0,w,h);}
   function makeShadowSource(subject){
     const c=document.createElement('canvas');c.width=subject.width;c.height=subject.height;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.globalCompositeOperation='destination-in';x.drawImage(subject,0,0);return c;
@@ -304,7 +316,16 @@
     const c=hardEdgeCanvas;c.width=220;c.height=160;const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);const sx=bx/w*state.outW,sy=by/h*state.outH,sw=Math.min(state.outW-sx,block/w*state.outW),sh=Math.min(state.outH-sy,block/h*state.outH);x.fillStyle='#10152a';x.fillRect(0,0,c.width,c.height);x.drawImage(afterCanvas,sx,sy,sw,sh,0,0,c.width,c.height);hardEdgeLabel.textContent=best<.08?'Low uncertainty':best<.22?'Check this edge':'High-uncertainty edge';
   }
 
-  function setBackground(mode){state.bgMode=mode;bgModeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgBackground===mode));renderPreview();updateHardEdge();}
+  function setBackground(mode){
+    state.bgMode=mode;
+    bgModeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgBackground===mode));
+    renderPreview();updateHardEdge();
+    if(state.subjectCanvas){
+      const label={transparent:'Transparent',white:'White',black:'Black',blur:'Blurred original',gradient:'Studio gradient',custom:'Custom color',image:'Custom image'}[mode]||'Custom';
+      resultMeta.textContent=`Background removed · ${label} background preview`;
+    }
+  }
+
   async function loadCustomBackground(file){if(!file||!file.type.startsWith('image/'))return;try{state.customBgBitmap?.close?.();}catch(_e){}state.customBgBitmap=await createImageBitmap(file);setBackground('image');}
 
   function setBrush(on){state.brush=on;brushToggle.classList.toggle('active',on);brushToggle.setAttribute('aria-pressed',String(on));brushControls.classList.toggle('hidden',!on);brushOverlay.classList.toggle('hidden',!on);compareRange.style.pointerEvents=on?'none':'auto';stage.classList.toggle('brush-active',on);if(on){brushOverlay.width=state.maskW||512;brushOverlay.height=state.maskH||512;}else clearBrushOverlay();}
@@ -323,18 +344,22 @@
     if(maxx<0)return {x:0,y:0,w:state.maskW,h:state.maskH};return {x:minx,y:miny,w:maxx-minx+1,h:maxy-miny+1};
   }
   function exportCanvas(kind='composite'){
-    const preset=canvasPreset.value||'original',pad=Number(padding.value)/100;const source=kind==='subject'?state.subjectCanvas:afterCanvas;
-    if(preset==='original')return copyCanvas(source);
+    const preset=canvasPreset.value||'original',pad=Number(padding.value)/100;
+    if(preset==='original'){
+      if(kind==='subject')return copyCanvas(state.subjectCanvas);
+      const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');
+      drawBackground(x,c.width,c.height,false);
+      if(state.shadow)drawShadow(x,state.subjectCanvas,0,0,c.width,c.height);
+      x.drawImage(state.subjectCanvas,0,0);return c;
+    }
     const long=Math.min(Math.max(state.outW,state.outH),IS_MOBILE?4096:8192);let w,h;if(preset==='square'){w=h=long;}else if(preset==='45'){h=long;w=Math.round(long*.8);}else{w=Math.round(long*16/9);h=long;if(w>8192){const s=8192/w;w=Math.round(w*s);h=Math.round(h*s);}}
     const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
-    // background for composite; transparent for subject-only
-    if(kind!=='subject'){
-      if(state.bgMode==='transparent'){}else if(state.bgMode==='white'||state.bgMode==='black'||state.bgMode==='custom'){x.fillStyle=state.bgMode==='white'?'#fff':state.bgMode==='black'?'#000':customColor.value;x.fillRect(0,0,w,h);}else if(state.bgMode==='gradient'){const g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#0a1029');g.addColorStop(.45,'#4051d8');g.addColorStop(1,'#e341ba');x.fillStyle=g;x.fillRect(0,0,w,h);}else if(state.bgMode==='image'&&state.customBgBitmap)drawCover(x,state.customBgBitmap,w,h);else if(state.bgMode==='blur'){x.save();x.filter=`blur(${Math.round(Math.min(w,h)*.014)}px)`;drawCover(x,state.sourceCanvas,w,h);x.restore();}
-    }
+    if(kind!=='subject')drawBackground(x,w,h,false);
     const b=currentBBox(),sx=b.x/state.maskW*state.outW,sy=b.y/state.maskH*state.outH,sw=b.w/state.maskW*state.outW,sh=b.h/state.maskH*state.outH;const availW=w*(1-pad*2),availH=h*(1-pad*2),s=Math.min(availW/sw,availH/sh),dw=sw*s,dh=sh*s,dx=(w-dw)/2,dy=(h-dh)/2;
     if(kind!=='subject'&&state.shadow){const crop=document.createElement('canvas');crop.width=Math.max(1,Math.round(sw));crop.height=Math.max(1,Math.round(sh));crop.getContext('2d').drawImage(state.subjectCanvas,sx,sy,sw,sh,0,0,crop.width,crop.height);drawShadow(x,crop,dx,dy,dw,dh);}
     x.drawImage(state.subjectCanvas,sx,sy,sw,sh,dx,dy,dw,dh);return c;
   }
+
   function copyCanvas(src){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').drawImage(src,0,0);return c;}
   function canvasBlob(canvas,type='image/png',quality=.92){return new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error('Encoding failed')),type,quality));}
   function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}

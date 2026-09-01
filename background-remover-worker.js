@@ -1,4 +1,4 @@
-/* RIVANI Cutout Studio inference worker — V27.1 Reliable Cutout
+/* RIVANI Cutout Studio inference worker — V27.2 Reliable Cutout
    Image pixels stay local. Only model weights are fetched from the RIVANI model-delivery Worker.
    Auto defaults to the lightweight general-object model for fast, reliable completion.
    Precision is opt-in and uses a browser-safe 512px BiRefNet graph. */
@@ -195,8 +195,22 @@ async function runModel(bitmap,kind,id,pack,size){
       mask[i]=Math.round(v*255);
     }
   }
+  mask=sanitizeMask(mask,size);
   post(id,'progress',{value:94,title:'Running Cutout Guard…',text:'Checking edge confidence and transparent detail.'});
   return {mask,maskWidth:size,maskHeight:size,engine:kind,provider:provider==='webgpu'?'WebGPU':'Compatibility',inferenceMs:elapsed};
+}
+
+function sanitizeMask(mask,size){
+  const patch=Math.max(8,Math.round(size*.08));
+  const corners=[[0,0],[size-patch,0],[0,size-patch],[size-patch,size-patch]];
+  let cornerSum=0,cornerN=0;
+  for(const [sx,sy] of corners){for(let y=sy;y<sy+patch;y+=2)for(let x=sx;x<sx+patch;x+=2){cornerSum+=mask[y*size+x];cornerN++;}}
+  const cornerMean=cornerN?cornerSum/cornerN:0;
+  let low=0,high=0;for(let i=0;i<mask.length;i+=17){if(mask[i]<40)low++;if(mask[i]>215)high++;}
+  if(cornerMean>205 && low<high*.35){for(let i=0;i<mask.length;i++)mask[i]=255-mask[i];}
+  let min=255,max=0;for(let i=0;i<mask.length;i+=13){const v=mask[i];if(v<min)min=v;if(v>max)max=v;}
+  if(max-min<18)throw new Error('AI mask was nearly constant; retry Auto once.');
+  return mask;
 }
 
 function pickMaskOutput(outputs,names,size){

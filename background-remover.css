@@ -8,3 +8,8 @@
 /* V27.1 button polish: upload and next-image actions use the standard RIVANI gradient, never the old dark secondary button. */
 .bg-accent-btn,#bgNewImageBtn{background:var(--grad)!important;border-color:transparent!important;color:#fff!important;box-shadow:0 14px 38px rgba(48,95,255,.24)!important}
 .bg-accent-btn:hover,#bgNewImageBtn:hover{transform:translateY(-2px)}
+
+/* V27.2 visibility fixes */
+.bg-accent-btn,#bgNewImageBtn{background:linear-gradient(135deg,#49d7ff 0%,#736dff 52%,#d64cff 100%)!important;color:#fff!important;border:1px solid rgba(152,225,255,.4)!important;box-shadow:0 10px 30px rgba(90,89,255,.22)!important;font-weight:800!important;}
+.bg-accent-btn:hover,#bgNewImageBtn:hover{transform:translateY(-1px);filter:brightness(1.08);}
+#bgNewImageBtn{min-width:170px;justify-content:center;}
