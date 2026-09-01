@@ -1,12 +1,12 @@
-/* RIVANI Cutout Studio inference worker — V27.8 Mobile Matte Fix
+/* RIVANI Cutout Studio inference worker — V27.9 Same Precision Everywhere
    Desktop: BiRefNet-lite 512 on WebGPU.
-   Mobile-safe HQ: dynamic IS-Net q8 on WASM at 512/384.
-   Final emergency fallback: U2NetP on WASM.
+   Handheld/mobile: the SAME BiRefNet-lite 512 model on WASM for driver safety.
+   Final emergency fallback only: U2NetP on WASM.
    One worker = one engine attempt = one ONNX Runtime instance. */
 const MODEL_BASE='https://rivani-models.rivani.workers.dev';
 const MODEL_URLS={
   precision:`${MODEL_BASE}/background-remover-birefnet-512.onnx`,
-  mobile:`${MODEL_BASE}/background-remover-mobile.onnx`,
+  mobile:`${MODEL_BASE}/background-remover-birefnet-512.onnx`,
   fast:`${MODEL_BASE}/background-remover-fast.onnx`,
 };
 
@@ -29,7 +29,7 @@ self.onmessage=async(event)=>{
     post(id,'progress',{
       value:3,
       title:'Preparing cutout engine…',
-      text:kind==='precision'?'Starting desktop Precision GPU.':kind==='mobile'?'Starting mobile-safe Precision.':'Starting emergency safety engine.',
+      text:kind==='precision'?'Starting BiRefNet Precision on GPU.':kind==='mobile'?'Starting the same BiRefNet Precision model on the mobile-safe CPU path.':'Starting emergency safety engine.',
       stage:'prepare'
     });
     const result=await infer(bitmap,kind,id,inputSize);
@@ -97,16 +97,16 @@ async function getSession(kind,id){
   sessionPromise=(async()=>{
     const ort=await getOrt(kind);
     if(kind==='precision'&&!self.navigator?.gpu)throw new Error('WebGPU is unavailable on this browser');
-    const label=kind==='precision'?'Desktop Precision AI':kind==='mobile'?'Mobile Precision AI':'Safety AI';
+    const label=kind==='precision'?'BiRefNet Precision AI':kind==='mobile'?'BiRefNet Precision AI':'Safety AI';
     const model=await fetchModel(
       MODEL_URLS[kind],id,8,
-      kind==='precision'?42:kind==='mobile'?36:28,
+      kind==='precision'?42:kind==='mobile'?42:28,
       label
     );
     post(id,'progress',{
-      value:kind==='precision'?45:kind==='mobile'?40:31,
-      title:kind==='precision'?'Starting Precision AI…':kind==='mobile'?'Starting Mobile Precision…':'Starting safety AI…',
-      text:kind==='precision'?'Initializing 512px high-quality WebGPU matting.':kind==='mobile'?'Initializing the quantized high-quality CPU path.':'Initializing portable compatibility matting.',
+      value:kind==='precision'?45:kind==='mobile'?45:31,
+      title:kind==='precision'?'Starting Precision AI…':kind==='mobile'?'Starting Precision AI safely…':'Starting safety AI…',
+      text:kind==='precision'?'Initializing the 512px BiRefNet WebGPU path.':kind==='mobile'?'Initializing the SAME 512px BiRefNet model on WASM to avoid mobile WebGPU driver hangs.':'Initializing portable compatibility matting.',
       stage:'session'
     });
     const options={graphOptimizationLevel:'all',executionProviders:[kind==='precision'?'webgpu':'wasm']};
@@ -117,13 +117,13 @@ async function getSession(kind,id){
 }
 
 async function infer(bitmap,kind,id,inputSize){
-  const size=kind==='precision'?512:kind==='mobile'?normalizeMobileSize(inputSize):320;
+  const size=(kind==='precision'||kind==='mobile')?512:320;
   const pack=await getSession(kind,id);
   const {session,ort,provider}=pack;
   post(id,'progress',{
-    value:kind==='precision'?52:kind==='mobile'?54:40,
+    value:(kind==='precision'||kind==='mobile')?52:40,
     title:'Scanning subject…',
-    text:kind==='mobile'?`Mobile Precision ${size}px · separating subject and fine boundaries.`:'Separating people, products, objects and difficult boundaries.',
+    text:kind==='mobile'?`BiRefNet Precision ${size}px · CPU-safe mobile execution.`:'Separating people, products, objects and difficult boundaries.',
     stage:'inference',
     engine:kind,
     inputSize:size
@@ -140,33 +140,26 @@ async function infer(bitmap,kind,id,inputSize){
 
   post(id,'progress',{value:82,title:'Refining alpha edges…',text:'Cleaning the subject boundary without changing source pixels.',stage:'post'});
   let mask;
-  if(kind==='precision'){
+  if(kind==='precision'||kind==='mobile'){
+    // Desktop and mobile use the exact same BiRefNet logits -> sigmoid matte.
     mask=decodePrecision(raw,size);
-  }else if(kind==='mobile'){
-    mask=decodeMobile(raw,size);
   }else{
     mask=decodeFast(raw,size);
   }
   mask=sanitizeMask(mask,size);
-  // Keep desktop Precision exactly on the proven mask path. Extra matte polish is
-  // mobile/safety-only so PC quality is not changed by the mobile edge fix.
-  if(kind!=='precision')mask=polishMask(mask,size,kind);
+  // Do not apply the low-quality fallback matte heuristics to BiRefNet. This keeps
+  // the same mask semantics and visual quality on desktop and mobile.
+  if(kind==='fast')mask=polishMask(mask,size,kind);
   post(id,'progress',{value:94,title:'Running Cutout Guard…',text:'Checking edge confidence and transparent detail.',stage:'post'});
   return {
     mask,
     maskWidth:size,
     maskHeight:size,
     engine:kind,
-    provider:kind==='precision'?'WebGPU':kind==='mobile'?'Mobile Precision':'Compatibility',
+    provider:kind==='precision'?'WebGPU':kind==='mobile'?'WASM · same BiRefNet':'Compatibility',
     inferenceMs:elapsed,
     inputSize:size
   };
-}
-
-function normalizeMobileSize(v){
-  const n=Number(v)||512;
-  if(n<=384)return 384;
-  return 512;
 }
 
 function decodePrecision(raw,size){
@@ -179,29 +172,6 @@ function decodePrecision(raw,size){
     let v=Number(raw[i])||0;
     if(!normalized){v=Math.max(-18,Math.min(18,v));v=1/(1+Math.exp(-v));}
     v=Math.max(0,Math.min(1,v));
-    mask[i]=Math.round(v*255);
-  }
-  return mask;
-}
-
-function decodeMobile(raw,size){
-  // IS-Net emits sigmoid probabilities, but its reference/rembg post-process still
-  // min-max normalizes EACH image before producing the alpha matte. Skipping that
-  // when values already happened to be in 0..1 left a lifted background floor and
-  // caused the cyan/green soft halo visible on mobile cutouts.
-  const mask=new Uint8ClampedArray(size*size);
-  let lo=Infinity,hi=-Infinity;
-  const n=Math.min(raw.length,mask.length);
-  for(let i=0;i<n;i++){const v=Number(raw[i])||0;if(v<lo)lo=v;if(v>hi)hi=v;}
-  const d=Math.max(1e-7,hi-lo);
-  for(let i=0;i<mask.length;i++){
-    let v=((Number(raw[i])||0)-lo)/d;
-    v=Math.max(0,Math.min(1,v));
-    // Gentle S-curve after normalization: solid subject stays solid, true soft hair
-    // remains soft, while weak residual background probabilities collapse toward 0.
-    v=v*v*(3-2*v);
-    if(v<0.018)v=0;
-    else if(v>0.992)v=1;
     mask[i]=Math.round(v*255);
   }
   return mask;
@@ -247,7 +217,7 @@ function polishMask(mask,size,kind){
       const blur=sum/c;
       let v=a+(a-blur)*strength;
       if(v<10)v=0;
-      else if(v<30)v*=0.35; // suppress faint background fog after IS-Net min-max normalization
+      else if(v<30)v*=0.35; // suppress faint background fog in the emergency fallback matte
       else if(kind==='mobile'&&v<58)v*=0.72;
       else if(v>248)v=255;
       sharpened[i]=Math.max(0,Math.min(255,Math.round(v)));
@@ -361,17 +331,6 @@ function bitmapToTensor(bitmap,size,kind){
   const data=ctx.getImageData(0,0,size,size).data;
   const n=size*size;
   const out=new Float32Array(n*3);
-
-  if(kind==='mobile'){
-    // IS-Net preprocessing: rescale 1/255, mean [0.5,0.5,0.5], std [1,1,1].
-    for(let i=0;i<n;i++){
-      const j=i*4;
-      out[i]=data[j]/255-.5;
-      out[n+i]=data[j+1]/255-.5;
-      out[n*2+i]=data[j+2]/255-.5;
-    }
-    return out;
-  }
 
   let max=0;
   if(kind==='fast'){

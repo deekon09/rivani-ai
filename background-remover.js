@@ -4,7 +4,16 @@
   const FREE_DAILY=9;
   const TESTING_UNLIMITED=true; // TEMP: disable daily/Pro cap while Cutout Studio is being tested
   const PRO_PRICE_INR=499;
-  const IS_MOBILE=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+  const IS_MOBILE=(()=>{
+    const ua=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+    const touch=Number(navigator.maxTouchPoints||0)>=2;
+    const sw=Math.min(Number(screen?.width||9999),Number(screen?.height||9999));
+    const modestMemory=Number(navigator.deviceMemory||8)<=8;
+    const modestCpu=Number(navigator.hardwareConcurrency||8)<=8;
+    // Chrome "Desktop site" can alter UA/viewport, but touch + physical screen /
+    // capability signals still identify a handheld device.
+    return ua||(touch&&(sw<=1100||modestMemory||modestCpu));
+  })();
 
   const fileInput=$('bgFileInput'),chooseBtn=$('bgChooseBtn'),replaceBtn=$('bgReplaceBtn'),dropZone=$('bgDropZone');
   const removeBtn=$('bgRemoveBtn'),usageText=$('bgUsageText'),usageProBtn=$('bgUsageProBtn');
@@ -90,7 +99,7 @@
     // Precision intentionally uses a separate WASM model so mobile GPU/JSEP hangs
     // cannot freeze the job at "Scanning subject".
     destroyWorker();
-    const w=new Worker('background-remover-worker.js?v=27.8-mobile-matte',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.9-same-birefnet',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -106,7 +115,7 @@
   function startSessionWatchdog(){
     clearAttemptTimers();
     const id=state.jobId;
-    const timeoutMs=state.currentEngine==='mobile'?45000:state.currentEngine==='precision'?45000:30000;
+    const timeoutMs=state.currentEngine==='mobile'?120000:state.currentEngine==='precision'?45000:30000;
     state.attemptTimer=setTimeout(()=>{
       if(!state.running||id!==state.jobId)return;
       handleAttemptFailure(`AI session initialization timed out on ${state.currentEngine}`,true);
@@ -117,10 +126,10 @@
     state.visualProgress=Math.round(Number(m.value)||52);
     const engine=state.currentEngine;
     const size=Number(m.inputSize||state.currentInputSize||0);
-    const timeoutMs=engine==='precision'?50000:engine==='mobile'?(size<=384?35000:45000):45000;
+    const timeoutMs=engine==='precision'?50000:engine==='mobile'?180000:45000;
     state.progressPulseTimer=setInterval(()=>{
       state.visualProgress=Math.min(78,state.visualProgress+1);
-      setProgress(state.visualProgress,null,null,engine==='mobile'?'Mobile Precision':'RIVANI Cutout Engine');
+      setProgress(state.visualProgress,null,null,engine==='mobile'?'RIVANI Precision · CPU safe':'RIVANI Cutout Engine');
     },1400);
     const id=state.jobId;
     state.attemptTimer=setTimeout(()=>{
@@ -138,15 +147,14 @@
     if(IS_MOBILE){
       if(failedEngine==='mobile' && state.mobileAttempts<2){
         state.mobileAttempts++;
-        const nextSize=384;
-        setProgress(24,'Switching to lighter Mobile Precision…','Retrying the high-quality mobile cutout at a smaller device-safe working size.','Mobile Precision');
-        setTimeout(()=>runInferenceAttempt('mobile',nextSize).catch(err=>failRemoval(err.message||err)),180);
+        setProgress(24,'Restarting Precision safely…','Retrying the SAME BiRefNet 512 model in a fresh CPU session.','RIVANI Precision · CPU safe');
+        setTimeout(()=>runInferenceAttempt('mobile',512).catch(err=>failRemoval(err.message||err)),220);
         return;
       }
       if(failedEngine!=='fast'&&!state.usedSafetyFallback){
         state.usedSafetyFallback=true;
-        setProgress(30,'Starting final safety fallback…','Only used if both Mobile Precision attempts cannot complete.','Safety fallback');
-        setTimeout(()=>runInferenceAttempt('fast',320).catch(err=>failRemoval(err.message||err)),180);
+        setProgress(30,'Starting final safety fallback…','BiRefNet could not complete on this run. The lightweight model is used only as the last emergency fallback.','Safety fallback');
+        setTimeout(()=>runInferenceAttempt('fast',320).catch(err=>failRemoval(err.message||err)),220);
         return;
       }
       failRemoval(reason);return;
@@ -176,7 +184,7 @@
       if(m.stage==='session')startSessionWatchdog();
       else if(m.stage==='inference')startInferenceWatchdog(m);
       else if(m.stage==='post')clearAttemptTimers();
-      setProgress(m.value,m.title,m.text,m.value<45?'Loading model':state.currentEngine==='mobile'?'Mobile Precision':'RIVANI Cutout Engine');
+      setProgress(m.value,m.title,m.text,m.value<45?'Loading model':state.currentEngine==='mobile'?'RIVANI Precision · CPU safe':'RIVANI Cutout Engine');
       return;
     }
     if(m.type==='error'){
@@ -243,7 +251,7 @@
     const firstEngine=IS_MOBILE?'mobile':'precision';
     state.currentEngine=firstEngine;
     removeBtn.disabled=true;
-    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.',IS_MOBILE?'Mobile Precision':'RIVANI Precision');
+    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.',IS_MOBILE?'RIVANI Precision · CPU safe':'RIVANI Precision');
     try{await runInferenceAttempt(firstEngine,512);}
     catch(e){state.running=false;destroyWorker();showProcessing(false);updateUsage();throw e;}
   }
@@ -257,12 +265,12 @@
     // Show the completed result immediately. The user can drag back to Before at any time.
     compareRange.value='100';
     compareWrap.style.setProperty('--compare-position','100%');
-    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':m.engine==='mobile'?'Mobile-safe Precision':'Compatibility engine');
+    setProgress(100,'Cutout ready','Background removed. Transparent areas are shown with a checkerboard. Choose any background on the right.',m.provider==='WebGPU'?'GPU accelerated':m.engine==='mobile'?'Same BiRefNet · CPU safe':'Compatibility engine');
     setTimeout(()=>showProcessing(false),220);
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
     const stats=maskStats(state.effectiveMask);
-    const engineLabel=m.engine==='precision'?'RIVANI Precision':m.engine==='mobile'?'RIVANI Mobile Precision':'Safety fallback';
+    const engineLabel=m.engine==='precision'?'RIVANI Precision · WebGPU':m.engine==='mobile'?'RIVANI Precision · same BiRefNet/WASM':'Safety fallback';
     resultMeta.textContent=`Background removed · foreground ${stats.coverage.toFixed(0)}% · ${state.outW} × ${state.outH} · ${engineLabel} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · Precision unavailable on this run':''}`;
   }
 
@@ -274,9 +282,9 @@
   }
 
   function mobileMatteActive(){
-    // Desktop Precision is intentionally frozen on its proven V27.6 post-process.
-    // Only the mobile/safety engines receive the stronger matte rescue below.
-    return state.engine==='mobile'||state.engine==='fast'||(!state.engine&&IS_MOBILE);
+    // V27.9: mobile now uses the SAME BiRefNet matte as desktop. The aggressive
+    // rescue path is retained ONLY for the low-quality emergency fallback.
+    return state.engine==='fast';
   }
 
   function estimateBackground(canvas){
@@ -323,7 +331,7 @@
       out[i]=Math.round(clamp(v*255));
     }
 
-    // PC Precision stays byte-for-byte equivalent to the proven V27.6 matte path.
+    // BiRefNet Precision (WebGPU desktop or WASM handheld) shares the same proven matte path.
     if(!mobileMatteActive()){
       const f=Number(feather.value);
       return f>0.01?blurMask(out,w,h,f):out;
@@ -457,7 +465,7 @@
   }
 
   function refineMobileFullMask(full){
-    // The AI matte is 512/384px while phone photos are usually much larger. A plain
+    // The fallback matte is low-resolution while phone photos are usually much larger. A plain
     // bilinear upscale creates the visible cyan soft ring. Refine ONLY the uncertain
     // full-resolution edge band against source-image color, leaving the solid core
     // untouched. Keep the work bounded so large mobile photos do not run out of RAM.
@@ -664,7 +672,7 @@
     if(!state.effectiveMask)return;const m=state.effectiveMask;let fg=0,soft=0;for(const a of m){if(a>20)fg++;if(a>30&&a<225)soft++;}
     const coverage=fg/m.length*100,softPct=fg?soft/fg*100:0;const bgCons=state.bgEstimate.variance<28?'Uniform':state.bgEstimate.variance<60?'Mixed':'Complex';
     const modeName={auto:'Auto',portrait:'Portrait / Hair',product:'Product',glass:'Glass / Soft',logo:'Logo / Text'}[state.mode];
-    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'RIVANI Precision':state.engine==='mobile'?'Mobile Precision':'Safety fallback'}</span></div>`;
+    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'RIVANI Precision · GPU':state.engine==='mobile'?'RIVANI Precision · CPU':'Safety fallback'}</span></div>`;
   }
   function updateHardEdge(){
     if(!state.effectiveMask||!state.sourceCanvas)return;const m=state.effectiveMask,w=state.maskW,h=state.maskH,block=Math.max(12,Math.round(Math.min(w,h)/12));let best=-1,bx=0,by=0;
