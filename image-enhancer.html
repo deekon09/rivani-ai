@@ -47,7 +47,7 @@
           <span class="section-kicker">RIVANI IMAGE ENGINE</span>
           <h1>Sharper, <span>not different.</span></h1>
           <p>
-            Real AI upscaling plus RIVANI HD Finish, with a built-in Fidelity Guard that checks structure,
+            Smart AI restoration plus RIVANI Studio Finish, with a built-in Fidelity Guard that checks structure,
             color and edge behavior before RIVANI gives you the final result.
           </p>
           <div class="image-hero-points">
@@ -105,20 +105,20 @@
             </div>
 
             <div class="image-control-block image-hd-finish-block">
-              <label>RIVANI HD Finish</label>
+              <label>RIVANI Studio Finish</label>
 
               <button class="image-toggle-row enabled" id="hdFinishToggle" type="button" aria-pressed="true">
                 <span>
-                  <b>HD Finish</b>
-                  <small>Clarity, vibrance and dimensional contrast after AI enhancement</small>
+                  <b>Studio Finish</b>
+                  <small>Visible detail, color presence and dimensional contrast after AI restoration</small>
                 </span>
                 <i></i>
               </button>
 
               <div class="image-finish-strength">
                 <div><span>Finish strength</span><b id="hdFinishStrengthValue">70%</b></div>
-                <input id="hdFinishStrength" type="range" min="0" max="100" step="5" value="70" aria-label="HD Finish strength">
-                <small>Same finish engine on mobile and PC. Strong mode adds the most visible punch without changing identity or geometry.</small>
+                <input id="hdFinishStrength" type="range" min="0" max="100" step="5" value="70" aria-label="Studio Finish strength">
+                <small>Same finish math on mobile and PC. Strong adds the most visible crispness and color presence while Fidelity Guard protects the source.</small>
               </div>
             </div>
 
@@ -186,12 +186,12 @@
             <div class="image-format-row">
               <label for="imageExportFormat">Export</label>
               <select id="imageExportFormat">
+                <option value="auto" selected>Smart Photo · Recommended</option>
                 <option value="png">PNG Master · Pixel lossless</option>
-                <option value="auto">Smart Smaller · Auto</option>
-                <option value="webp">WebP Max · Smaller photo</option>
-                <option value="jpeg">JPEG Max · Compatibility</option>
+                <option value="webp">WebP High · Smaller photo</option>
+                <option value="jpeg">JPEG High · Compatibility</option>
               </select>
-              <small class="image-export-help">PNG keeps exact pixels. Smart/WebP Max targets much smaller photo files at maximum visual quality.</small>
+              <small class="image-export-help">Smart Photo uses a high-quality photo codec to avoid giant 50–100 MB downloads. Choose PNG before enhancement only when an exact pixel-lossless master matters.</small>
             </div>
 
             <button class="btn btn-primary image-enhance-btn" id="enhanceImageBtn" type="button" disabled>
@@ -228,25 +228,13 @@
                   <img id="imageOriginalPreview" alt="Original image preview">
                   <div class="image-preview-tag">ORIGINAL</div>
                 </div>
-                <div class="image-compare hidden" id="imageCompare">
-                  <article class="image-compare-card image-before-card">
-                    <div class="image-compare-card-head">
-                      <span class="compare-label before"><b>Before</b><small>Original source</small></span>
-                      <span class="image-compare-caption">Truth anchor</span>
-                    </div>
-                    <div class="image-compare-frame">
-                      <img class="compare-before" id="compareBefore" alt="Original image">
-                    </div>
-                  </article>
-                  <article class="image-compare-card image-after-card">
-                    <div class="image-compare-card-head">
-                      <span class="compare-label after"><b>After</b><small>RIVANI Enhanced</small></span>
-                      <span class="image-compare-caption">Verified result</span>
-                    </div>
-                    <div class="image-compare-frame">
-                      <img class="compare-after" id="compareAfter" alt="Enhanced image">
-                    </div>
-                  </article>
+                <div class="image-compare hidden" id="imageCompare" style="--compare-position:50%">
+                  <img class="compare-before" id="compareBefore" alt="Original image">
+                  <img class="compare-after" id="compareAfter" alt="RIVANI enhanced image">
+                  <span class="compare-label before"><b>Before</b><small>Original</small></span>
+                  <span class="compare-label after"><b>After</b><small>RIVANI</small></span>
+                  <div class="compare-line" aria-hidden="true"><span>↔</span></div>
+                  <input class="compare-range" id="imageCompareRange" type="range" min="0" max="100" value="50" aria-label="Compare original and enhanced image">
                 </div>
 
                 <canvas class="image-protect-canvas hidden" id="protectSelectionCanvas" aria-label="Select protected areas"></canvas>
@@ -314,7 +302,7 @@
                   <span id="imageOutputMegapixels">— MP</span>
                   <span id="imageOutputFormat">—</span>
                   <span id="imageOutputFileSize">—</span>
-                  <span id="imageHdFinishMeta">HD Finish —</span>
+                  <span id="imageHdFinishMeta">Studio Finish —</span>
                   <span id="imageProtectedMeta" class="hidden">—</span>
                 </div>
                 <p class="image-export-size-note" id="imageExportSizeNote">Exact export size appears after encoding.</p>
@@ -363,7 +351,7 @@
           </article>
           <article>
             <span>03</span>
-            <div><b>HD Finish + Safe Result</b><small>Clarity, vibrance and dimensional contrast are added after AI, while unsafe changes still fall back toward the original.</small></div>
+            <div><b>Studio Finish + Safe Result</b><small>Visible crispness and color presence are added after AI verification, while unsafe structural changes still fall back toward the original.</small></div>
           </article>
         </section>
       </div>

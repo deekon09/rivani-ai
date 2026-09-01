@@ -1,6 +1,6 @@
 (()=>{"use strict";
 
-// RIVANI Image Enhancer V25.11 · reliable desktop GPU + portrait-aware mobile + stronger HD Finish
+// RIVANI Image Enhancer V26 · Studio Engine · Smart routing + verified finish + live export
 
 const $=id=>document.getElementById(id);
 
@@ -15,6 +15,8 @@ const originalPreview=$("imageOriginalPreview");
 const compareBefore=$("compareBefore");
 const compareAfter=$("compareAfter");
 const compareBox=$("imageCompare");
+const compareRange=$("imageCompareRange");
+const exportSelect=$("imageExportFormat");
 const previewEmpty=$("imagePreviewEmpty");
 const previewShell=$("imagePreviewShell");
 const protectCanvas=$("protectSelectionCanvas");
@@ -62,6 +64,7 @@ let enhancedUrl="";
 let enhancedBlob=null;
 let enhancedFormat="png";
 let enhancedFileBytes=0;
+let reencodeBusy=false;
 
 let imageMode="natural";
 let requestedScale=2;
@@ -149,6 +152,13 @@ bindToggle("hdFinishToggle",value=>{
 hdFinishStrengthInput?.addEventListener("input",()=>{
   hdFinishStrength=Math.max(0,Math.min(100,Number(hdFinishStrengthInput.value)||0));
   if(hdFinishStrengthValue)hdFinishStrengthValue.textContent=`${hdFinishStrength}%`;
+});
+
+compareRange?.addEventListener("input",()=>setCompare(compareRange.value));
+exportSelect?.addEventListener("change",()=>{
+  if(enhancedBlob&&!busy)reencodeCurrentResult().catch(error=>{
+    console.warn("RIVANI re-encode failed",error);
+  });
 });
 
 enhanceBtn?.addEventListener("click",enhanceCurrentImage);
@@ -312,7 +322,7 @@ async function loadImage(file){
     sourceUrl=URL.createObjectURL(file);
     enhancedUrl="";
     enhancedBlob=null;
-    enhancedFormat="png";
+    enhancedFormat="";
     enhancedFileBytes=0;
     protectedRegions=[];
     protectionSelectMode=false;
@@ -359,6 +369,8 @@ async function smartScan(bitmap,file){
   let flatCount=0;
   let edgeCount=0;
   let alphaCount=0;
+  let skinCount=0;
+  let saturationSum=0;
   const pixelCount=width*height;
 
   const lum=new Float32Array(pixelCount);
@@ -377,6 +389,11 @@ async function smartScan(bitmap,file){
       lumaSum+=l;
 
       if(data[p+3]<250)alphaCount++;
+
+      const rr=data[p]/255,gg=data[p+1]/255,bb=data[p+2]/255;
+      const mx=Math.max(rr,gg,bb),mn=Math.min(rr,gg,bb);
+      saturationSum+=mx>1e-5?(mx-mn)/mx:0;
+      if(rr>.26&&gg>.14&&bb>.07&&rr>gg&&gg>bb&&(rr-bb)>.065&&(rr-gg)<.32)skinCount++;
     }
   }
 
@@ -461,6 +478,21 @@ async function smartScan(bitmap,file){
       ?["Present","Transparency will be preserved"]
       :["None","Opaque image"];
 
+  const skinRatio=skinCount/Math.max(1,pixelCount);
+  const meanSaturation=saturationSum/Math.max(1,pixelCount);
+  let profile="photo";
+  let scene=["Photo","General restoration route"];
+  if(skinRatio>.055){
+    profile="portrait";
+    scene=["Portrait","Skin-aware finish + face-priority detail"];
+  }else if(edgeDensity>.17&&meanSaturation>.34){
+    profile="graphics";
+    scene=["Graphics","Edge/text-aware detail route"];
+  }else if(meanSaturation>.28&&edgeDensity>.08){
+    profile="scenery";
+    scene=["Scenery","Color + texture presence route"];
+  }
+
   return {
     blur,
     noise:noiseState,
@@ -468,17 +500,22 @@ async function smartScan(bitmap,file){
     lighting,
     detail,
     alpha,
+    scene,
+    profile,
     score:{
       sharpness,
       noise,
       meanLuma,
-      edgeDensity
+      edgeDensity,
+      skinRatio,
+      meanSaturation
     }
   };
 }
 
 function renderSmartScan(scan){
   const items=[
+    ["Scene route",scan.scene||["Photo","General restoration route"]],
     ["Blur risk",scan.blur],
     ["Noise",scan.noise],
     ["Compression",scan.compression],
@@ -544,7 +581,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=25.11-image",
+      "image-enhancer-worker.js?v=26-studio",
       {type:"module"}
     );
 
@@ -557,8 +594,9 @@ async function enhanceCurrentImage(){
       prep.workerScale,
       getImagePerformanceProfile(),
       imageMode,
-      hdFinish,
-      hdFinishStrength
+      false,
+      0,
+      currentScan?.profile||"photo"
     );
     const runtimeMs=performance.now()-runtimeStarted;
 
@@ -601,23 +639,29 @@ async function enhanceCurrentImage(){
       decision.blend,
       colorLock,
       rawMetrics,
-      isImagePro()?protectedRegions:[]
+      []
     );
 
-    let finalMetrics=measureFidelity(
-      sourceBitmap,
-      finalCanvas
-    );
+    let finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
 
-    // V25.5 verified Tone Lock: if a Color Lock result still shifts overall
-    // brightness/color after composition, repair the tone with the source as
-    // the truth anchor. AI detail stays in place; only global tone is nudged.
     if(colorLock&&decision.blend>0){
-      finalMetrics=repairVerifiedTone(
-        sourceBitmap,
+      finalMetrics=repairVerifiedTone(sourceBitmap,finalCanvas,finalMetrics);
+    }
+
+    // V26: Studio Finish runs AFTER Fidelity Guard/Tone Lock. Earlier builds
+    // finished the raw model output first, then source protection partially
+    // pulled that visible crispness back. A strip worker keeps the UI responsive
+    // and avoids allocating another giant full-resolution canvas.
+    if(hdFinish&&hdFinishStrength>0&&decision.blend>0){
+      setProgress(98,"Applying RIVANI Studio Finish…","Adding verified crispness, color presence and dimensional contrast.",response.provider);
+      await applyStudioFinishToCanvas(
         finalCanvas,
-        finalMetrics
+        imageMode,
+        hdFinishStrength,
+        currentScan?.profile||"photo",
+        colorLock
       );
+      finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
     }
 
     if(isImagePro()&&protectedRegions.length){
@@ -646,6 +690,7 @@ async function enhanceCurrentImage(){
     enhancedUrl=URL.createObjectURL(blob);
 
     compareAfter.src=enhancedUrl;
+    setCompare(50);
     previewEmpty.classList.add("hidden");
     compareBox.classList.remove("hidden");
     protectionSelectMode=false;
@@ -680,9 +725,9 @@ async function enhanceCurrentImage(){
     );
 
     if(hdFinishMeta){
-      hdFinishMeta.textContent=hdFinish&&response.hdFinishApplied
-        ?`HD Finish ${Math.round(response.hdFinishStrength||hdFinishStrength)}%`
-        :"HD Finish off";
+      hdFinishMeta.textContent=hdFinish&&hdFinishStrength>0&&decision.blend>0
+        ?`Studio Finish ${Math.round(hdFinishStrength)}%`
+        :"Studio Finish off";
     }
 
     processing.classList.add("hidden");
@@ -898,7 +943,7 @@ function startImageUiPressureMonitor(worker,performanceProfile){
   };
 }
 
-function runWorker(worker,imageData,width,height,targetScale,performanceProfile,imageMode,hdFinishEnabled,hdFinishAmount){
+function runWorker(worker,imageData,width,height,targetScale,performanceProfile,imageMode,hdFinishEnabled,hdFinishAmount,sceneProfile){
   return new Promise((resolve,reject)=>{
     const stopUiMonitor=startImageUiPressureMonitor(worker,performanceProfile);
     const mobile=performanceProfile==="mobile";
@@ -995,6 +1040,7 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile,
       imageMode:imageMode||"natural",
       hdFinishEnabled:Boolean(hdFinishEnabled),
       hdFinishStrength:Math.max(0,Math.min(100,Number(hdFinishAmount)||0)),
+      sceneProfile:String(sceneProfile||"photo"),
       rgba:inputBuffer
     },[inputBuffer]);
   });
@@ -1356,7 +1402,7 @@ function renderReport(
       :`${seconds.toFixed(seconds<10?1:0)}s`;
 
   const megapixels=(width*height)/1_000_000;
-  const formatLabel=exportFormat==="png"?"PNG lossless":exportFormat==="webp"?"WebP max quality":"JPEG max quality";
+  const formatLabel=exportFormat==="png"?"PNG lossless":exportFormat==="webp"?"WebP high quality":"JPEG high quality";
   const sizeLabel=formatBytes(exportBytes||0);
   const sizeEl=$("imageOutputFileSize");
   const formatEl=$("imageOutputFormat");
@@ -1368,10 +1414,10 @@ function renderReport(
   const note=$("imageExportSizeNote");
   if(note){
     note.textContent=exportFormat==="png"&&exportBytes>24*1024*1024
-      ?`This is a true lossless master (${sizeLabel}). Photos with millions of detailed pixels can be large. Choose WebP Max before the next run for a much smaller visually near-identical photo file.`
+      ?`This is a true lossless master (${sizeLabel}). Photos with millions of detailed pixels can be large. Choose Smart Photo or WebP High for a much smaller high-quality photo file.`
       :exportFormat==="png"
         ?`Pixel-lossless master · ${sizeLabel}`
-        :`Maximum-quality photo export · ${sizeLabel}. PNG Lossless remains available when exact pixels matter.`;
+        :`High-quality photo export · ${sizeLabel}. PNG Lossless remains available when exact pixels matter.`;
   }
 }
 
@@ -1393,8 +1439,10 @@ function setProgress(percent,title,text,provider){
   }
 }
 
-function setCompare(_value){
-  // V25.5 uses separate Original and Enhanced panels instead of a drag slider.
+function setCompare(value){
+  const p=Math.max(0,Math.min(100,Number(value)||0));
+  compareBox?.style.setProperty("--compare-position",`${p}%`);
+  if(compareRange&&Number(compareRange.value)!==Math.round(p))compareRange.value=String(Math.round(p));
 }
 
 function openImagePro(title,copy){
@@ -1707,6 +1755,83 @@ function drawSample(bitmap,maxSize){
   return {canvas,ctx};
 }
 
+
+async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,colorSafe){
+  const ctx=canvas.getContext("2d",{alpha:true,willReadFrequently:true});
+  const worker=new Worker("image-finish-worker.js?v=26-studio",{type:"module"});
+  const mobile=isMobileImageDevice();
+  const stripHeight=mobile?224:512;
+  const total=Math.ceil(canvas.height/stripHeight);
+  try{
+    for(let index=0,y=0;y<canvas.height;index++,y+=stripHeight){
+      const h=Math.min(stripHeight,canvas.height-y);
+      const imageData=ctx.getImageData(0,y,canvas.width,h);
+      const processed=await finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe);
+      ctx.putImageData(processed,0,y);
+      const pct=98+Math.min(.7,((index+1)/Math.max(1,total))*.7);
+      setProgress(pct,"Applying RIVANI Studio Finish…",`Finishing detail and color ${index+1}/${total}.`);
+      if(mobile)await new Promise(resolve=>setTimeout(resolve,0));
+    }
+  }finally{
+    worker.terminate();
+  }
+}
+
+function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe){
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error("Studio Finish took too long.")),60000);
+    const cleanup=()=>{clearTimeout(timer);worker.onmessage=null;worker.onerror=null;};
+    worker.onmessage=event=>{
+      const msg=event.data||{};
+      if(msg.type==="error"){cleanup();reject(new Error(msg.message||"Studio Finish failed."));return;}
+      if(msg.type!=="done")return;
+      cleanup();
+      resolve(new ImageData(new Uint8ClampedArray(msg.rgba),imageData.width,imageData.height));
+    };
+    worker.onerror=event=>{cleanup();reject(new Error(event.message||"Studio Finish worker failed."));};
+    const buffer=imageData.data.buffer;
+    worker.postMessage({
+      type:"finish",width:imageData.width,height:imageData.height,mode,strength,sceneProfile,colorLock:Boolean(colorSafe),rgba:buffer
+    },[buffer]);
+  });
+}
+
+async function reencodeCurrentResult(){
+  if(!enhancedBlob||reencodeBusy)return;
+  const desired=resolveExportFormat(exportSelect?.value||"auto",currentScan);
+  if(desired===enhancedFormat)return;
+  reencodeBusy=true;
+  const previousText=downloadBtn?.textContent||"Download Enhanced Image";
+  if(downloadBtn){downloadBtn.disabled=true;downloadBtn.textContent="Re-encoding…";}
+  const note=$("imageExportSizeNote");
+  if(note)note.textContent="Re-encoding the verified result without rerunning AI…";
+  let bitmap=null;
+  try{
+    bitmap=await createImageBitmap(enhancedBlob);
+    const canvas=document.createElement("canvas");
+    canvas.width=bitmap.width;canvas.height=bitmap.height;
+    const ctx=canvas.getContext("2d",{alpha:true});
+    ctx.drawImage(bitmap,0,0);
+    const blob=await canvasToBlob(canvas,desired);
+    if(!blob)throw new Error("Could not re-encode this result.");
+    if(enhancedUrl)URL.revokeObjectURL(enhancedUrl);
+    enhancedBlob=blob;enhancedFormat=desired;enhancedFileBytes=blob.size||0;
+    enhancedUrl=URL.createObjectURL(blob);
+    compareAfter.src=enhancedUrl;
+    $("imageOutputFormat").textContent=desired==="png"?"PNG lossless":desired==="webp"?"WebP high quality":"JPEG high quality";
+    $("imageOutputFileSize").textContent=formatBytes(enhancedFileBytes);
+    if(note){
+      note.textContent=desired==="png"
+        ?"PNG is lossless for the current decoded result. For an exact original AI pixel master, select PNG before running enhancement."
+        :`${desired.toUpperCase()} re-encoded from the verified result · ${formatBytes(enhancedFileBytes)} · no AI rerun.`;
+    }
+  }finally{
+    try{bitmap?.close?.();}catch(_error){}
+    reencodeBusy=false;
+    if(downloadBtn){downloadBtn.disabled=false;downloadBtn.textContent=previousText;}
+  }
+}
+
 function resolveExportFormat(requested,scan){
   if(requested==="auto"){
     // Transparency requires a format that preserves alpha exactly. For normal
@@ -1727,9 +1852,9 @@ function canvasToBlob(canvas,format){
 
   const quality=
     format==="jpeg"
-      ?.98
+      ?.95
       :format==="webp"
-        ?.99
+        ?.94
         :undefined;
 
   return new Promise(resolve=>{

@@ -1,4 +1,4 @@
-// RIVANI AI · Image Enhancer V25.11
+// RIVANI AI · Image Enhancer V26 Studio Engine
 // Reliable desktop WebGPU + portrait-aware Mobile Selective AI + stronger shared RIVANI HD Finish.
 // Desktop keeps the flagship full-image model path. Mobile uses a bounded number
 // of efficient-model tiles over a source-preserving resize so mid-range phones
@@ -48,6 +48,7 @@ let hdFinishEnabled=true;
 let hdFinishStrength=70;
 let uiPressure=0;
 let webGpuRecoveryUsed=false;
+let sceneProfile="photo";
 const modelBytesCache=new Map();
 
 self.onmessage=async event=>{
@@ -67,6 +68,7 @@ self.onmessage=async event=>{
     imageMode=normalizeMode(msg.imageMode);
     hdFinishEnabled=msg.hdFinishEnabled!==false;
     hdFinishStrength=Math.max(0,Math.min(100,Number(msg.hdFinishStrength)||0));
+    sceneProfile=normalizeSceneProfile(msg.sceneProfile);
     uiPressure=0;
     webGpuRecoveryUsed=false;
 
@@ -78,15 +80,6 @@ self.onmessage=async event=>{
       ?await enhanceMobileHybrid(pixels,width,height,targetScale)
       :await enhanceDesktop(pixels,width,height,targetScale);
 
-    if(hdFinishEnabled&&hdFinishStrength>0){
-      self.postMessage({
-        type:"status",progress:98,
-        text:"Applying RIVANI HD Finish…",
-        provider:result.provider||provider
-      });
-      applyRivaniHdFinish(result.rgba,result.width,result.height,imageMode,hdFinishStrength);
-    }
-
     self.postMessage({
       type:"done",
       width:result.width,
@@ -96,8 +89,8 @@ self.onmessage=async event=>{
       performanceProfile,
       mobileRefineTiles:result.mobileRefineTiles||0,
       mobileTotalTiles:result.mobileTotalTiles||0,
-      hdFinishApplied:Boolean(hdFinishEnabled&&hdFinishStrength>0),
-      hdFinishStrength:hdFinishEnabled?hdFinishStrength:0
+      hdFinishApplied:false,
+      hdFinishStrength:0
     },[result.rgba.buffer]);
   }catch(error){
     self.postMessage({type:"error",message:error?.message||"Image enhancement failed."});
@@ -112,12 +105,15 @@ function normalizeProfile(value){
 function normalizeMode(value){
   return value==="strong"||value==="restore"?value:"natural";
 }
+function normalizeSceneProfile(value){
+  return value==="portrait"||value==="graphics"||value==="scenery"?value:"photo";
+}
 
 async function enhanceDesktop(src,width,height,targetScale){
   // V25.11: regular WebGPU is the production desktop default. Graph capture can
   // be faster on some systems, but a runtime hiccup used to push a whole job to
   // CPU/WASM. Reliable GPU completion is more important than a fragile shortcut.
-  await ensureSession("flagship",false);
+  await ensureSession("flagship",performanceProfile==="fast");
   self.postMessage({type:"status",progress:2,text:"AI model ready. Preparing image tiles…",provider});
   const result=await processTiles({
     src,width,height,targetScale,
