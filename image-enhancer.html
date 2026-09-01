@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#030616">
   <meta name="description" content="Enhance and upscale images with RIVANI AI while protecting structure, color and fine details.">
   <title>Image Enhancer — RIVANI AI</title>
-  <link rel="stylesheet" href="styles.css?v=25.7-image">
+  <link rel="stylesheet" href="styles.css?v=26.1-image">
 </head>
 <body class="image-enhancer-page">
   <div class="ambient ambient-one"></div>
@@ -97,10 +97,32 @@
             </div>
 
             <div class="image-control-block">
-              <label>Output scale</label>
-              <div class="image-scale-options" id="imageScaleGroup">
+              <label>Output scale · Free</label>
+              <div class="image-scale-options image-scale-options-four" id="imageScaleGroup">
+                <button data-image-scale="1" type="button"><b>1×</b><small>Enhance only</small></button>
                 <button class="active" data-image-scale="2" type="button"><b>2×</b><small>Fast + clean</small></button>
                 <button data-image-scale="4" type="button"><b>4×</b><small>Maximum detail</small></button>
+                <button data-image-scale="8" type="button"><b>8×</b><small>Studio · adaptive</small></button>
+              </div>
+              <small class="image-control-help">8× uses verified 4× AI restoration plus Studio reconstruction. Large/mobile jobs automatically use the highest safe effective scale instead of crashing.</small>
+            </div>
+
+            <div class="image-control-block image-detail-controls">
+              <div class="image-free-heading"><label>Detail controls</label><span>FREE</span></div>
+              <div class="image-slider-control">
+                <div><span>AI Strength</span><b id="aiStrengthValue">100%</b></div>
+                <input id="aiStrength" type="range" min="0" max="100" step="5" value="100" aria-label="AI strength">
+                <small>Controls how much verified AI reconstruction is kept. Fidelity Guard can still reduce unsafe changes.</small>
+              </div>
+              <div class="image-slider-control">
+                <div><span>Clarity</span><b id="clarityValue">30%</b></div>
+                <input id="clarityControl" type="range" min="0" max="100" step="5" value="30" aria-label="Clarity">
+                <small>Adds local contrast and texture presence without changing geometry.</small>
+              </div>
+              <div class="image-slider-control">
+                <div><span>Sharpness</span><b id="sharpnessValue">25%</b></div>
+                <input id="sharpnessControl" type="range" min="0" max="100" step="5" value="25" aria-label="Sharpness">
+                <small>Strengthens fine edges after AI verification. Skin and highlights are automatically restrained.</small>
               </div>
             </div>
 
@@ -184,14 +206,20 @@
             </div>
 
             <div class="image-format-row">
-              <label for="imageExportFormat">Export</label>
+              <label for="imageExportFormat">Export · Free</label>
               <select id="imageExportFormat">
                 <option value="auto" selected>Smart Photo · Recommended</option>
                 <option value="png">PNG Master · Pixel lossless</option>
-                <option value="webp">WebP High · Smaller photo</option>
-                <option value="jpeg">JPEG High · Compatibility</option>
+                <option value="webp">WebP · Smaller photo</option>
+                <option value="jpeg">JPEG · Compatibility</option>
               </select>
-              <small class="image-export-help">Smart Photo uses a high-quality photo codec to avoid giant 50–100 MB downloads. Choose PNG before enhancement only when an exact pixel-lossless master matters.</small>
+              <label class="image-sub-label" for="imageExportQuality">Photo quality</label>
+              <select id="imageExportQuality">
+                <option value="standard">Standard · Smallest</option>
+                <option value="high" selected>High · Recommended</option>
+                <option value="max">Max · Larger</option>
+              </select>
+              <small class="image-export-help">PNG Master is pixel-lossless and can be very large. Smart Photo/WebP/JPEG use the selected photo quality and can be re-encoded after enhancement without rerunning AI.</small>
             </div>
 
             <button class="btn btn-primary image-enhance-btn" id="enhanceImageBtn" type="button" disabled>
@@ -343,7 +371,7 @@
         <section class="image-feature-strip reveal">
           <article>
             <span>01</span>
-            <div><b>Real AI Upscaling</b><small>Real 4× AI super-resolution runs locally in the browser.</small></div>
+            <div><b>Real AI Upscaling</b><small>Neural 2×/4× restoration plus verified 8× Studio reconstruction run locally in the browser.</small></div>
           </article>
           <article>
             <span>02</span>
@@ -384,7 +412,7 @@
   </footer>
 
   <script src="script.js?v=25.2-image"></script>
-  <script src="image-enhancer.js?v=25.11-image"></script>
+  <script src="image-enhancer.js?v=26.1-image"></script>
   <script type="module" src="auth-nav.js?v=25.2-image"></script>
 </body>
 </html>

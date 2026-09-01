@@ -9,14 +9,14 @@ self.onmessage=event=>{
     const width=Number(msg.width)||0;
     const height=Number(msg.height)||0;
     if(!width||!height||rgba.length!==width*height*4)throw new Error("Invalid finish buffer.");
-    applyStudioFinish(rgba,width,height,msg.mode,msg.strength,msg.sceneProfile,msg.colorLock!==false);
+    applyStudioFinish(rgba,width,height,msg.mode,msg.strength,msg.sceneProfile,msg.colorLock!==false,msg.clarity,msg.sharpness);
     self.postMessage({type:"done",rgba:rgba.buffer},[rgba.buffer]);
   }catch(error){
     self.postMessage({type:"error",message:error?.message||"Studio Finish failed."});
   }
 };
 
-function applyStudioFinish(rgba,width,height,mode,strength,sceneProfile,colorLock){
+function applyStudioFinish(rgba,width,height,mode,strength,sceneProfile,colorLock,clarityAmount=0,sharpnessAmount=0){
   const power=Math.max(0,Math.min(1,Number(strength)||0)/100);
   if(power<=0||width<3||height<3)return;
 
@@ -35,12 +35,16 @@ function applyStudioFinish(rgba,width,height,mode,strength,sceneProfile,colorLoc
   }
   if(colorLock)params.vibrance*=.90;
 
-  const contrast=params.contrast*power;
-  const vibrance=params.vibrance*power;
-  const detailAmount=params.detail*power;
-  const mid=params.mid*power;
-  const shadow=params.shadow*power;
-  const highlight=params.highlight*power;
+  const clarity=Math.max(0,Math.min(1,(Number(clarityAmount)||0)/100));
+  const sharpness=Math.max(0,Math.min(1,(Number(sharpnessAmount)||0)/100));
+  // Clarity and Sharpness are additive Free controls on top of the verified
+  // Studio Finish. They never change geometry; skin/highlight gates below remain.
+  const contrast=params.contrast*power*(1+clarity*.46);
+  const vibrance=params.vibrance*power*(1+clarity*.12);
+  const detailAmount=params.detail*power*(1+sharpness*.90+clarity*.18);
+  const mid=params.mid*power*(1+clarity*.60);
+  const shadow=params.shadow*power*(1+clarity*.20);
+  const highlight=params.highlight*power*(1+clarity*.18);
 
   let prev=new Float32Array(width),curr=new Float32Array(width),next=new Float32Array(width);
   const fillLum=(y,row)=>{

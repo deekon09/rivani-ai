@@ -17,6 +17,13 @@ const compareAfter=$("compareAfter");
 const compareBox=$("imageCompare");
 const compareRange=$("imageCompareRange");
 const exportSelect=$("imageExportFormat");
+const exportQualitySelect=$("imageExportQuality");
+const aiStrengthInput=$("aiStrength");
+const aiStrengthValue=$("aiStrengthValue");
+const clarityInput=$("clarityControl");
+const clarityValue=$("clarityValue");
+const sharpnessInput=$("sharpnessControl");
+const sharpnessValue=$("sharpnessValue");
 const previewEmpty=$("imagePreviewEmpty");
 const previewShell=$("imagePreviewShell");
 const protectCanvas=$("protectSelectionCanvas");
@@ -64,6 +71,7 @@ let enhancedUrl="";
 let enhancedBlob=null;
 let enhancedFormat="png";
 let enhancedFileBytes=0;
+let enhancedExportQuality="high";
 let reencodeBusy=false;
 
 let imageMode="natural";
@@ -73,6 +81,9 @@ let textLogoSafe=true;
 let colorLock=true;
 let hdFinish=true;
 let hdFinishStrength=70;
+let aiStrength=100;
+let clarity=30;
+let sharpness=25;
 let busy=false;
 let currentScan=null;
 let currentImagePlan="free";
@@ -133,7 +144,8 @@ document.querySelectorAll("[data-image-mode]").forEach(btn=>{
 
 document.querySelectorAll("[data-image-scale]").forEach(btn=>{
   btn.addEventListener("click",()=>{
-    requestedScale=Number(btn.dataset.imageScale)===4?4:2;
+    const value=Number(btn.dataset.imageScale);
+    requestedScale=[1,2,4,8].includes(value)?value:2;
 
     document.querySelectorAll("[data-image-scale]").forEach(item=>{
       item.classList.toggle("active",item===btn);
@@ -154,12 +166,25 @@ hdFinishStrengthInput?.addEventListener("input",()=>{
   if(hdFinishStrengthValue)hdFinishStrengthValue.textContent=`${hdFinishStrength}%`;
 });
 
+function bindPercentSlider(input,valueEl,setter){
+  input?.addEventListener("input",()=>{
+    const value=Math.max(0,Math.min(100,Number(input.value)||0));
+    setter(value);
+    if(valueEl)valueEl.textContent=`${Math.round(value)}%`;
+  });
+}
+bindPercentSlider(aiStrengthInput,aiStrengthValue,value=>aiStrength=value);
+bindPercentSlider(clarityInput,clarityValue,value=>clarity=value);
+bindPercentSlider(sharpnessInput,sharpnessValue,value=>sharpness=value);
+
 compareRange?.addEventListener("input",()=>setCompare(compareRange.value));
-exportSelect?.addEventListener("change",()=>{
+const requestReencode=()=>{
   if(enhancedBlob&&!busy)reencodeCurrentResult().catch(error=>{
     console.warn("RIVANI re-encode failed",error);
   });
-});
+};
+exportSelect?.addEventListener("change",requestReencode);
+exportQualitySelect?.addEventListener("change",requestReencode);
 
 enhanceBtn?.addEventListener("click",enhanceCurrentImage);
 againBtn?.addEventListener("click",()=>{
@@ -323,6 +348,7 @@ async function loadImage(file){
     enhancedUrl="";
     enhancedBlob=null;
     enhancedFormat="";
+    enhancedExportQuality=getSelectedExportQuality();
     enhancedFileBytes=0;
     protectedRegions=[];
     protectionSelectMode=false;
@@ -581,7 +607,7 @@ async function enhanceCurrentImage(){
     }
 
     const worker=new Worker(
-      "image-enhancer-worker.js?v=26-studio",
+      "image-enhancer-worker.js?v=26.1-studio",
       {type:"module"}
     );
 
@@ -628,10 +654,11 @@ async function enhanceCurrentImage(){
       fidelityGuard,
       textLogoSafe,
       colorLock,
-      currentScan
+      currentScan,
+      aiStrength
     );
 
-    const finalCanvas=composeFinal(
+    let finalCanvas=composeFinal(
       sourceBitmap,
       aiCanvas,
       response.width,
@@ -648,6 +675,20 @@ async function enhanceCurrentImage(){
       finalMetrics=repairVerifiedTone(sourceBitmap,finalCanvas,finalMetrics);
     }
 
+    // V26.1: 1× keeps source dimensions after neural restoration; 8× uses the
+    // verified native 4× neural result as its truth/detail carrier and performs
+    // a high-quality 2× Studio reconstruction. This is intentionally not called
+    // an 8× neural model. Device budgets may reduce the effective output scale.
+    if(finalCanvas.width!==prep.finalWidth||finalCanvas.height!==prep.finalHeight){
+      setProgress(98,"Reconstructing requested output…",requestedScale===8?"Building verified 8× Studio output from the 4× AI result.":"Matching the requested output dimensions.",response.provider);
+      const resized=resizeVerifiedCanvas(finalCanvas,prep.finalWidth,prep.finalHeight);
+      if(resized!==finalCanvas){
+        try{finalCanvas.width=1;finalCanvas.height=1;}catch(_error){}
+        finalCanvas=resized;
+      }
+      finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
+    }
+
     // V26: Studio Finish runs AFTER Fidelity Guard/Tone Lock. Earlier builds
     // finished the raw model output first, then source protection partially
     // pulled that visible crispness back. A strip worker keeps the UI responsive
@@ -659,7 +700,9 @@ async function enhanceCurrentImage(){
         imageMode,
         hdFinishStrength,
         currentScan?.profile||"photo",
-        colorLock
+        colorLock,
+        clarity,
+        sharpness
       );
       finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
     }
@@ -675,15 +718,17 @@ async function enhanceCurrentImage(){
       finalMetrics=measureFidelity(sourceBitmap,finalCanvas);
     }
 
-    const requestedFormat=$("imageExportFormat")?.value||"png";
+    const requestedFormat=$("imageExportFormat")?.value||"auto";
     const format=resolveExportFormat(requestedFormat,currentScan);
-    setProgress(99,"Encoding final image…",format==="png"?"Creating pixel-lossless PNG master.":"Creating a smaller maximum-quality photo export.",response.provider);
-    const blob=await canvasToBlob(finalCanvas,format);
+    const exportQuality=getSelectedExportQuality();
+    setProgress(99,"Encoding final image…",format==="png"?"Creating pixel-lossless PNG master.":`Creating ${exportQuality} quality photo export.`,response.provider);
+    const blob=await canvasToBlob(finalCanvas,format,exportQuality);
 
     if(!blob)throw new Error("Could not create the enhanced image.");
 
     enhancedBlob=blob;
     enhancedFormat=format;
+    enhancedExportQuality=exportQuality;
     enhancedFileBytes=blob.size||0;
 
     if(enhancedUrl)URL.revokeObjectURL(enhancedUrl);
@@ -705,7 +750,7 @@ async function enhanceCurrentImage(){
     }
 
     if(isImagePro()&&printProofEnabled){
-      renderPrintProof(response.width,response.height);
+      renderPrintProof(finalCanvas.width,finalCanvas.height);
       printProofPanel?.classList.remove("hidden");
     }else{
       printProofPanel?.classList.add("hidden");
@@ -714,14 +759,15 @@ async function enhanceCurrentImage(){
     renderReport(
       finalMetrics,
       decision,
-      response.width,
-      response.height,
+      finalCanvas.width,
+      finalCanvas.height,
       prep.effectiveScale,
       response.provider,
       runtimeMs,
       response.performanceProfile,
       enhancedFormat,
-      enhancedFileBytes
+      enhancedFileBytes,
+      enhancedExportQuality
     );
 
     if(hdFinishMeta){
@@ -745,70 +791,52 @@ async function enhanceCurrentImage(){
 
 function prepareInputForModel(bitmap,targetScale){
   const budget=getDeviceOutputBudget(bitmap);
+  const requested=[1,2,4,8].includes(Number(targetScale))?Number(targetScale):2;
+  const workerScale=requested<=2?2:4;
   let prepScale=1;
 
-  const targetPixels=
-    bitmap.width*
-    bitmap.height*
-    targetScale*
-    targetScale;
-
+  const targetPixels=bitmap.width*bitmap.height*requested*requested;
   if(targetPixels>budget.maxPixels){
-    prepScale=Math.min(
-      prepScale,
-      Math.sqrt(
-        budget.maxPixels/
-        targetPixels
-      )
-    );
+    prepScale=Math.min(prepScale,Math.sqrt(budget.maxPixels/targetPixels));
   }
 
-  const longest=Math.max(bitmap.width,bitmap.height)*targetScale;
-
+  const longest=Math.max(bitmap.width,bitmap.height)*requested;
   if(longest>budget.maxEdge){
-    prepScale=Math.min(
-      prepScale,
-      budget.maxEdge/longest
-    );
+    prepScale=Math.min(prepScale,budget.maxEdge/longest);
   }
 
-  // Avoid tiny fractional resizes that only add work.
   if(prepScale>.97)prepScale=1;
 
-  const width=Math.max(
-    16,
-    Math.round(bitmap.width*prepScale)
-  );
-
-  const height=Math.max(
-    16,
-    Math.round(bitmap.height*prepScale)
-  );
+  const width=Math.max(16,Math.round(bitmap.width*prepScale));
+  const height=Math.max(16,Math.round(bitmap.height*prepScale));
+  const finalWidth=Math.max(16,Math.round(width*requested));
+  const finalHeight=Math.max(16,Math.round(height*requested));
 
   const canvas=document.createElement("canvas");
-  canvas.width=width;
-  canvas.height=height;
-
-  const ctx=canvas.getContext("2d",{
-    alpha:true,
-    willReadFrequently:true
-  });
-
-  ctx.imageSmoothingEnabled=true;
-  ctx.imageSmoothingQuality="high";
+  canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext("2d",{alpha:true,willReadFrequently:true});
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
   ctx.drawImage(bitmap,0,0,width,height);
 
   return {
     imageData:ctx.getImageData(0,0,width,height),
-    width,
-    height,
-    workerScale:targetScale,
-    effectiveScale:
-      (width*targetScale)/
-      bitmap.width,
+    width,height,workerScale,finalWidth,finalHeight,requestedScale:requested,
+    effectiveScale:finalWidth/bitmap.width,
     wasCapped:prepScale<.97,
     budget
   };
+}
+
+function resizeVerifiedCanvas(sourceCanvas,width,height){
+  if(sourceCanvas.width===width&&sourceCanvas.height===height)return sourceCanvas;
+  const canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(width));
+  canvas.height=Math.max(1,Math.round(height));
+  const ctx=canvas.getContext("2d",{alpha:true});
+  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingQuality="high";
+  ctx.drawImage(sourceCanvas,0,0,canvas.width,canvas.height);
+  return canvas;
 }
 
 function getDeviceOutputBudget(bitmap){
@@ -1046,7 +1074,7 @@ function runWorker(worker,imageData,width,height,targetScale,performanceProfile,
   });
 }
 
-function decideGuard(metrics,mode,guard,textSafe,colorSafe,scan){
+function decideGuard(metrics,mode,guard,textSafe,colorSafe,scan,userAiStrength=100){
   const base={
     natural:.84,
     // Strong keeps almost the full verified model result. Fidelity Guard still
@@ -1117,12 +1145,16 @@ function decideGuard(metrics,mode,guard,textSafe,colorSafe,scan){
 
   if(!(guard&&risk==="high")){
     blend=Math.max(.40,Math.min(.995,blend));
+    // Free AI Strength is a user preference applied *after* safety. At 100 the
+    // mode keeps its full verified AI result; lower values preserve more source.
+    blend*=Math.max(0,Math.min(1,(Number(userAiStrength)||0)/100));
   }
 
   return {
     blend,
     risk,
-    reasons
+    reasons,
+    requestedAiStrength:Math.max(0,Math.min(100,Number(userAiStrength)||0))
   };
 }
 
@@ -1314,7 +1346,8 @@ function renderReport(
   runtimeMs,
   performanceProfile,
   exportFormat,
-  exportBytes
+  exportBytes,
+  exportQuality="high"
 ){
   const structurePct=Math.round(metrics.structure*100);
   const colorPct=Math.round(metrics.colorDrift*100);
@@ -1402,7 +1435,8 @@ function renderReport(
       :`${seconds.toFixed(seconds<10?1:0)}s`;
 
   const megapixels=(width*height)/1_000_000;
-  const formatLabel=exportFormat==="png"?"PNG lossless":exportFormat==="webp"?"WebP high quality":"JPEG high quality";
+  const qualityLabel=exportQuality==="max"?"Max":exportQuality==="standard"?"Standard":"High";
+  const formatLabel=exportFormat==="png"?"PNG lossless":exportFormat==="webp"?`WebP ${qualityLabel}`:`JPEG ${qualityLabel}`;
   const sizeLabel=formatBytes(exportBytes||0);
   const sizeEl=$("imageOutputFileSize");
   const formatEl=$("imageOutputFormat");
@@ -1756,9 +1790,9 @@ function drawSample(bitmap,maxSize){
 }
 
 
-async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,colorSafe){
+async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,colorSafe,clarityAmount=0,sharpnessAmount=0){
   const ctx=canvas.getContext("2d",{alpha:true,willReadFrequently:true});
-  const worker=new Worker("image-finish-worker.js?v=26-studio",{type:"module"});
+  const worker=new Worker("image-finish-worker.js?v=26.1-studio",{type:"module"});
   const mobile=isMobileImageDevice();
   const stripHeight=mobile?224:512;
   const total=Math.ceil(canvas.height/stripHeight);
@@ -1766,7 +1800,7 @@ async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,color
     for(let index=0,y=0;y<canvas.height;index++,y+=stripHeight){
       const h=Math.min(stripHeight,canvas.height-y);
       const imageData=ctx.getImageData(0,y,canvas.width,h);
-      const processed=await finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe);
+      const processed=await finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clarityAmount,sharpnessAmount);
       ctx.putImageData(processed,0,y);
       const pct=98+Math.min(.7,((index+1)/Math.max(1,total))*.7);
       setProgress(pct,"Applying RIVANI Studio Finish…",`Finishing detail and color ${index+1}/${total}.`);
@@ -1777,7 +1811,7 @@ async function applyStudioFinishToCanvas(canvas,mode,strength,sceneProfile,color
   }
 }
 
-function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe){
+function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe,clarityAmount=0,sharpnessAmount=0){
   return new Promise((resolve,reject)=>{
     const timer=setTimeout(()=>reject(new Error("Studio Finish took too long.")),60000);
     const cleanup=()=>{clearTimeout(timer);worker.onmessage=null;worker.onerror=null;};
@@ -1791,7 +1825,7 @@ function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe){
     worker.onerror=event=>{cleanup();reject(new Error(event.message||"Studio Finish worker failed."));};
     const buffer=imageData.data.buffer;
     worker.postMessage({
-      type:"finish",width:imageData.width,height:imageData.height,mode,strength,sceneProfile,colorLock:Boolean(colorSafe),rgba:buffer
+      type:"finish",width:imageData.width,height:imageData.height,mode,strength,sceneProfile,colorLock:Boolean(colorSafe),clarity:clarityAmount,sharpness:sharpnessAmount,rgba:buffer
     },[buffer]);
   });
 }
@@ -1799,7 +1833,8 @@ function finishStrip(worker,imageData,mode,strength,sceneProfile,colorSafe){
 async function reencodeCurrentResult(){
   if(!enhancedBlob||reencodeBusy)return;
   const desired=resolveExportFormat(exportSelect?.value||"auto",currentScan);
-  if(desired===enhancedFormat)return;
+  const quality=getSelectedExportQuality();
+  if(desired===enhancedFormat&&(desired==="png"||quality===enhancedExportQuality))return;
   reencodeBusy=true;
   const previousText=downloadBtn?.textContent||"Download Enhanced Image";
   if(downloadBtn){downloadBtn.disabled=true;downloadBtn.textContent="Re-encoding…";}
@@ -1812,13 +1847,14 @@ async function reencodeCurrentResult(){
     canvas.width=bitmap.width;canvas.height=bitmap.height;
     const ctx=canvas.getContext("2d",{alpha:true});
     ctx.drawImage(bitmap,0,0);
-    const blob=await canvasToBlob(canvas,desired);
+    const blob=await canvasToBlob(canvas,desired,quality);
     if(!blob)throw new Error("Could not re-encode this result.");
     if(enhancedUrl)URL.revokeObjectURL(enhancedUrl);
-    enhancedBlob=blob;enhancedFormat=desired;enhancedFileBytes=blob.size||0;
+    enhancedBlob=blob;enhancedFormat=desired;enhancedExportQuality=quality;enhancedFileBytes=blob.size||0;
     enhancedUrl=URL.createObjectURL(blob);
     compareAfter.src=enhancedUrl;
-    $("imageOutputFormat").textContent=desired==="png"?"PNG lossless":desired==="webp"?"WebP high quality":"JPEG high quality";
+    const qLabel=quality==="max"?"Max":quality==="standard"?"Standard":"High";
+    $("imageOutputFormat").textContent=desired==="png"?"PNG lossless":desired==="webp"?`WebP ${qLabel}`:`JPEG ${qLabel}`;
     $("imageOutputFileSize").textContent=formatBytes(enhancedFileBytes);
     if(note){
       note.textContent=desired==="png"
@@ -1842,24 +1878,21 @@ function resolveExportFormat(requested,scan){
   return requested==="jpeg"||requested==="webp"?requested:"png";
 }
 
-function canvasToBlob(canvas,format){
-  const type=
-    format==="jpeg"
-      ?"image/jpeg"
-      :format==="webp"
-        ?"image/webp"
-        :"image/png";
+function getSelectedExportQuality(){
+  const value=String(exportQualitySelect?.value||"high");
+  return value==="standard"||value==="max"?value:"high";
+}
 
-  const quality=
-    format==="jpeg"
-      ?.95
-      :format==="webp"
-        ?.94
-        :undefined;
-
-  return new Promise(resolve=>{
-    canvas.toBlob(resolve,type,quality);
-  });
+function canvasToBlob(canvas,format,qualityKey="high"){
+  const type=format==="jpeg"?"image/jpeg":format==="webp"?"image/webp":"image/png";
+  const qualityMap={
+    standard:{jpeg:.86,webp:.82},
+    high:{jpeg:.92,webp:.90},
+    max:{jpeg:.97,webp:.95}
+  };
+  const q=qualityMap[qualityKey]||qualityMap.high;
+  const quality=format==="jpeg"?q.jpeg:format==="webp"?q.webp:undefined;
+  return new Promise(resolve=>canvas.toBlob(resolve,type,quality));
 }
 
 function formatBytes(bytes){
@@ -1909,6 +1942,7 @@ function resetForAnotherImage(){
   enhancedUrl="";
   enhancedBlob=null;
   enhancedFormat="png";
+  enhancedExportQuality=getSelectedExportQuality();
   enhancedFileBytes=0;
   currentScan=null;
   protectedRegions=[];

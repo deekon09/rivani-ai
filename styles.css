@@ -3353,3 +3353,22 @@ body.image-mobile-processing .image-processing-orb::after{
   .image-enhancer-page .image-compare{min-height:310px!important}
   .image-enhancer-page .image-compare .compare-line span{width:30px;height:30px;font-size:13px}
 }
+
+
+/* =========================================================
+   V26.1 IMAGE ENHANCER · FREE DETAIL CONTROLS + 8X STUDIO
+   ========================================================= */
+.image-scale-options-four{grid-template-columns:repeat(2,minmax(0,1fr))}
+.image-control-help{display:block;margin-top:8px;color:#667791;font-size:7.5px;line-height:1.5}
+.image-free-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.image-free-heading label{margin:0;color:#a8b8d2;font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.image-free-heading span{padding:4px 7px;border:1px solid rgba(91,207,172,.22);border-radius:999px;background:rgba(48,170,133,.08);color:#65d5b2;font-size:7px;font-weight:900;letter-spacing:.08em}
+.image-slider-control{padding:10px 11px;margin-top:8px;border:1px solid rgba(79,153,255,.10);border-radius:12px;background:rgba(15,29,61,.34)}
+.image-slider-control>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.image-slider-control span{color:#9fadc4;font-size:8.5px;font-weight:800}
+.image-slider-control b{color:#8edfff;font-size:9px}
+.image-slider-control input[type="range"]{width:100%;margin:9px 0 5px;accent-color:#59c9ff}
+.image-slider-control small{display:block;color:#667791;font-size:7.3px;line-height:1.45}
+.image-sub-label{margin-top:10px!important;margin-bottom:7px!important;color:#8392ab!important;font-size:8px!important}
+.image-format-row select+ .image-sub-label{display:block}
+@media(max-width:680px){.image-scale-options-four{grid-template-columns:repeat(2,minmax(0,1fr))}}
