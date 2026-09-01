@@ -57,24 +57,107 @@ function renderTimer(){
 }
 function startTimer(){stopTimer();renderTimer();timerHandle=setInterval(renderTimer,1000);}
 
+let qrLibraryPromise=null;
+let generatedQrMount=null;
+
+function loadQrLibrary(){
+  if(window.QRCode)return Promise.resolve(window.QRCode);
+  if(qrLibraryPromise)return qrLibraryPromise;
+
+  qrLibraryPromise=new Promise((resolve,reject)=>{
+    const existing=document.querySelector('script[data-rivani-qr-lib]');
+    if(existing){
+      const started=Date.now();
+      const check=()=>{
+        if(window.QRCode)return resolve(window.QRCode);
+        if(Date.now()-started>7000)return reject(new Error('QR library timed out.'));
+        setTimeout(check,120);
+      };
+      check();
+      return;
+    }
+
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+    script.async=true;
+    script.dataset.rivaniQrLib='1';
+
+    const timeout=setTimeout(()=>{
+      script.remove();
+      qrLibraryPromise=null;
+      reject(new Error('QR library timed out.'));
+    },7000);
+
+    script.onload=()=>{
+      clearTimeout(timeout);
+      if(window.QRCode)resolve(window.QRCode);
+      else{
+        qrLibraryPromise=null;
+        reject(new Error('QR library loaded without QRCode.'));
+      }
+    };
+
+    script.onerror=()=>{
+      clearTimeout(timeout);
+      qrLibraryPromise=null;
+      reject(new Error('QR library could not load.'));
+    };
+
+    document.head.appendChild(script);
+  });
+
+  return qrLibraryPromise;
+}
+
+function clearGeneratedQr(){
+  if(generatedQrMount){
+    generatedQrMount.remove();
+    generatedQrMount=null;
+  }
+  qrCanvas.hidden=true;
+}
+
 async function renderQr(uri){
+  clearGeneratedQr();
+
   if(!uri){
-    qrCanvas.hidden=true;
     qrPlaceholder.hidden=false;
     qrPlaceholder.textContent='Payment QR is not configured yet.';
     return;
   }
+
+  qrPlaceholder.hidden=false;
+  qrPlaceholder.textContent='Generating secure payment QR…';
+
   try{
-    const mod=await import('https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm');
-    const QRCode=mod.default||mod;
-    await QRCode.toCanvas(qrCanvas,uri,{width:280,margin:2,errorCorrectionLevel:'M'});
-    qrCanvas.hidden=false;
+    const QRCode=await loadQrLibrary();
+    const wrap=$('paymentQrWrap');
+    generatedQrMount=document.createElement('div');
+    generatedQrMount.className='rivani-generated-payment-qr';
+    generatedQrMount.setAttribute('aria-label','RIVANI UPI payment QR');
+    generatedQrMount.style.cssText='display:grid;place-items:center;width:280px;max-width:100%;min-height:280px;';
+    wrap.insertBefore(generatedQrMount,qrPlaceholder);
+
+    new QRCode(generatedQrMount,{
+      text:uri,
+      width:280,
+      height:280,
+      colorDark:'#000000',
+      colorLight:'#ffffff',
+      correctLevel:QRCode.CorrectLevel?.M ?? 0
+    });
+
+    const rendered=generatedQrMount.querySelector('canvas,img');
+    if(!rendered)throw new Error('QR renderer returned no image.');
+    rendered.style.maxWidth='100%';
+    rendered.style.height='auto';
+
     qrPlaceholder.hidden=true;
   }catch(error){
     console.error('QR render failed',error);
-    qrCanvas.hidden=true;
+    clearGeneratedQr();
     qrPlaceholder.hidden=false;
-    qrPlaceholder.textContent='QR could not render. Use the UPI app button below.';
+    qrPlaceholder.textContent='QR could not render. Tap “Open UPI app” below to pay ₹199.';
   }
 }
 
