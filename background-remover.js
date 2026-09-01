@@ -28,6 +28,7 @@
     effectiveMask:null,subjectCanvas:null,shadowCanvas:null,customBgBitmap:null,bgEstimate:{rgb:[255,255,255],variance:1},
     engine:null,provider:null,inferenceMs:0,mode:'auto',bgMode:'transparent',shadow:false,brush:false,brushMode:'erase',
     undoMask:null,components:null,selectedComponent:'all',hardEdge:null,worker:null,jobId:0,painting:false,renderTimer:null,
+    running:false,currentEngine:'precision',precisionAttempts:0,usedSafetyFallback:false,
   };
 
   function isPro(){return String(window.RIVANI_LUKI_CONTEXT?.plan||'').toLowerCase()==='pro';}
@@ -73,22 +74,58 @@
   }
   function showProcessing(on){processing?.classList.toggle('hidden',!on);document.body.classList.toggle('bg-processing',!!on);}
 
+  function destroyWorker(){
+    if(!state.worker)return;
+    try{state.worker.terminate();}catch(_e){}
+    state.worker=null;
+  }
   function makeWorker(){
-    if(state.worker)return state.worker;
-    const w=new Worker('background-remover-worker.js?v=27.4-precision-default',{type:'module'});
+    // V27.5: every inference attempt gets a fresh worker/runtime. On some mobile
+    // Chromium builds ONNX Runtime's JSEP state can become dirty after a failed
+    // WebGPU session and then report "Session mismatch". A fresh worker makes
+    // each retry isolated instead of reusing that runtime state.
+    destroyWorker();
+    const w=new Worker('background-remover-worker.js?v=27.5-mobile-session-fix',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
+  }
+  async function runInferenceAttempt(engine){
+    if(!state.file)throw new Error('Choose an image first.');
+    state.currentEngine=engine;
+    state.jobId++;
+    const id=state.jobId;
+    const worker=makeWorker();
+    const bitmap=await createImageBitmap(state.file);
+    worker.postMessage({type:'remove',id,bitmap,engine},[bitmap]);
+  }
+  function failRemoval(message){
+    state.running=false;destroyWorker();showProcessing(false);setProgress(0);updateUsage();
+    alert(`Background removal failed: ${message}\n\nThe mobile-safe retry and hidden safety fallback were both attempted. Please refresh once if the browser has disabled WebGPU for this tab.`);
   }
   function onWorkerMessage(e){
     const m=e.data||{};if(m.id!==state.jobId)return;
     if(m.type==='progress'){setProgress(m.value,m.title,m.text,m.value<50?'Loading model':'RIVANI Cutout Engine');return;}
     if(m.type==='error'){
-      showProcessing(false);setProgress(0);
-      alert(`Background removal failed: ${m.message}\n\nRIVANI already tried the hidden safety fallback automatically. Retry once; if the browser blocked local AI, refresh the page and try again.`);
-      updateUsage();return;
+      const reason=String(m.message||'Local AI failed');
+      destroyWorker();
+      if(state.currentEngine==='precision' && state.precisionAttempts<2){
+        state.precisionAttempts++;
+        setProgress(18,'Restarting Precision safely…','Fresh mobile AI session · no page refresh needed.','RIVANI Precision');
+        setTimeout(()=>runInferenceAttempt('precision').catch(err=>failRemoval(err.message||err)),180);
+        return;
+      }
+      if(state.currentEngine==='precision' && !state.usedSafetyFallback){
+        state.usedSafetyFallback=true;
+        setProgress(28,'Starting safety fallback…','Precision could not start after a clean retry. Completing locally with the hidden compatibility engine.','Safety fallback');
+        setTimeout(()=>runInferenceAttempt('fast').catch(err=>failRemoval(err.message||err)),180);
+        return;
+      }
+      failRemoval(reason);return;
     }
     if(m.type==='result'){
-      finishRemoval(m).catch(err=>{showProcessing(false);alert(`Could not build the cutout: ${err.message||err}`);});
+      if(state.currentEngine==='fast'&&state.usedSafetyFallback){m.fallbackFrom='precision';}
+      destroyWorker();
+      finishRemoval(m).then(()=>{state.running=false;updateUsage();}).catch(err=>{state.running=false;showProcessing(false);updateUsage();alert(`Could not build the cutout: ${err.message||err}`);});
     }
   }
 
@@ -134,14 +171,15 @@
   }
 
   async function startRemoval(){
-    if(!state.file)return;
+    if(!state.file||state.running)return;
     const ok=await window.RIVANI_REQUIRE_AUTH?.({tool:'Background Remover'});
     if(ok===false)return;
     if(!TESTING_UNLIMITED&&!isPro()&&usageCount()>=FREE_DAILY){openPro();updateUsage();return;}
-    const worker=makeWorker();state.jobId++;
-    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.','RIVANI Cutout Engine');
-    const bitmap=await createImageBitmap(state.file);
-    worker.postMessage({type:'remove',id:state.jobId,bitmap,engine:'auto'},[bitmap]);
+    state.running=true;state.precisionAttempts=1;state.usedSafetyFallback=false;state.currentEngine='precision';
+    removeBtn.disabled=true;
+    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.','RIVANI Precision');
+    try{await runInferenceAttempt('precision');}
+    catch(e){state.running=false;destroyWorker();showProcessing(false);updateUsage();throw e;}
   }
 
   async function finishRemoval(m){
@@ -419,6 +457,6 @@
   brushToggle.addEventListener('click',()=>setBrush(!state.brush));eraseBrush.addEventListener('click',()=>{state.brushMode='erase';eraseBrush.classList.add('active');restoreBrush.classList.remove('active');});restoreBrush.addEventListener('click',()=>{state.brushMode='restore';restoreBrush.classList.add('active');eraseBrush.classList.remove('active');});brushSize.addEventListener('input',syncSliderLabels);
   undoBrush.addEventListener('click',()=>{if(state.undoMask){const tmp=state.mask;state.mask=state.undoMask;state.undoMask=tmp;scheduleRebuild();}});resetMask.addEventListener('click',()=>{if(state.baseMask){state.undoMask=state.mask?.slice();state.mask=state.baseMask.slice();state.selectedComponent='all';subjectButtons.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active',i===0));scheduleRebuild();}});
   canvasPreset.addEventListener('change',()=>{});padding.addEventListener('input',syncSliderLabels);downloadBtn.addEventListener('click',exportResult);
-  window.addEventListener('beforeunload',()=>{cleanupFile();try{state.customBgBitmap?.close?.();}catch(_e){}state.worker?.terminate?.();});
+  window.addEventListener('beforeunload',()=>{cleanupFile();try{state.customBgBitmap?.close?.();}catch(_e){}destroyWorker();});
   syncSliderLabels();updateUsage();
 })();

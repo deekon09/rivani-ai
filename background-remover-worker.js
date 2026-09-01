@@ -1,92 +1,65 @@
-/* RIVANI Cutout Studio inference worker — V27.4 Precision Default
-   Image pixels stay local. Only model weights are fetched from the RIVANI model-delivery Worker.
-   Auto always starts with the browser-safe 512px Precision model.
-   The lightweight compatibility model is hidden and used only as an emergency fallback. */
+/* RIVANI Cutout Studio inference worker — V27.5 Mobile Session Fix
+   One worker = one engine attempt = one ONNX Runtime instance.
+   This isolates mobile WebGPU/JSEP state and prevents failed Precision sessions
+   from contaminating the hidden compatibility retry. Image pixels stay local. */
 const MODEL_BASE='https://rivani-models.rivani.workers.dev';
 const MODEL_URLS={
   precision:`${MODEL_BASE}/background-remover-birefnet-512.onnx`,
   fast:`${MODEL_BASE}/background-remover-fast.onnx`,
 };
 
-const sessions=new Map();
-let ortWebGpuPromise=null;
-let ortWasmPromise=null;
-let adapterPromise=null;
+let busy=false;
+let ortPromise=null;
+let sessionPromise=null;
 
 self.onmessage=async(event)=>{
   const msg=event.data||{};
   if(msg.type!=='remove')return;
-  const {id,bitmap,engine='auto'}=msg;
+  const {id,bitmap,engine='precision'}=msg;
+  if(busy){
+    try{bitmap?.close?.();}catch(_e){}
+    postMessage({type:'error',id,message:'Local AI worker was already busy'});
+    return;
+  }
+  busy=true;
+  const kind=engine==='fast'?'fast':'precision';
   try{
-    post(id,'progress',{value:3,title:'Preparing cutout engine…',text:'RIVANI is preparing private browser inference.'});
-    const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(self.navigator?.userAgent||'');
-
-    // V27.4: quality-first product decision. There is one visible engine in the UI:
-    // RIVANI Precision. The small compatibility model is retained only as a hidden
-    // emergency fallback when the 512px Precision WebGPU session cannot start.
-    const choice='precision';
-    let result;
-
-    if(choice==='precision'){
-      try{
-        result=await inferPrecision(bitmap,id);
-      }catch(error){
-        post(id,'progress',{value:46,title:'Starting safety fallback…',text:'Precision could not start on this device. RIVANI is completing the cutout with its local compatibility fallback.'});
-        result=await inferFast(bitmap,id,mobile);
-        result.fallbackFrom='precision';
-        result.fallbackReason=String(error?.message||error||'Precision unavailable');
-      }
-    }else{
-      result=await inferFast(bitmap,id,mobile);
-    }
-
+    post(id,'progress',{value:3,title:'Preparing cutout engine…',text:kind==='precision'?'Starting an isolated Precision session.':'Starting an isolated safety session.'});
+    const result=await infer(bitmap,kind,id);
     try{bitmap.close?.();}catch(_e){}
     postMessage({type:'result',id,...result},[result.mask.buffer]);
   }catch(error){
     try{bitmap?.close?.();}catch(_e){}
     postMessage({type:'error',id,message:String(error?.message||error||'Background removal failed')});
+  }finally{
+    busy=false;
   }
 };
 
-function post(id,type,payload={}){ postMessage({type,id,...payload}); }
+function post(id,type,payload={}){postMessage({type,id,...payload});}
 
-async function getOrtWebGPU(){
-  if(ortWebGpuPromise)return ortWebGpuPromise;
-  ortWebGpuPromise=(async()=>{
-    const mod=await import('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/ort.webgpu.min.mjs');
+async function getOrt(kind){
+  if(ortPromise)return ortPromise;
+  ortPromise=(async()=>{
+    const base='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
+    // Never load the WebGPU and plain WASM bundles into the same worker. The JSEP
+    // runtime keeps global session state; isolating bundles avoids mobile Session mismatch.
+    const file=kind==='precision'?'ort.webgpu.min.mjs':'ort.min.mjs';
+    const mod=await import(base+file);
     const ort=mod.default||mod;
-    ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
+    ort.env.wasm.wasmPaths=base;
     ort.env.wasm.numThreads=1;
     ort.env.wasm.simd=true;
+    if('proxy' in ort.env.wasm)ort.env.wasm.proxy=false;
+    if(kind==='precision'&&ort.env.webgpu){
+      try{ort.env.webgpu.powerPreference='high-performance';}catch(_e){}
+    }
     return ort;
   })();
-  return ortWebGpuPromise;
+  return ortPromise;
 }
 
-async function getOrtWasm(){
-  if(ortWasmPromise)return ortWasmPromise;
-  ortWasmPromise=(async()=>{
-    // Dedicated WASM build instead of routing compatibility work through the JSEP/WebGPU bundle.
-    const mod=await import('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/ort.min.mjs');
-    const ort=mod.default||mod;
-    ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/';
-    ort.env.wasm.numThreads=1;
-    ort.env.wasm.simd=true;
-    return ort;
-  })();
-  return ortWasmPromise;
-}
-
-async function getAdapter(){
-  if(adapterPromise)return adapterPromise;
-  adapterPromise=(async()=>{
-    if(!self.navigator?.gpu)return null;
-    try{return await self.navigator.gpu.requestAdapter({powerPreference:'high-performance'});}catch(_e){return null;}
-  })();
-  return adapterPromise;
-}
-
-async function fetchModel(url,id,from=8,to=38,label='cutout'){
+async function fetchModel(url,id,from,to,label){
   const res=await fetch(url,{cache:'force-cache'});
   if(!res.ok)throw new Error(`${label} model download failed (${res.status})`);
   const total=Number(res.headers.get('content-length'))||0;
@@ -102,72 +75,43 @@ async function fetchModel(url,id,from=8,to=38,label='cutout'){
     if(done)break;
     chunks.push(value);loaded+=value.byteLength;
     const p=from+(to-from)*Math.min(1,loaded/total);
-    post(id,'progress',{value:p,title:'Loading cutout model…',text:`${label} model ${(loaded/1048576).toFixed(1)} / ${(total/1048576).toFixed(1)} MB · cached after first load`});
+    post(id,'progress',{value:p,title:'Loading cutout model…',text:`${label} ${(loaded/1048576).toFixed(1)} / ${(total/1048576).toFixed(1)} MB · cached after first load`});
   }
   const out=new Uint8Array(loaded);let off=0;
-  for(const c of chunks){out.set(c,off);off+=c.byteLength;}
+  for(const chunk of chunks){out.set(chunk,off);off+=chunk.byteLength;}
   return out.buffer;
 }
 
-async function getFastSession(id,provider){
-  const key=`fast-${provider}`;
-  if(sessions.has(key))return sessions.get(key);
-  const ort=provider==='webgpu'?await getOrtWebGPU():await getOrtWasm();
-  const model=await fetchModel(MODEL_URLS.fast,id,8,26,'Fast AI');
-  post(id,'progress',{value:30,title:'Starting Fast AI…',text:provider==='webgpu'?'Using GPU acceleration for the lightweight cutout model.':'Using the portable local compatibility engine.'});
-  const options={graphOptimizationLevel:'all',executionProviders:[provider]};
-  const session=await ort.InferenceSession.create(model,options);
-  sessions.set(key,{session,ort,provider});
-  return sessions.get(key);
+async function getSession(kind,id){
+  if(sessionPromise)return sessionPromise;
+  sessionPromise=(async()=>{
+    const ort=await getOrt(kind);
+    if(kind==='precision'&&!self.navigator?.gpu)throw new Error('WebGPU is unavailable on this browser');
+    const model=await fetchModel(
+      MODEL_URLS[kind],id,8,kind==='precision'?42:28,
+      kind==='precision'?'Precision AI':'Safety AI'
+    );
+    post(id,'progress',{
+      value:kind==='precision'?45:31,
+      title:kind==='precision'?'Starting Precision AI…':'Starting safety AI…',
+      text:kind==='precision'?'Initializing the 512px high-quality matting engine.':'Initializing the portable compatibility engine.'
+    });
+    const options={graphOptimizationLevel:'all',executionProviders:[kind==='precision'?'webgpu':'wasm']};
+    const session=await ort.InferenceSession.create(model,options);
+    return {ort,session,provider:kind==='precision'?'webgpu':'wasm'};
+  })();
+  return sessionPromise;
 }
 
-async function getPrecisionSession(id){
-  const key='precision-webgpu';
-  if(sessions.has(key))return sessions.get(key);
-  const adapter=await getAdapter();
-  if(!adapter)throw new Error('WebGPU adapter unavailable');
-  const buffers=Number(adapter.limits?.maxStorageBuffersPerShaderStage||0);
-  if(buffers&&buffers<8)throw new Error(`WebGPU adapter limit too low (${buffers} storage buffers)`);
-  const ort=await getOrtWebGPU();
-  const model=await fetchModel(MODEL_URLS.precision,id,8,42,'Precision AI');
-  post(id,'progress',{value:45,title:'Starting Precision AI…',text:'Initializing the browser-safe 512px WebGPU matting engine.'});
-  const session=await ort.InferenceSession.create(model,{graphOptimizationLevel:'all',executionProviders:['webgpu']});
-  sessions.set(key,{session,ort,provider:'webgpu'});
-  return sessions.get(key);
-}
-
-async function inferFast(bitmap,id,mobile){
-  // High-end desktop gets GPU acceleration, but the same tiny 4.6 MB model is used.
-  // Mobile starts on WASM for broad stability; this keeps the first-use path reliable.
-  let provider=(!mobile&&self.navigator?.gpu)?'webgpu':'wasm';
-  let pack;
-  try{
-    pack=await getFastSession(id,provider);
-    return await runModel(bitmap,'fast',id,pack,320);
-  }catch(error){
-    if(provider==='webgpu'){
-      post(id,'progress',{value:37,title:'Using compatibility path…',text:'GPU acceleration was unavailable for this run. Continuing locally.'});
-      pack=await getFastSession(id,'wasm');
-      const result=await runModel(bitmap,'fast',id,pack,320);
-      result.fallbackFrom='fast-webgpu';
-      result.fallbackReason=String(error?.message||error||'Fast GPU path unavailable');
-      return result;
-    }
-    throw error;
-  }
-}
-
-async function inferPrecision(bitmap,id){
-  const pack=await getPrecisionSession(id);
-  return await runModel(bitmap,'precision',id,pack,512);
-}
-
-async function runModel(bitmap,kind,id,pack,size){
+async function infer(bitmap,kind,id){
+  const size=kind==='precision'?512:320;
+  const pack=await getSession(kind,id);
   const {session,ort,provider}=pack;
   post(id,'progress',{value:kind==='precision'?52:40,title:'Scanning subject…',text:'Separating people, products, objects and difficult boundaries.'});
-  const {tensor}=bitmapToTensor(bitmap,size,kind);
-  const inputName=session.inputNames[0];
-  const feeds={[inputName]:new ort.Tensor('float32',tensor,[1,3,size,size])};
+  const tensorData=bitmapToTensor(bitmap,size,kind);
+  const inputName=session.inputNames?.[0];
+  if(!inputName)throw new Error('AI model input was not found');
+  const feeds={[inputName]:new ort.Tensor('float32',tensorData,[1,3,size,size])};
   const started=performance.now();
   const outputs=await session.run(feeds);
   const elapsed=performance.now()-started;
@@ -178,9 +122,17 @@ async function runModel(bitmap,kind,id,pack,size){
   let mask;
   if(kind==='precision'){
     mask=new Uint8ClampedArray(size*size);
+    let lo=Infinity,hi=-Infinity;
+    const n=Math.min(raw.length,mask.length);
+    for(let i=0;i<n;i++){const v=Number(raw[i])||0;if(v<lo)lo=v;if(v>hi)hi=v;}
+    // BiRefNet exports can expose either logits or already-normalized alpha.
+    // Detect the range instead of blindly sigmoid-transforming a normalized mask.
+    const normalized=lo>=-0.01&&hi<=1.01;
     for(let i=0;i<mask.length;i++){
-      const x=Math.max(-18,Math.min(18,Number(raw[i])||0));
-      mask[i]=Math.round((1/(1+Math.exp(-x)))*255);
+      let v=Number(raw[i])||0;
+      if(!normalized){v=Math.max(-18,Math.min(18,v));v=1/(1+Math.exp(-v));}
+      v=Math.max(0,Math.min(1,v));
+      mask[i]=Math.round(v*255);
     }
   }else{
     let lo=Infinity,hi=-Infinity;
@@ -190,7 +142,6 @@ async function runModel(bitmap,kind,id,pack,size){
     mask=new Uint8ClampedArray(size*size);
     for(let i=0;i<mask.length;i++){
       let v=((Number(raw[i])||0)-lo)/d;
-      // Gentle S-curve removes background haze while preserving soft hair/fur alpha.
       v=Math.max(0,Math.min(1,v));
       v=v*v*(3-2*v);
       mask[i]=Math.round(v*255);
@@ -202,31 +153,31 @@ async function runModel(bitmap,kind,id,pack,size){
 }
 
 function sanitizeMask(mask,size){
-  // Both U2NetP and BiRefNet are foreground-high. Do not casually flip polarity:
-  // full-frame portraits can legitimately occupy lower corners. Only flip when the
-  // whole border is strongly foreground-like AND the center is clearly darker.
   const band=Math.max(4,Math.round(size*.035));
   let borderSum=0,borderN=0,centerSum=0,centerN=0;
-  for(let y=0;y<size;y+=2){for(let x=0;x<size;x+=2){
-    const v=mask[y*size+x];
-    if(x<band||y<band||x>=size-band||y>=size-band){borderSum+=v;borderN++;}
-    if(x>=size*.3&&x<size*.7&&y>=size*.25&&y<size*.75){centerSum+=v;centerN++;}
-  }}
+  for(let y=0;y<size;y+=2){
+    for(let x=0;x<size;x+=2){
+      const v=mask[y*size+x];
+      if(x<band||y<band||x>=size-band||y>=size-band){borderSum+=v;borderN++;}
+      if(x>=size*.3&&x<size*.7&&y>=size*.25&&y<size*.75){centerSum+=v;centerN++;}
+    }
+  }
   const borderMean=borderN?borderSum/borderN:0;
   const centerMean=centerN?centerSum/centerN:0;
-  if(borderMean>190 && centerMean+45<borderMean){for(let i=0;i<mask.length;i++)mask[i]=255-mask[i];}
+  if(borderMean>190&&centerMean+45<borderMean){for(let i=0;i<mask.length;i++)mask[i]=255-mask[i];}
 
   let min=255,max=0,fg=0,bg=0;
-  for(let i=0;i<mask.length;i+=13){const v=mask[i];if(v<min)min=v;if(v>max)max=v;if(v>32)fg++;if(v<223)bg++;}
-  if(max-min<18)throw new Error('AI mask was nearly constant; retry Auto once.');
-  if(fg===0)throw new Error('AI could not find a foreground subject in this image.');
-  if(bg===0)throw new Error('AI returned an all-foreground mask; retry Auto once.');
+  for(let i=0;i<mask.length;i+=13){
+    const v=mask[i];if(v<min)min=v;if(v>max)max=v;if(v>32)fg++;if(v<223)bg++;
+  }
+  if(max-min<18)throw new Error('AI mask was nearly constant');
+  if(fg===0)throw new Error('AI could not find a foreground subject');
+  if(bg===0)throw new Error('AI returned an all-foreground mask');
   return mask;
 }
 
 function pickMaskOutput(outputs,names,size){
   const wanted=size*size;
-  // Prefer known fused output names, then choose the first tensor with enough pixels.
   for(const name of ['output_image','d0',names?.[0]]){
     if(name&&outputs[name]?.data?.length>=wanted)return outputs[name].data;
   }
@@ -260,5 +211,5 @@ function bitmapToTensor(bitmap,size,kind){
     out[n+i]=(((data[j+1]/255)*extraScale)-mean[1])/std[1];
     out[n*2+i]=(((data[j+2]/255)*extraScale)-mean[2])/std[2];
   }
-  return {tensor:out};
+  return out;
 }
