@@ -1,4 +1,4 @@
-/* RIVANI Cutout Studio inference worker — V27.6 Mobile Precision
+/* RIVANI Cutout Studio inference worker — V27.8 Mobile Matte Fix
    Desktop: BiRefNet-lite 512 on WebGPU.
    Mobile-safe HQ: dynamic IS-Net q8 on WASM at 512/384.
    Final emergency fallback: U2NetP on WASM.
@@ -148,7 +148,9 @@ async function infer(bitmap,kind,id,inputSize){
     mask=decodeFast(raw,size);
   }
   mask=sanitizeMask(mask,size);
-  mask=polishMask(mask,size,kind);
+  // Keep desktop Precision exactly on the proven mask path. Extra matte polish is
+  // mobile/safety-only so PC quality is not changed by the mobile edge fix.
+  if(kind!=='precision')mask=polishMask(mask,size,kind);
   post(id,'progress',{value:94,title:'Running Cutout Guard…',text:'Checking edge confidence and transparent detail.',stage:'post'});
   return {
     mask,
@@ -183,18 +185,23 @@ function decodePrecision(raw,size){
 }
 
 function decodeMobile(raw,size){
+  // IS-Net emits sigmoid probabilities, but its reference/rembg post-process still
+  // min-max normalizes EACH image before producing the alpha matte. Skipping that
+  // when values already happened to be in 0..1 left a lifted background floor and
+  // caused the cyan/green soft halo visible on mobile cutouts.
   const mask=new Uint8ClampedArray(size*size);
   let lo=Infinity,hi=-Infinity;
   const n=Math.min(raw.length,mask.length);
   for(let i=0;i<n;i++){const v=Number(raw[i])||0;if(v<lo)lo=v;if(v>hi)hi=v;}
-  const normalized=lo>=-0.02&&hi<=1.02;
   const d=Math.max(1e-7,hi-lo);
   for(let i=0;i<mask.length;i++){
-    let v=Number(raw[i])||0;
-    if(!normalized)v=(v-lo)/d;
+    let v=((Number(raw[i])||0)-lo)/d;
     v=Math.max(0,Math.min(1,v));
-    // Very light smoothstep keeps hair alpha while suppressing weak background haze.
+    // Gentle S-curve after normalization: solid subject stays solid, true soft hair
+    // remains soft, while weak residual background probabilities collapse toward 0.
     v=v*v*(3-2*v);
+    if(v<0.018)v=0;
+    else if(v>0.992)v=1;
     mask[i]=Math.round(v*255);
   }
   return mask;
@@ -222,7 +229,7 @@ function polishMask(mask,size,kind){
   const src=mask;
   const n=src.length;
   const sharpened=new Uint8ClampedArray(n);
-  const strength=kind==='precision'?0.08:kind==='mobile'?0.20:0.24;
+  const strength=kind==='precision'?0:kind==='mobile'?0.24:0.24;
 
   // Conservative 3x3 alpha unsharp. This tightens shoulder/glasses boundaries
   // without turning the matte into a hard binary cutout.
@@ -240,7 +247,8 @@ function polishMask(mask,size,kind){
       const blur=sum/c;
       let v=a+(a-blur)*strength;
       if(v<10)v=0;
-      else if(v<34)v*=0.58; // suppress faint background fog
+      else if(v<30)v*=0.35; // suppress faint background fog after IS-Net min-max normalization
+      else if(kind==='mobile'&&v<58)v*=0.72;
       else if(v>248)v=255;
       sharpened[i]=Math.max(0,Math.min(255,Math.round(v)));
     }

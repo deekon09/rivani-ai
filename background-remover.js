@@ -90,7 +90,7 @@
     // Precision intentionally uses a separate WASM model so mobile GPU/JSEP hangs
     // cannot freeze the job at "Scanning subject".
     destroyWorker();
-    const w=new Worker('background-remover-worker.js?v=27.7-edge-rescue',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.8-mobile-matte',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -217,6 +217,9 @@
     afterCanvas.getContext('2d').drawImage(source,0,0);
     compareWrap.style.setProperty('--compare-position','50%');compareRange.value='50';
     resetResultState();
+    // Device-specific defaults are applied after each new file. Desktop receives
+    // the frozen V27.6 values; mobile receives the tighter matte defaults.
+    applyModePreset(state.mode,true);
     updateUsage();
   }
   function cleanupFile(){
@@ -270,6 +273,12 @@
     return {coverage:fg/mask.length*100,mean:sum/mask.length,min,max};
   }
 
+  function mobileMatteActive(){
+    // Desktop Precision is intentionally frozen on its proven V27.6 post-process.
+    // Only the mobile/safety engines receive the stronger matte rescue below.
+    return state.engine==='mobile'||state.engine==='fast'||(!state.engine&&IS_MOBILE);
+  }
+
   function estimateBackground(canvas){
     const ctx=canvas.getContext('2d',{willReadFrequently:true}),w=canvas.width,h=canvas.height;
     const s=Math.max(4,Math.round(Math.min(w,h)*.025));
@@ -283,9 +292,13 @@
   function applyModePreset(mode,quiet=false){
     state.mode=mode;
     modeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgMode===mode));
-    const preset={
-      auto:[32,-1,0.5,70],portrait:[20,0,0.5,75],product:[42,-1,0,68],glass:[6,2,1,28],logo:[55,-2,0,72]
-    }[mode]||[32,-1,0.5,70];
+    const desktop={
+      auto:[22,0,1,40],portrait:[12,1,1.5,42],product:[34,-1,0.5,50],glass:[5,3,1.5,20],logo:[48,-2,0,55]
+    };
+    const mobile={
+      auto:[34,-1,0.25,88],portrait:[26,-0.5,0.35,90],product:[44,-1.5,0.15,86],glass:[8,1,0.8,38],logo:[55,-2,0,88]
+    };
+    const preset=(mobileMatteActive()?mobile:desktop)[mode]||(mobileMatteActive()?mobile.auto:desktop.auto);
     [edgeClean.value,edgeShift.value,feather.value,decontam.value]=preset;
     syncSliderLabels();if(!quiet)scheduleRebuild();
   }
@@ -309,10 +322,57 @@
       v=.5+(v-center)*contrast;
       out[i]=Math.round(clamp(v*255));
     }
-    let refined=sourceGuidedEdgeRefine(out,w,h);
-    const f=Number(feather.value);
+
+    // PC Precision stays byte-for-byte equivalent to the proven V27.6 matte path.
+    if(!mobileMatteActive()){
+      const f=Number(feather.value);
+      return f>0.01?blurMask(out,w,h,f):out;
+    }
+
+    let refined=mobileMaskCleanup(out,w,h);
+    const f=Math.min(Number(feather.value),state.mode==='glass'?1:0.65);
     if(f>0.01)refined=blurMask(refined,w,h,f);
-    return refined;
+    return mobileSoftBandTighten(refined,w,h);
+  }
+
+  function mobileMaskCleanup(mask,w,h){
+    let refined=sourceGuidedEdgeRefine(mask,w,h);
+    const src=refined,out=refined.slice();
+    for(let y=1;y<h-1;y++){
+      for(let x=1;x<w-1;x++){
+        const i=y*w+x,a=src[i];
+        if(a===0||a===255)continue;
+        let nmax=0,nmin=255,strong=0;
+        for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){
+          if(!xx&&!yy)continue;const v=src[i+yy*w+xx];if(v>nmax)nmax=v;if(v<nmin)nmin=v;if(v>180)strong++;
+        }
+        let v=a;
+        // Broad weak bands are background haze, not useful soft hair. Real hair alpha
+        // normally touches a much stronger neighbouring subject pixel.
+        if(v<24)v=0;
+        else if(v<72&&nmax<150)v*=0.16;
+        else if(v<105&&nmax<175)v*=0.48;
+        else if(v<135&&strong===0)v*=0.72;
+        if(nmax-nmin<12&&v<58)v*=0.25;
+        if(v>249)v=255;
+        out[i]=Math.round(clamp(v));
+      }
+    }
+    return out;
+  }
+
+  function mobileSoftBandTighten(mask,w,h){
+    if(state.mode==='glass')return mask;
+    const out=mask.slice();
+    for(let i=0;i<out.length;i++){
+      let v=out[i];
+      if(v<10)v=0;
+      else if(v<34)v*=0.34;
+      else if(v<58)v*=0.72;
+      else if(v>250)v=255;
+      out[i]=Math.round(v);
+    }
+    return out;
   }
 
   function getMaskGuide(w,h){
@@ -325,13 +385,10 @@
   }
 
   function sourceGuidedEdgeRefine(mask,w,h){
-    // Recover one-pixel hair/glasses detail only next to an existing AI edge,
-    // while suppressing pixels whose color still looks like the old background.
-    // This never invents a new distant foreground region.
     if(!state.sourceCanvas||state.mode==='glass')return mask;
     const rgb=getMaskGuide(w,h),src=mask,out=mask.slice();
-    const recoverThreshold=state.mode==='portrait'?34:state.mode==='product'||state.mode==='logo'?52:42;
-    const suppressThreshold=state.mode==='portrait'?30:38;
+    const recoverThreshold=state.mode==='portrait'?40:state.mode==='product'||state.mode==='logo'?58:48;
+    const suppressThreshold=state.mode==='portrait'?42:48;
     for(let y=2;y<h-2;y++){
       for(let x=2;x<w-2;x++){
         const i=y*w+x,a=src[i];
@@ -339,12 +396,12 @@
         for(let yy=-1;yy<=1;yy++)for(let xx=-1;xx<=1;xx++){
           if(!xx&&!yy)continue;const v=src[i+yy*w+xx];if(v>nmax)nmax=v;if(v<nmin)nmin=v;
         }
-        if(nmax-nmin<34&&!(a>10&&a<235))continue;
+        if(nmax-nmin<28&&!(a>8&&a<232))continue;
 
         let br=0,bg=0,bb=0,bn=0;
         for(let yy=-2;yy<=2;yy+=2){
           for(let xx=-2;xx<=2;xx+=2){
-            if(!xx&&!yy)continue;const ni=i+yy*w+xx;if(src[ni]>26)continue;const j=ni*4;br+=rgb[j];bg+=rgb[j+1];bb+=rgb[j+2];bn++;
+            if(!xx&&!yy)continue;const ni=i+yy*w+xx;if(src[ni]>32)continue;const j=ni*4;br+=rgb[j];bg+=rgb[j+1];bb+=rgb[j+2];bn++;
           }
         }
         if(!bn)continue;
@@ -353,16 +410,19 @@
         const dist=Math.sqrt(dr*dr+dg*dg+db*db);
 
         let v=a;
-        if(a<150&&nmax>145&&dist>recoverThreshold){
-          const confidence=Math.min(1,(dist-recoverThreshold)/92);
-          const target=Math.min(198,nmax*(0.30+0.48*confidence));
+        // Rescue a thin high-contrast strand/frame only when it is immediately
+        // connected to the AI subject. Never grow foreground into a distant region.
+        if(a<145&&nmax>165&&dist>recoverThreshold){
+          const confidence=Math.min(1,(dist-recoverThreshold)/105);
+          const target=Math.min(205,nmax*(0.26+0.46*confidence));
           v=Math.max(v,target*confidence);
         }
-        if(a<205&&dist<suppressThreshold){
+        // If an uncertain pixel still matches the nearby old background, collapse it.
+        if(a<215&&dist<suppressThreshold){
           const closeness=1-dist/Math.max(1,suppressThreshold);
-          v*=1-closeness*(state.mode==='portrait'?0.72:0.82);
+          v*=1-closeness*0.90;
         }
-        if(v<9)v=0;else if(v>249)v=255;
+        if(v<8)v=0;else if(v>250)v=255;
         out[i]=Math.round(clamp(v));
       }
     }
@@ -391,7 +451,69 @@
   }
   function fullMaskCanvas(){
     const small=maskCanvas();const full=document.createElement('canvas');full.width=state.outW;full.height=state.outH;
-    const x=full.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(small,0,0,full.width,full.height);return full;
+    const x=full.getContext('2d',{willReadFrequently:mobileMatteActive()});x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(small,0,0,full.width,full.height);
+    if(mobileMatteActive())refineMobileFullMask(full);
+    return full;
+  }
+
+  function refineMobileFullMask(full){
+    // The AI matte is 512/384px while phone photos are usually much larger. A plain
+    // bilinear upscale creates the visible cyan soft ring. Refine ONLY the uncertain
+    // full-resolution edge band against source-image color, leaving the solid core
+    // untouched. Keep the work bounded so large mobile photos do not run out of RAM.
+    const w=full.width,h=full.height,pixels=w*h;
+    if(!state.sourceCanvas||pixels>4800000||state.mode==='glass')return;
+    const mx=full.getContext('2d',{willReadFrequently:true});
+    const md=mx.getImageData(0,0,w,h),m=md.data;
+    const src=state.sourceCanvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
+    const originalAlpha=new Uint8ClampedArray(pixels);
+    for(let i=0,j=3;i<pixels;i++,j+=4)originalAlpha[i]=m[j];
+    const alpha=originalAlpha,out=originalAlpha.slice();
+    const radii=[2,4,7];
+    for(let y=2;y<h-2;y++){
+      for(let x0=2;x0<w-2;x0++){
+        const idx=y*w+x0,a=alpha[idx];
+        if(a<=4||a>=251)continue;
+        const gx=alpha[idx+1]-alpha[idx-1],gy=alpha[idx+w]-alpha[idx-w];
+        const mag=Math.abs(gx)+Math.abs(gy);
+        if(mag<16){if(a<28)out[idx]=0;continue;}
+        const dx=gx>6?1:gx<-6?-1:0,dy=gy>6?1:gy<-6?-1:0;
+        if(!dx&&!dy)continue;
+        let bi=-1,fi=-1;
+        for(const r of radii){
+          if(bi<0){const bx=x0-dx*r,by=y-dy*r;if(bx>=0&&by>=0&&bx<w&&by<h){const ii=by*w+bx;if(alpha[ii]<72)bi=ii;}}
+          if(fi<0){const fx=x0+dx*r,fy=y+dy*r;if(fx>=0&&fy>=0&&fx<w&&fy<h){const ii=fy*w+fx;if(alpha[ii]>205)fi=ii;}}
+          if(bi>=0&&fi>=0)break;
+        }
+        if(bi<0)continue;
+        const cj=idx*4,bj=bi*4;
+        const c0=src[cj],c1=src[cj+1],c2=src[cj+2];
+        const b0=src[bj],b1=src[bj+1],b2=src[bj+2];
+        const db=Math.hypot(c0-b0,c1-b1,c2-b2);
+        let nv=a;
+        if(db<15&&a<220)nv*=0.08;
+        else if(db<25&&a<190)nv*=0.30;
+        else if(db<38&&a<150)nv*=0.60;
+
+        if(fi>=0){
+          const fj=fi*4,f0=src[fj],f1=src[fj+1],f2=src[fj+2];
+          const vx=f0-b0,vy=f1-b1,vz=f2-b2,den=vx*vx+vy*vy+vz*vz;
+          if(den>625){
+            const est=Math.max(0,Math.min(1,((c0-b0)*vx+(c1-b1)*vy+(c2-b2)*vz)/den))*255;
+            const sep=Math.min(1,(Math.sqrt(den)-25)/70);
+            const trust=0.18+0.42*sep;
+            // Strongly reduce background-like pixels, but only gently recover a
+            // strand so the source-guided pass cannot invent a fat outline.
+            if(est<nv)nv=nv*(1-trust)+est*trust;
+            else if(est>nv&&nv>18)nv=nv*(1-trust*.28)+est*(trust*.28);
+          }
+        }
+        if(nv<7)nv=0;else if(nv>250)nv=255;
+        out[idx]=Math.round(clamp(nv));
+      }
+    }
+    for(let i=0,j=3;i<pixels;i++,j+=4)m[j]=out[i];
+    mx.putImageData(md,0,0);
   }
 
   async function rebuildAll(){
@@ -407,68 +529,62 @@
     const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(state.sourceCanvas,0,0);
     const m=fullMaskCanvas();x.globalCompositeOperation='destination-in';x.drawImage(m,0,0);x.globalCompositeOperation='source-over';
     const amount=Number(decontam.value)/100;
-    if(amount>.01)applyLocalEdgeDecontamination(c,m,amount);
+    if(amount>.01){
+      if(mobileMatteActive())applyMobileEdgeDecontamination(c,m,amount);
+      else if(state.bgEstimate.variance<80)applyDesktopDecontamination(c,amount);
+    }
     return c;
   }
 
-  function applyLocalEdgeDecontamination(subject,fullMask,amount){
+  function applyDesktopDecontamination(c,amount){
+    // Frozen V27.6 desktop behaviour.
+    const x=c.getContext('2d',{willReadFrequently:true}),img=x.getImageData(0,0,c.width,c.height),p=img.data,bg=state.bgEstimate.rgb;
+    for(let i=0;i<p.length;i+=4){const a=p[i+3]/255;if(a<.04||a>.96)continue;const strength=amount*(1-a)*Math.max(0,1-state.bgEstimate.variance/100)*.72;if(strength<=.01)continue;const den=Math.max(.12,a);for(let k=0;k<3;k++){const corrected=clamp((p[i+k]-bg[k]*(1-a))/den);p[i+k]=Math.round(p[i+k]*(1-strength)+corrected*strength);}}
+    x.putImageData(img,0,0);
+  }
+
+  function applyMobileEdgeDecontamination(subject,fullMask,amount){
     const w=subject.width,h=subject.height,pixels=w*h;
     const sx=subject.getContext('2d',{willReadFrequently:true});
-    // Avoid allocating several huge RGBA buffers on very large mobile originals.
-    const localLimit=IS_MOBILE?6500000:16000000;
-    if(pixels>localLimit){
-      const img=sx.getImageData(0,0,w,h),p=img.data,bg=state.bgEstimate.rgb;
-      for(let i=0;i<p.length;i+=4){
-        const a=p[i+3]/255;if(a<.06||a>.94)continue;
-        const strength=amount*(1-a)*.34,den=Math.max(.18,a);
-        for(let k=0;k<3;k++){const corrected=clamp((p[i+k]-bg[k]*(1-a))/den);p[i+k]=Math.round(p[i+k]*(1-strength)+corrected*strength);}
-      }
+    const img=sx.getImageData(0,0,w,h),p=img.data;
+    const ma=fullMask.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
+    // For very large originals use the conservative global unmix path to stay stable.
+    if(pixels>5200000){
+      const bg=state.bgEstimate.rgb;
+      for(let i=0;i<p.length;i+=4){const a=p[i+3]/255;if(a<.04||a>.90)continue;const strength=amount*(1-a)*.48,den=Math.max(.16,a);for(let k=0;k<3;k++){const corrected=clamp((p[i+k]-bg[k]*(1-a))/den);p[i+k]=Math.round(p[i+k]*(1-strength)+corrected*strength);}}
       sx.putImageData(img,0,0);return;
     }
 
     const src=state.sourceCanvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
-    const img=sx.getImageData(0,0,w,h),p=img.data;
-    const ma=fullMask.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
-    const globalBg=state.bgEstimate.rgb;
-    const step=Math.max(1,Math.round(Math.min(w,h)/720));
-    const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]];
-
-    for(let y=0;y<h;y++){
-      for(let x0=0;x0<w;x0++){
-        const pi=(y*w+x0)*4,a=p[pi+3]/255;
-        if(a<.025||a>.965)continue;
-        let br=0,bg=0,bb=0,bn=0,bestA=255;
-        for(const radius of [2*step,4*step]){
-          for(const [dx,dy] of dirs){
-            const nx=x0+dx*radius,ny=y+dy*radius;if(nx<0||ny<0||nx>=w||ny>=h)continue;
-            const ni=(ny*w+nx)*4,na=ma[ni+3];
-            if(na>72||na>bestA+20)continue;
-            bestA=na;br+=src[ni];bg+=src[ni+1];bb+=src[ni+2];bn++;
-          }
-          if(bn>=2)break;
+    const alpha=new Uint8ClampedArray(pixels);for(let i=0,j=3;i<pixels;i++,j+=4)alpha[i]=ma[j];
+    const radii=[2,4,7,10];
+    for(let y=2;y<h-2;y++){
+      for(let x0=2;x0<w-2;x0++){
+        const idx=y*w+x0,a=alpha[idx]/255;
+        if(a<.035||a>.90)continue;
+        const gx=alpha[idx+1]-alpha[idx-1],gy=alpha[idx+w]-alpha[idx-w];
+        const dx=gx>5?1:gx<-5?-1:0,dy=gy>5?1:gy<-5?-1:0;if(!dx&&!dy)continue;
+        let fi=-1,bi=-1;
+        for(const r of radii){
+          if(fi<0){const fx=x0+dx*r,fy=y+dy*r;if(fx>=0&&fy>=0&&fx<w&&fy<h){const ii=fy*w+fx;if(alpha[ii]>225)fi=ii;}}
+          if(bi<0){const bx=x0-dx*r,by=y-dy*r;if(bx>=0&&by>=0&&bx<w&&by<h){const ii=by*w+bx;if(alpha[ii]<45)bi=ii;}}
+          if(fi>=0&&bi>=0)break;
         }
-        if(bn){br/=bn;bg/=bn;bb/=bn;}else{br=globalBg[0];bg=globalBg[1];bb=globalBg[2];}
-
-        const sr=src[pi],sg=src[pi+1],sb=src[pi+2];
-        const dr=sr-br,dg=sg-bg,db=sb-bb,dist=Math.sqrt(dr*dr+dg*dg+db*db);
-        // Pixels still very similar to the sampled old background are residual halo/haze.
-        if(a<.78&&dist<58){
-          const closeness=1-dist/58;
-          const reduce=amount*closeness*(1-a)*.92;
-          p[pi+3]=Math.round(p[pi+3]*(1-reduce));
+        if(fi<0)continue;
+        const pi=idx*4,fj=fi*4;
+        let strength=amount*(1-a)*0.78;
+        if(bi>=0){
+          const bj=bi*4;
+          const db=Math.hypot(src[pi]-src[bj],src[pi+1]-src[bj+1],src[pi+2]-src[bj+2]);
+          const df=Math.hypot(src[pi]-src[fj],src[pi+1]-src[fj+1],src[pi+2]-src[fj+2]);
+          // More aggressive only where the edge color is visibly closer to the old
+          // background than to the solid subject interior.
+          if(db<df)strength*=1.24;else strength*=0.72;
         }
-
-        const currentA=Math.max(.08,p[pi+3]/255);
-        const edgeWeight=Math.min(1,(1-currentA)*1.55);
-        const recoverStrength=amount*edgeWeight*(bn?0.78:0.34);
-        if(recoverStrength>.015&&currentA>.10){
-          const den=Math.max(.16,currentA);
-          const bgWeight=1-currentA;
-          const cr=clamp((sr-br*bgWeight)/den),cg=clamp((sg-bg*bgWeight)/den),cb=clamp((sb-bb*bgWeight)/den);
-          p[pi]=Math.round(p[pi]*(1-recoverStrength)+cr*recoverStrength);
-          p[pi+1]=Math.round(p[pi+1]*(1-recoverStrength)+cg*recoverStrength);
-          p[pi+2]=Math.round(p[pi+2]*(1-recoverStrength)+cb*recoverStrength);
-        }
+        strength=Math.min(.88,strength);
+        p[pi]=Math.round(p[pi]*(1-strength)+src[fj]*strength);
+        p[pi+1]=Math.round(p[pi+1]*(1-strength)+src[fj+1]*strength);
+        p[pi+2]=Math.round(p[pi+2]*(1-strength)+src[fj+2]*strength);
       }
     }
     sx.putImageData(img,0,0);
@@ -637,5 +753,5 @@
   undoBrush.addEventListener('click',()=>{if(state.undoMask){const tmp=state.mask;state.mask=state.undoMask;state.undoMask=tmp;scheduleRebuild();}});resetMask.addEventListener('click',()=>{if(state.baseMask){state.undoMask=state.mask?.slice();state.mask=state.baseMask.slice();state.selectedComponent='all';subjectButtons.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active',i===0));scheduleRebuild();}});
   canvasPreset.addEventListener('change',()=>{});padding.addEventListener('input',syncSliderLabels);downloadBtn.addEventListener('click',exportResult);
   window.addEventListener('beforeunload',()=>{cleanupFile();try{state.customBgBitmap?.close?.();}catch(_e){}destroyWorker();});
-  syncSliderLabels();updateUsage();
+  applyModePreset(state.mode,true);updateUsage();
 })();
