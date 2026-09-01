@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#030616">
+  <meta name="description" content="Remove image backgrounds locally with RIVANI Cutout Studio, precision alpha edges, manual refine controls and transparent exports.">
+  <title>Background Remover — RIVANI AI</title>
+  <link rel="stylesheet" href="styles.css?v=26.3-precision">
+  <link rel="stylesheet" href="background-remover.css?v=27.0-cutout">
+</head>
+<body class="bg-remover-page">
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+  <header class="site-header"><div class="container nav-wrap">
+    <a class="brand" href="index.html" aria-label="RIVANI AI home"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"></a>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav class="main-nav" id="mainNav" aria-label="Primary navigation"><a href="index.html">Home</a><a class="active" href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a></nav>
+    <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+  </div></header>
+
+  <main>
+    <section class="bg-hero section">
+      <div class="container bg-hero-grid">
+        <div class="reveal">
+          <div class="bg-badges"><span class="status-pill">LIVE · FREE</span><span class="bg-private-chip">◆ Image stays on your device</span></div>
+          <span class="section-kicker">RIVANI CUTOUT STUDIO</span>
+          <h1>Clean cutouts.<br><span>Hard edges included.</span></h1>
+          <p>Background removal with soft-alpha hair handling, transparent-object presets, edge cleanup, manual refine brushes, Cutout Guard and full-resolution exports.</p>
+          <div class="bg-hero-points"><span>✓ No watermark</span><span>✓ Full-quality controls on Free</span><span>✓ 9 successful removals/day</span><span>✓ Transparent PNG / WebP / mask export</span></div>
+        </div>
+        <div class="bg-trust-card reveal delay-1">
+          <span class="section-kicker">CUTOUT GUARD</span>
+          <strong>Remove the background.<br>Inspect the difficult edge.</strong>
+          <div class="bg-trust-grid"><div><b>Hair / Fur</b><span>Soft alpha</span></div><div><b>Glass</b><span>Preserved</span></div><div><b>Logo / Text</b><span>Hard edge</span></div><div><b>Manual repair</b><span>Included</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section bg-workspace-section"><div class="container">
+      <div class="bg-workspace-grid">
+        <aside class="bg-panel bg-left-panel reveal">
+          <div class="bg-panel-head"><span class="section-kicker">CUTOUT CONTROL</span><h2>Background Remover</h2><p>All quality controls are Free. Pro only removes the daily usage cap.</p></div>
+
+          <div class="bg-control-block"><label for="bgEngineSelect">Cutout engine · Free</label><select id="bgEngineSelect"><option value="auto" selected>Auto · Recommended</option><option value="precision">Precision · Best edges</option><option value="fast">Fast · Compatibility</option></select><small>Precision uses your GPU when supported. Auto safely falls back instead of failing.</small></div>
+
+          <div class="bg-control-block"><label>Subject preset · Free</label><div class="bg-segmented" id="bgModeGroup"><button class="active" data-bg-mode="auto" type="button"><b>Auto</b><small>General</small></button><button data-bg-mode="portrait" type="button"><b>Hair</b><small>Portrait / fur</small></button><button data-bg-mode="product" type="button"><b>Product</b><small>Clean edge</small></button><button data-bg-mode="glass" type="button"><b>Glass</b><small>Soft alpha</small></button><button data-bg-mode="logo" type="button"><b>Logo</b><small>Text / graphic</small></button></div></div>
+
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Edge precision</label><span>FREE</span></div>
+            <div class="bg-slider"><div><span>Edge Clean</span><b id="bgEdgeCleanValue">22%</b></div><input id="bgEdgeClean" type="range" min="0" max="100" step="1" value="22"><small>Strengthens uncertain boundaries without changing source geometry.</small></div>
+            <div class="bg-slider"><div><span>Expand / Contract</span><b id="bgEdgeShiftValue">0</b></div><input id="bgEdgeShift" type="range" min="-10" max="10" step="1" value="0"><small>Positive keeps more fringe detail; negative tightens the cutout.</small></div>
+            <div class="bg-slider"><div><span>Feather</span><b id="bgFeatherValue">1px</b></div><input id="bgFeather" type="range" min="0" max="6" step="0.5" value="1"><small>Softens the alpha boundary for hair, fur and translucent edges.</small></div>
+            <div class="bg-slider"><div><span>Edge Decontaminate</span><b id="bgDecontamValue">35%</b></div><input id="bgDecontam" type="range" min="0" max="100" step="5" value="35"><small>Reduces old-background color spill on semi-transparent edge pixels.</small></div>
+          </div>
+
+          <button class="btn btn-primary bg-remove-btn" id="bgRemoveBtn" type="button" disabled><span>✦</span> Remove Background →</button>
+          <div class="bg-usage-card"><div><b>Free plan</b><span id="bgUsageText">Sign in to start removing backgrounds.</span></div><button id="bgUsageProBtn" type="button">Go Pro</button></div>
+          <div class="bg-local-note">Your image pixels are not uploaded. RIVANI downloads the cutout model, then inference runs in your browser.</div>
+        </aside>
+
+        <section class="bg-main reveal delay-1">
+          <div class="bg-drop-zone" id="bgDropZone"><input id="bgFileInput" type="file" accept="image/*,.heic,.heif" hidden><div class="bg-drop-icon">◫</div><span class="section-kicker">UPLOAD IMAGE</span><h2>Drop an image here</h2><p>JPG, PNG, WebP, AVIF and other browser-supported images · drag, paste or choose</p><button class="btn btn-secondary bg-accent-btn" id="bgChooseBtn" type="button">Choose Image</button><small>Large images use a device-safe working size instead of crashing the browser.</small></div>
+
+          <div class="bg-editor hidden" id="bgEditor">
+            <div class="bg-file-bar"><div><strong id="bgFileName">image.jpg</strong><span id="bgFileMeta">1920 × 1080</span></div><button id="bgReplaceBtn" type="button">Replace</button></div>
+            <div class="bg-stage-shell">
+              <div class="bg-stage" id="bgStage">
+                <div class="bg-compare" id="bgCompareWrap" style="--compare-position:50%">
+                  <canvas id="bgBeforeCanvas" aria-label="Original image"></canvas>
+                  <div class="bg-after-clip"><canvas id="bgAfterCanvas" aria-label="Background removed result"></canvas></div>
+                  <span class="bg-compare-label before"><b>Before</b><small>Original</small></span><span class="bg-compare-label after"><b>After</b><small>Cutout</small></span>
+                  <div class="bg-compare-line"><span>↔</span></div><input id="bgCompareRange" class="bg-compare-range" type="range" min="0" max="100" value="50" aria-label="Compare before and after">
+                </div>
+                <canvas id="bgBrushOverlay" class="bg-brush-overlay hidden"></canvas>
+                <div class="bg-processing-overlay hidden" id="bgProcessingOverlay">
+                  <div class="bg-processing-orb" aria-hidden="true"><img src="assets/rivani-r-mark.png" alt=""></div>
+                  <strong id="bgProcessingTitle">Preparing cutout engine…</strong><p id="bgProcessingText">Your image remains on this device.</p>
+                  <div class="bg-progress-track"><span id="bgProgressFill"></span></div><div class="bg-progress-meta"><span id="bgProgressPercent">0%</span><span id="bgProviderText">RIVANI Cutout Engine</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-scan-card"><div class="bg-section-title"><div><span class="section-kicker">SMART SUBJECT SCAN</span><h3>What RIVANI sees</h3></div><span class="bg-live-chip">LOCAL</span></div><div class="bg-scan-grid" id="bgScanGrid"><div><b>Subject</b><span>Waiting</span></div><div><b>Edges</b><span>Waiting</span></div><div><b>Background</b><span>Waiting</span></div><div><b>Engine</b><span>Auto</span></div></div></div>
+
+            <div class="bg-subject-picker hidden" id="bgSubjectPicker"><div><span class="section-kicker">MULTI-SUBJECT</span><h3>Choose what stays</h3><p id="bgSubjectSummary">1 main subject found</p></div><div id="bgSubjectButtons" class="bg-subject-buttons"></div></div>
+
+            <div class="bg-guard hidden" id="bgGuardCard"><div class="bg-guard-score"><b id="bgGuardScore">92%</b><span>Edge confidence</span></div><div><span class="section-kicker">CUTOUT GUARD</span><h3 id="bgGuardTitle">Clean cutout</h3><p id="bgGuardCopy">RIVANI checked the alpha edge.</p></div><div class="bg-hard-edge"><canvas id="bgHardEdgeCanvas"></canvas><small id="bgHardEdgeLabel">Hardest edge</small></div></div>
+
+            <div class="bg-result-bar"><span id="bgResultMeta">Run Remove Background to create a transparent cutout.</span><button class="btn btn-secondary hidden" id="bgNewImageBtn" type="button">Remove Another Image</button></div>
+          </div>
+        </section>
+
+        <aside class="bg-panel bg-right-panel reveal delay-2">
+          <div class="bg-panel-head"><span class="section-kicker">FINISH & EXPORT</span><h2>Cutout Studio</h2><p>Change backgrounds and repair the alpha mask without rerunning AI.</p></div>
+
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Background</label><span>FREE</span></div><div class="bg-background-grid" id="bgBackgroundGroup"><button class="active" data-bg-background="transparent" type="button"><i class="checker"></i><b>Transparent</b></button><button data-bg-background="white" type="button"><i class="white"></i><b>White</b></button><button data-bg-background="black" type="button"><i class="black"></i><b>Black</b></button><button data-bg-background="blur" type="button"><i class="blur"></i><b>Blur</b></button><button data-bg-background="gradient" type="button"><i class="gradient"></i><b>Studio</b></button><button data-bg-background="custom" type="button"><i class="custom"></i><b>Color</b></button></div><div class="bg-color-row"><input id="bgCustomColor" type="color" value="#f4f5fa"><button id="bgCustomBackgroundBtn" type="button">Custom image</button><input id="bgCustomBackgroundInput" type="file" accept="image/*" hidden></div></div>
+
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Shadow Studio</label><span>FREE</span></div><button class="bg-toggle" id="bgShadowToggle" type="button" aria-pressed="false"><span><b>Studio Shadow</b><small>Generate a soft contact-style shadow from the verified cutout.</small></span><i></i></button><div class="bg-slider"><div><span>Shadow strength</span><b id="bgShadowStrengthValue">45%</b></div><input id="bgShadowStrength" type="range" min="0" max="100" step="5" value="45"></div></div>
+
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Manual edge repair</label><span>FREE</span></div><button class="bg-tool-btn" id="bgBrushToggle" type="button" disabled><span><b>Refine Brush</b><small>Erase leftover background or restore subject pixels directly on the alpha mask.</small></span><em>REFINE</em></button><div class="bg-brush-controls hidden" id="bgBrushControls"><div class="bg-brush-modes"><button class="active" id="bgEraseBrush" type="button">Erase</button><button id="bgRestoreBrush" type="button">Restore</button></div><div class="bg-slider"><div><span>Brush size</span><b id="bgBrushSizeValue">42px</b></div><input id="bgBrushSize" type="range" min="8" max="120" step="2" value="42"></div><div class="bg-inline-actions"><button id="bgUndoBrush" type="button">Undo</button><button id="bgResetMask" type="button">Reset AI mask</button></div></div></div>
+
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Product canvas</label><span>FREE</span></div><select id="bgCanvasPreset"><option value="original" selected>Original frame</option><option value="square">1:1 Square · center subject</option><option value="45">4:5 Portrait · center subject</option><option value="169">16:9 Landscape · center subject</option></select><div class="bg-slider"><div><span>Subject padding</span><b id="bgPaddingValue">8%</b></div><input id="bgPadding" type="range" min="0" max="25" step="1" value="8"></div><small>Canvas presets apply when downloading. RIVANI uses the actual alpha bounds to center the subject.</small></div>
+
+          <div class="bg-control-block"><div class="bg-free-heading"><label>Export</label><span>FREE</span></div><select id="bgExportType"><option value="subject-png" selected>Transparent PNG · Master</option><option value="subject-webp">Transparent WebP · Smaller</option><option value="composite-jpeg">Composite JPEG · Background applied</option><option value="mask">Alpha Mask PNG</option><option value="shadow">Shadow Layer PNG</option><option value="pack">Asset Pack ZIP · Cutout + mask + shadow</option></select><select id="bgExportQuality"><option value="standard">Standard · Smallest</option><option value="high" selected>High · Recommended</option><option value="max">Max · Largest</option></select><button class="btn btn-primary bg-download-btn" id="bgDownloadBtn" type="button" disabled>Download →</button></div>
+        </aside>
+      </div>
+
+      <section class="bg-feature-strip reveal"><article><span>01</span><div><b>Precision + Fast engines</b><small>GPU-first high-detail matting with a portable browser fallback.</small></div></article><article><span>02</span><div><b>Cutout Guard</b><small>Shows edge confidence and the hardest alpha region instead of hiding uncertainty.</small></div></article><article><span>03</span><div><b>Full repair workflow</b><small>Multi-subject selection, erase/restore brush, backgrounds, shadow, mask and asset-pack exports.</small></div></article></section>
+    </div></section>
+  </main>
+
+  <div class="bg-pro-modal hidden" id="bgProModal" role="dialog" aria-modal="true" aria-labelledby="bgProModalTitle"><div class="bg-pro-backdrop" data-close-bg-pro></div><div class="bg-pro-card"><button class="bg-pro-close" type="button" data-close-bg-pro aria-label="Close">×</button><span class="section-kicker">RIVANI PRO</span><h2 id="bgProModalTitle">Unlimited background removal</h2><p id="bgProModalCopy">Free includes 9 successful removals per day with all Cutout Studio quality controls.</p><div class="bg-pro-price"><strong>₹499<span>/month</span></strong><small>Placeholder India price until billing is connected.</small></div><div class="bg-pro-note">Free quality is not reduced. Pro removes the daily cap and will later add high-volume workflow features.</div><button class="btn btn-primary" id="bgProBuyBtn" type="button">Purchase RIVANI Pro →</button><button class="bg-pro-secondary" type="button" data-close-bg-pro>Not now</button></div></div>
+
+  <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
+  <script src="script.js?v=27.0-cutout"></script>
+  <script src="background-remover.js?v=27.0-cutout"></script>
+  <script type="module" src="auth-nav.js?v=26.3-auth"></script>
+</body>
+</html>

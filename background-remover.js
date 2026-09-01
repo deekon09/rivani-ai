@@ -1,0 +1,374 @@
+(() => {
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const FREE_DAILY=9;
+  const PRO_PRICE_INR=499;
+  const IS_MOBILE=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
+
+  const fileInput=$('bgFileInput'),chooseBtn=$('bgChooseBtn'),replaceBtn=$('bgReplaceBtn'),dropZone=$('bgDropZone');
+  const removeBtn=$('bgRemoveBtn'),usageText=$('bgUsageText'),usageProBtn=$('bgUsageProBtn');
+  const fileName=$('bgFileName'),fileMeta=$('bgFileMeta'),editor=$('bgEditor');
+  const stage=$('bgStage'),beforeCanvas=$('bgBeforeCanvas'),afterCanvas=$('bgAfterCanvas'),compareRange=$('bgCompareRange'),compareWrap=$('bgCompareWrap');
+  const processing=$('bgProcessingOverlay'),progressFill=$('bgProgressFill'),progressPct=$('bgProgressPercent'),processingTitle=$('bgProcessingTitle'),processingText=$('bgProcessingText'),providerText=$('bgProviderText');
+  const engineSelect=$('bgEngineSelect'),modeGroup=$('bgModeGroup');
+  const edgeClean=$('bgEdgeClean'),edgeCleanValue=$('bgEdgeCleanValue'),edgeShift=$('bgEdgeShift'),edgeShiftValue=$('bgEdgeShiftValue'),feather=$('bgFeather'),featherValue=$('bgFeatherValue'),decontam=$('bgDecontam'),decontamValue=$('bgDecontamValue');
+  const bgModeGroup=$('bgBackgroundGroup'),customColor=$('bgCustomColor'),customBgInput=$('bgCustomBackgroundInput'),customBgBtn=$('bgCustomBackgroundBtn');
+  const shadowToggle=$('bgShadowToggle'),shadowStrength=$('bgShadowStrength'),shadowStrengthValue=$('bgShadowStrengthValue');
+  const brushToggle=$('bgBrushToggle'),brushControls=$('bgBrushControls'),brushOverlay=$('bgBrushOverlay'),eraseBrush=$('bgEraseBrush'),restoreBrush=$('bgRestoreBrush'),brushSize=$('bgBrushSize'),brushSizeValue=$('bgBrushSizeValue'),undoBrush=$('bgUndoBrush'),resetMask=$('bgResetMask');
+  const subjectPicker=$('bgSubjectPicker'),subjectButtons=$('bgSubjectButtons'),subjectSummary=$('bgSubjectSummary');
+  const guardCard=$('bgGuardCard'),guardScore=$('bgGuardScore'),guardTitle=$('bgGuardTitle'),guardCopy=$('bgGuardCopy'),hardEdgeCanvas=$('bgHardEdgeCanvas'),hardEdgeLabel=$('bgHardEdgeLabel');
+  const scanGrid=$('bgScanGrid'),resultMeta=$('bgResultMeta');
+  const canvasPreset=$('bgCanvasPreset'),padding=$('bgPadding'),paddingValue=$('bgPaddingValue');
+  const exportType=$('bgExportType'),exportQuality=$('bgExportQuality'),downloadBtn=$('bgDownloadBtn'),newImageBtn=$('bgNewImageBtn');
+  const proModal=$('bgProModal'),proTitle=$('bgProModalTitle'),proCopy=$('bgProModalCopy'),proBuy=$('bgProBuyBtn');
+
+  const state={
+    file:null,url:'',bitmap:null,sourceCanvas:null,outW:0,outH:0,mask:null,baseMask:null,maskW:0,maskH:0,
+    effectiveMask:null,subjectCanvas:null,shadowCanvas:null,customBgBitmap:null,bgEstimate:{rgb:[255,255,255],variance:1},
+    engine:null,provider:null,inferenceMs:0,mode:'auto',bgMode:'transparent',shadow:false,brush:false,brushMode:'erase',
+    undoMask:null,components:null,selectedComponent:'all',hardEdge:null,worker:null,jobId:0,painting:false,renderTimer:null,
+  };
+
+  function isPro(){return String(window.RIVANI_LUKI_CONTEXT?.plan||'').toLowerCase()==='pro';}
+  function signedIn(){return !!window.RIVANI_LUKI_CONTEXT?.signedIn;}
+  function usageKey(){
+    const uid=window.RIVANI_LUKI_CONTEXT?.uid||'guest';
+    const d=new Date();const day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return `rivani:bgremove:${uid}:${day}`;
+  }
+  function usageCount(){return Math.max(0,Number(localStorage.getItem(usageKey())||0)||0);}
+  function incrementUsage(){if(!isPro())localStorage.setItem(usageKey(),String(usageCount()+1));updateUsage();}
+  function updateUsage(){
+    if(!usageText)return;
+    if(!signedIn()){usageText.textContent='Sign in to start removing backgrounds.';removeBtn.disabled=!state.file;return;}
+    if(isPro()){usageText.textContent='Pro · unlimited background removals';removeBtn.disabled=!state.file;return;}
+    const used=usageCount(),left=Math.max(0,FREE_DAILY-used);
+    usageText.textContent=left?`${left} of ${FREE_DAILY} removals left today`:'Daily limit reached · upgrade to Pro for unlimited removals';
+    removeBtn.disabled=!state.file||left<=0;
+  }
+  window.addEventListener('rivani:auth-context',updateUsage);
+  window.RIVANI_AUTH_READY?.then(updateUsage).catch(()=>{});
+
+  function openPro(title='Free daily limit reached',copy=`You used all ${FREE_DAILY} free background removals for today. Upgrade to RIVANI Pro for unlimited daily removals.`){
+    if(!proModal)return;
+    proTitle.textContent=title;proCopy.textContent=copy;proModal.classList.remove('hidden');document.body.style.overflow='hidden';
+  }
+  function closePro(){proModal?.classList.add('hidden');document.body.style.overflow='';}
+  document.querySelectorAll('[data-close-bg-pro]').forEach(el=>el.addEventListener('click',closePro));
+  usageProBtn?.addEventListener('click',()=>openPro('RIVANI Pro',`All Cutout Studio quality controls are included on Free. Free has ${FREE_DAILY} successful removals per day; Pro removes the daily cap. Secure checkout will connect here when billing is enabled.`));
+  proBuy?.addEventListener('click',()=>openPro('Pro checkout coming next',`RIVANI Pro is planned at ₹${PRO_PRICE_INR}/month in India. The purchase button is ready for the payment gateway; billing is not connected yet.`));
+
+  function setProgress(value,title,text,provider){
+    const v=Math.max(0,Math.min(100,Math.round(value||0)));
+    if(progressFill)progressFill.style.width=`${v}%`;if(progressPct)progressPct.textContent=`${v}%`;
+    if(title)processingTitle.textContent=title;if(text)processingText.textContent=text;if(provider)providerText.textContent=provider;
+  }
+  function showProcessing(on){processing?.classList.toggle('hidden',!on);document.body.classList.toggle('bg-processing',!!on);}
+
+  function makeWorker(){
+    if(state.worker)return state.worker;
+    const w=new Worker('background-remover-worker.js?v=27.0-cutout',{type:'module'});
+    w.addEventListener('message',onWorkerMessage);
+    state.worker=w;return w;
+  }
+  function onWorkerMessage(e){
+    const m=e.data||{};if(m.id!==state.jobId)return;
+    if(m.type==='progress'){setProgress(m.value,m.title,m.text,m.value<50?'Loading model':'RIVANI Cutout Engine');return;}
+    if(m.type==='error'){
+      showProcessing(false);setProgress(0);
+      alert(`Background removal failed: ${m.message}\n\nTry the Fast compatibility engine if the Precision engine is not stable on this device.`);
+      updateUsage();return;
+    }
+    if(m.type==='result'){
+      finishRemoval(m).catch(err=>{showProcessing(false);alert(`Could not build the cutout: ${err.message||err}`);});
+    }
+  }
+
+  function clamp(v,min=0,max=255){return Math.max(min,Math.min(max,v));}
+  function safeDimensions(w,h){
+    const maxMP=IS_MOBILE?20:48,maxDim=IS_MOBILE?6000:10000;
+    let scale=Math.min(1,maxDim/Math.max(w,h));
+    if((w*h*scale*scale)>maxMP*1e6)scale=Math.sqrt((maxMP*1e6)/(w*h));
+    return [Math.max(1,Math.round(w*scale)),Math.max(1,Math.round(h*scale)),scale];
+  }
+
+  async function loadFile(file){
+    if(!file||!file.type.startsWith('image/')){alert('Please choose a browser-supported image file.');return;}
+    cleanupFile();
+    const bitmap=await createImageBitmap(file);
+    const [w,h,scale]=safeDimensions(bitmap.width,bitmap.height);
+    const source=document.createElement('canvas');source.width=w;source.height=h;
+    const ctx=source.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(bitmap,0,0,w,h);
+    state.file=file;state.bitmap=bitmap;state.sourceCanvas=source;state.outW=w;state.outH=h;state.bgEstimate=estimateBackground(source);
+    state.url=URL.createObjectURL(file);
+    fileName.textContent=file.name||'image';
+    const sizeMB=(file.size/1048576).toFixed(file.size>10*1048576?1:2);
+    fileMeta.textContent=`${bitmap.width} × ${bitmap.height} · ${sizeMB} MB${scale<0.999?` · working ${w} × ${h}`:''}`;
+    editor.classList.remove('hidden');dropZone.classList.add('hidden');compareWrap.classList.remove('hidden');
+    stage.style.setProperty('--bg-aspect',`${w}/${h}`);
+    beforeCanvas.width=w;beforeCanvas.height=h;afterCanvas.width=w;afterCanvas.height=h;
+    beforeCanvas.getContext('2d').drawImage(source,0,0);
+    afterCanvas.getContext('2d').drawImage(source,0,0);
+    compareWrap.style.setProperty('--compare-position','50%');compareRange.value='50';
+    resetResultState();
+    updateUsage();
+  }
+  function cleanupFile(){
+    if(state.url)URL.revokeObjectURL(state.url);state.url='';
+    try{state.bitmap?.close?.();}catch(_e){}
+    state.bitmap=null;
+  }
+  function resetResultState(){
+    state.mask=state.baseMask=state.effectiveMask=state.subjectCanvas=state.shadowCanvas=null;state.components=null;state.selectedComponent='all';state.undoMask=null;state.engine=null;
+    subjectPicker?.classList.add('hidden');guardCard?.classList.add('hidden');resultMeta.textContent='Run Remove Background to create a transparent cutout.';
+    downloadBtn.disabled=true;newImageBtn.classList.add('hidden');brushToggle.disabled=true;brushControls.classList.add('hidden');brushOverlay.classList.add('hidden');
+    scanGrid.innerHTML='<div><b>Subject</b><span>Waiting</span></div><div><b>Edges</b><span>Waiting</span></div><div><b>Background</b><span>Waiting</span></div><div><b>Engine</b><span>Auto</span></div>';
+  }
+
+  async function startRemoval(){
+    if(!state.file)return;
+    const ok=await window.RIVANI_REQUIRE_AUTH?.({tool:'Background Remover'});
+    if(ok===false)return;
+    if(!isPro()&&usageCount()>=FREE_DAILY){openPro();updateUsage();return;}
+    const worker=makeWorker();state.jobId++;
+    showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.','RIVANI Cutout Engine');
+    const bitmap=await createImageBitmap(state.file);
+    const chosen=engineSelect.value||'auto';
+    worker.postMessage({type:'remove',id:state.jobId,bitmap,engine:chosen},[bitmap]);
+  }
+
+  async function finishRemoval(m){
+    state.mask=new Uint8ClampedArray(m.mask);state.baseMask=state.mask.slice();state.maskW=m.maskWidth;state.maskH=m.maskHeight;
+    state.engine=m.engine;state.provider=m.provider;state.inferenceMs=m.inferenceMs||0;
+    state.components=detectComponents(state.baseMask,state.maskW,state.maskH);renderSubjectPicker();
+    await rebuildAll();
+    updateGuard();updateScan();
+    setProgress(100,'Cutout ready','Background removed. Use Refine if an edge needs manual correction.',m.provider==='WebGPU'?'GPU accelerated':'Compatibility engine');
+    setTimeout(()=>showProcessing(false),220);
+    incrementUsage();
+    downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
+    resultMeta.textContent=`${state.outW} × ${state.outH} · ${m.provider==='WebGPU'?'GPU precision':'portable compatibility'} · ${(state.inferenceMs/1000).toFixed(1)}s inference${m.fallbackFrom?' · safe fallback used':''}`;
+  }
+
+  function estimateBackground(canvas){
+    const ctx=canvas.getContext('2d',{willReadFrequently:true}),w=canvas.width,h=canvas.height;
+    const s=Math.max(4,Math.round(Math.min(w,h)*.025));
+    const pts=[[0,0],[w-s,0],[0,h-s],[w-s,h-s]];const colors=[];
+    for(const [x,y] of pts){const d=ctx.getImageData(x,y,s,s).data;let r=0,g=0,b=0,n=0;for(let i=0;i<d.length;i+=16){r+=d[i];g+=d[i+1];b+=d[i+2];n++;}colors.push([r/n,g/n,b/n]);}
+    const avg=[0,1,2].map(c=>colors.reduce((a,v)=>a+v[c],0)/colors.length);
+    let variance=0;for(const c of colors)variance+=Math.hypot(c[0]-avg[0],c[1]-avg[1],c[2]-avg[2]);variance/=colors.length;
+    return {rgb:avg,variance};
+  }
+
+  function applyModePreset(mode,quiet=false){
+    state.mode=mode;
+    modeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgMode===mode));
+    const preset={
+      auto:[22,0,1,35],portrait:[12,1,1.5,38],product:[34,-1,0.5,48],glass:[5,3,1.5,20],logo:[48,-2,0,55]
+    }[mode]||[22,0,1,35];
+    [edgeClean.value,edgeShift.value,feather.value,decontam.value]=preset;
+    syncSliderLabels();if(!quiet)scheduleRebuild();
+  }
+  function syncSliderLabels(){edgeCleanValue.textContent=`${edgeClean.value}%`;edgeShiftValue.textContent=`${Number(edgeShift.value)>0?'+':''}${edgeShift.value}`;featherValue.textContent=`${feather.value}px`;decontamValue.textContent=`${decontam.value}%`;shadowStrengthValue.textContent=`${shadowStrength.value}%`;brushSizeValue.textContent=`${brushSize.value}px`;paddingValue.textContent=`${padding.value}%`;}
+
+  function buildEffectiveMask(){
+    if(!state.mask)return null;
+    const src=state.mask,w=state.maskW,h=state.maskH,out=new Uint8ClampedArray(src.length);
+    const clean=Number(edgeClean.value)/100,shift=Number(edgeShift.value),mode=state.mode;
+    let gamma=1;if(mode==='portrait')gamma=.88;else if(mode==='glass')gamma=.68;else if(mode==='logo')gamma=1.18;else if(mode==='product')gamma=1.05;
+    const component=state.selectedComponent;
+    for(let i=0;i<src.length;i++){
+      let v=src[i]/255;
+      if(component!=='all'&&state.components?.grid){
+        const x=i%w,y=(i/w)|0,gx=Math.min(state.components.gw-1,Math.floor(x/w*state.components.gw)),gy=Math.min(state.components.gh-1,Math.floor(y/h*state.components.gh));
+        if(state.components.grid[gy*state.components.gw+gx]!==Number(component)){out[i]=0;continue;}
+      }
+      v=Math.pow(v,gamma);
+      const center=.5-shift*.012;
+      const contrast=1+clean*1.6;
+      v=.5+(v-center)*contrast;
+      out[i]=Math.round(clamp(v*255));
+    }
+    const f=Number(feather.value);
+    return f>0.01?blurMask(out,w,h,f):out;
+  }
+  function blurMask(data,w,h,radius){
+    const a=document.createElement('canvas'),b=document.createElement('canvas');a.width=b.width=w;a.height=b.height=h;
+    const c=a.getContext('2d',{willReadFrequently:true}),d=c.createImageData(w,h);
+    for(let i=0,j=0;i<data.length;i++,j+=4){const v=data[i];d.data[j]=d.data[j+1]=d.data[j+2]=v;d.data[j+3]=255;}c.putImageData(d,0,0);
+    const x=b.getContext('2d',{willReadFrequently:true});x.filter=`blur(${radius}px)`;x.drawImage(a,0,0);const rd=x.getImageData(0,0,w,h).data,o=new Uint8ClampedArray(data.length);
+    for(let i=0,j=0;i<o.length;i++,j+=4)o[i]=rd[j];return o;
+  }
+
+  function maskCanvas(mask=state.effectiveMask,w=state.maskW,h=state.maskH){
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),d=x.createImageData(w,h);
+    for(let i=0,j=0;i<mask.length;i++,j+=4){const v=mask[i];d.data[j]=d.data[j+1]=d.data[j+2]=v;d.data[j+3]=255;}x.putImageData(d,0,0);return c;
+  }
+  function fullMaskCanvas(){
+    const small=maskCanvas();const full=document.createElement('canvas');full.width=state.outW;full.height=state.outH;
+    const x=full.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(small,0,0,full.width,full.height);return full;
+  }
+
+  async function rebuildAll(){
+    if(!state.mask||!state.sourceCanvas)return;
+    state.effectiveMask=buildEffectiveMask();
+    state.subjectCanvas=buildSubjectCanvas();
+    state.shadowCanvas=null;
+    renderPreview();updateGuard();updateHardEdge();
+  }
+  function scheduleRebuild(){clearTimeout(state.renderTimer);state.renderTimer=setTimeout(()=>rebuildAll().catch(console.error),90);}
+
+  function buildSubjectCanvas(){
+    const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(state.sourceCanvas,0,0);
+    const m=fullMaskCanvas();x.globalCompositeOperation='destination-in';x.drawImage(m,0,0);x.globalCompositeOperation='source-over';
+    const amount=Number(decontam.value)/100;
+    if(amount>.01&&state.bgEstimate.variance<80){
+      const img=x.getImageData(0,0,c.width,c.height),p=img.data,bg=state.bgEstimate.rgb;
+      for(let i=0;i<p.length;i+=4){const a=p[i+3]/255;if(a<.04||a>.96)continue;const strength=amount*(1-a)*Math.max(0,1-state.bgEstimate.variance/100)*.72;if(strength<=.01)continue;const den=Math.max(.12,a);for(let k=0;k<3;k++){const corrected=clamp((p[i+k]-bg[k]*(1-a))/den);p[i+k]=Math.round(p[i+k]*(1-strength)+corrected*strength);}}
+      x.putImageData(img,0,0);
+    }
+    return c;
+  }
+
+  function renderPreview(){
+    const c=afterCanvas;c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);
+    drawBackground(x,c.width,c.height);
+    if(state.shadow)drawShadow(x,state.subjectCanvas,0,0,c.width,c.height);
+    x.drawImage(state.subjectCanvas,0,0);
+  }
+  function drawBackground(ctx,w,h){
+    const mode=state.bgMode;
+    if(mode==='transparent')return;
+    if(mode==='white'||mode==='black'||mode==='custom'){
+      ctx.fillStyle=mode==='white'?'#ffffff':mode==='black'?'#000000':customColor.value;ctx.fillRect(0,0,w,h);return;
+    }
+    if(mode==='gradient'){
+      const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#0a1029');g.addColorStop(.45,'#4051d8');g.addColorStop(1,'#e341ba');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);return;
+    }
+    if(mode==='blur'){
+      ctx.save();ctx.filter=`blur(${Math.max(8,Math.round(Math.min(w,h)*.012))}px)`;const pad=Math.round(Math.min(w,h)*.04);ctx.drawImage(state.sourceCanvas,-pad,-pad,w+pad*2,h+pad*2);ctx.restore();return;
+    }
+    if(mode==='image'&&state.customBgBitmap){drawCover(ctx,state.customBgBitmap,w,h);return;}
+  }
+  function drawCover(ctx,img,w,h){const ar=img.width/img.height,t=w/h;let sx=0,sy=0,sw=img.width,sh=img.height;if(ar>t){sw=img.height*t;sx=(img.width-sw)/2;}else{sh=img.width/t;sy=(img.height-sh)/2;}ctx.drawImage(img,sx,sy,sw,sh,0,0,w,h);}
+  function makeShadowSource(subject){
+    const c=document.createElement('canvas');c.width=subject.width;c.height=subject.height;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.globalCompositeOperation='destination-in';x.drawImage(subject,0,0);return c;
+  }
+  function drawShadow(ctx,subject,dx,dy,dw,dh){
+    const strength=Number(shadowStrength.value)/100;if(strength<=0)return;
+    const sh=makeShadowSource(subject);ctx.save();ctx.globalAlpha=.5*strength;ctx.filter=`blur(${Math.max(5,Math.round(Math.min(dw,dh)*.012))}px)`;const ox=Math.round(dw*.012),oy=Math.round(dh*.022);ctx.drawImage(sh,dx+ox,dy+oy,dw,dh);ctx.restore();
+  }
+
+  function detectComponents(mask,w,h){
+    const max=192,scale=Math.min(1,max/Math.max(w,h)),gw=Math.max(32,Math.round(w*scale)),gh=Math.max(32,Math.round(h*scale));
+    const bin=new Uint8Array(gw*gh),grid=new Int16Array(gw*gh);grid.fill(-1);
+    for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){const sx=Math.min(w-1,Math.floor((x+.5)/gw*w)),sy=Math.min(h-1,Math.floor((y+.5)/gh*h));bin[y*gw+x]=mask[sy*w+sx]>135?1:0;}
+    const comps=[];const qx=new Int16Array(gw*gh),qy=new Int16Array(gw*gh);let label=0;
+    for(let y=0;y<gh;y++)for(let x=0;x<gw;x++){
+      const idx=y*gw+x;if(!bin[idx]||grid[idx]>=0)continue;let head=0,tail=0;qx[tail]=x;qy[tail++]=y;grid[idx]=label;let area=0,minx=x,maxx=x,miny=y,maxy=y,sxsum=0,sysum=0;
+      while(head<tail){const cx=qx[head],cy=qy[head++];area++;sxsum+=cx;sysum+=cy;if(cx<minx)minx=cx;if(cx>maxx)maxx=cx;if(cy<miny)miny=cy;if(cy>maxy)maxy=cy;const ns=[[cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]];for(const [nx,ny] of ns){if(nx<0||ny<0||nx>=gw||ny>=gh)continue;const ni=ny*gw+nx;if(bin[ni]&&grid[ni]<0){grid[ni]=label;qx[tail]=nx;qy[tail++]=ny;}}}
+      comps.push({label,area,minx,maxx,miny,maxy,cx:sxsum/area,cy:sysum/area});label++;
+    }
+    const minArea=gw*gh*.004;const keep=comps.filter(c=>c.area>=minArea).sort((a,b)=>b.area-a.area).slice(0,6);
+    const remap=new Map(keep.map((c,i)=>[c.label,i]));for(let i=0;i<grid.length;i++)grid[i]=remap.has(grid[i])?remap.get(grid[i]):-1;keep.forEach((c,i)=>c.label=i);
+    return {gw,gh,grid,list:keep};
+  }
+  function renderSubjectPicker(){
+    const list=state.components?.list||[];subjectButtons.innerHTML='';
+    if(list.length<=1){subjectSummary.textContent=list.length===1?'1 main subject found':'Single combined subject mask';subjectPicker.classList.remove('hidden');return;}
+    subjectSummary.textContent=`${list.length} separate subject regions found`;
+    const all=document.createElement('button');all.type='button';all.className='active';all.textContent='Keep all';all.dataset.component='all';subjectButtons.appendChild(all);
+    list.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.dataset.component=String(i);b.textContent=`Subject ${i+1}`;subjectButtons.appendChild(b);});subjectPicker.classList.remove('hidden');
+    subjectButtons.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{state.selectedComponent=b.dataset.component;subjectButtons.querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));scheduleRebuild();}));
+  }
+
+  function updateGuard(){
+    if(!state.effectiveMask)return;let fg=0,soft=0,border=0;const m=state.effectiveMask,w=state.maskW,h=state.maskH;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){const a=m[y*w+x];if(a>20)fg++;if(a>30&&a<225)soft++;if((x<2||y<2||x>w-3||y>h-3)&&a>90)border++;}
+    const fgRatio=fg/m.length,softRatio=fg?soft/fg:1,borderRatio=border/(2*w+2*h||1);const modeRelief=(state.mode==='portrait'||state.mode==='glass')?10:0;
+    const score=Math.round(clamp(100-softRatio*72-borderRatio*80+modeRelief,35,99));
+    guardScore.textContent=`${score}%`;guardTitle.textContent=score>=88?'Clean cutout':score>=72?'Review soft edges':'Edge review recommended';
+    guardCopy.textContent=score>=88?'Cutout Guard found a confident subject boundary.':score>=72?'Most edges are clean. Check hair, glass or low-contrast areas in Hardest Edge.':'The alpha mask has a large uncertain region. Use Refine Brush or try Precision engine for this image.';
+    guardCard.classList.remove('hidden');
+  }
+  function updateScan(){
+    if(!state.effectiveMask)return;const m=state.effectiveMask;let fg=0,soft=0;for(const a of m){if(a>20)fg++;if(a>30&&a<225)soft++;}
+    const coverage=fg/m.length*100,softPct=fg?soft/fg*100:0;const bgCons=state.bgEstimate.variance<28?'Uniform':state.bgEstimate.variance<60?'Mixed':'Complex';
+    const modeName={auto:'Auto',portrait:'Portrait / Hair',product:'Product',glass:'Glass / Soft',logo:'Logo / Text'}[state.mode];
+    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.provider==='WebGPU'?'GPU precision':'Compatibility safe'}</span></div>`;
+  }
+  function updateHardEdge(){
+    if(!state.effectiveMask||!state.sourceCanvas)return;const m=state.effectiveMask,w=state.maskW,h=state.maskH,block=Math.max(12,Math.round(Math.min(w,h)/12));let best=-1,bx=0,by=0;
+    for(let y=0;y<h;y+=block)for(let x=0;x<w;x+=block){let u=0,n=0;for(let yy=y;yy<Math.min(h,y+block);yy+=2)for(let xx=x;xx<Math.min(w,x+block);xx+=2){const a=m[yy*w+xx];if(a>28&&a<228)u++;n++;}const s=u/n;if(s>best){best=s;bx=x;by=y;}}
+    state.hardEdge={x:bx/w,y:by/h,w:block/w,h:block/h,score:best};
+    const c=hardEdgeCanvas;c.width=220;c.height=160;const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);const sx=bx/w*state.outW,sy=by/h*state.outH,sw=Math.min(state.outW-sx,block/w*state.outW),sh=Math.min(state.outH-sy,block/h*state.outH);x.fillStyle='#10152a';x.fillRect(0,0,c.width,c.height);x.drawImage(afterCanvas,sx,sy,sw,sh,0,0,c.width,c.height);hardEdgeLabel.textContent=best<.08?'Low uncertainty':best<.22?'Check this edge':'High-uncertainty edge';
+  }
+
+  function setBackground(mode){state.bgMode=mode;bgModeGroup.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.bgBackground===mode));renderPreview();updateHardEdge();}
+  async function loadCustomBackground(file){if(!file||!file.type.startsWith('image/'))return;try{state.customBgBitmap?.close?.();}catch(_e){}state.customBgBitmap=await createImageBitmap(file);setBackground('image');}
+
+  function setBrush(on){state.brush=on;brushToggle.classList.toggle('active',on);brushToggle.setAttribute('aria-pressed',String(on));brushControls.classList.toggle('hidden',!on);brushOverlay.classList.toggle('hidden',!on);compareRange.style.pointerEvents=on?'none':'auto';stage.classList.toggle('brush-active',on);if(on){brushOverlay.width=state.maskW||512;brushOverlay.height=state.maskH||512;}else clearBrushOverlay();}
+  function clearBrushOverlay(){const x=brushOverlay.getContext('2d');x.clearRect(0,0,brushOverlay.width,brushOverlay.height);}
+  function brushPoint(evt){const r=stage.getBoundingClientRect();const x=(evt.clientX-r.left)/r.width,y=(evt.clientY-r.top)/r.height;return [clamp(Math.round(x*state.maskW),0,state.maskW-1),clamp(Math.round(y*state.maskH),0,state.maskH-1),r];}
+  function applyBrushAt(mx,my,evt){if(!state.mask)return;const rect=stage.getBoundingClientRect();const rad=Math.max(1,Number(brushSize.value)*(state.maskW/Math.max(1,rect.width)));const r2=rad*rad;const minx=Math.max(0,Math.floor(mx-rad)),maxx=Math.min(state.maskW-1,Math.ceil(mx+rad)),miny=Math.max(0,Math.floor(my-rad)),maxy=Math.min(state.maskH-1,Math.ceil(my+rad));
+    for(let y=miny;y<=maxy;y++)for(let x=minx;x<=maxx;x++){const dx=x-mx,dy=y-my,d2=dx*dx+dy*dy;if(d2>r2)continue;const t=1-Math.sqrt(d2)/rad,idx=y*state.maskW+x;if(state.brushMode==='erase')state.mask[idx]=Math.round(state.mask[idx]*(1-t));else state.mask[idx]=Math.round(state.mask[idx]+(255-state.mask[idx])*t);}
+    const o=brushOverlay.getContext('2d');o.fillStyle=state.brushMode==='erase'?'rgba(255,75,110,.20)':'rgba(66,232,196,.20)';o.beginPath();o.arc(mx,my,rad,0,Math.PI*2);o.fill();
+  }
+  stage.addEventListener('pointerdown',e=>{if(!state.brush||!state.mask)return;state.painting=true;state.undoMask=state.mask.slice();stage.setPointerCapture?.(e.pointerId);const [x,y]=brushPoint(e);applyBrushAt(x,y,e);});
+  stage.addEventListener('pointermove',e=>{if(!state.painting||!state.brush)return;const [x,y]=brushPoint(e);applyBrushAt(x,y,e);});
+  const endPaint=()=>{if(!state.painting)return;state.painting=false;clearBrushOverlay();scheduleRebuild();};stage.addEventListener('pointerup',endPaint);stage.addEventListener('pointercancel',endPaint);
+
+  function currentBBox(mask=state.effectiveMask){
+    if(!mask)return {x:0,y:0,w:state.maskW,h:state.maskH};let minx=state.maskW,miny=state.maskH,maxx=-1,maxy=-1;for(let y=0;y<state.maskH;y++)for(let x=0;x<state.maskW;x++){if(mask[y*state.maskW+x]>35){if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}}
+    if(maxx<0)return {x:0,y:0,w:state.maskW,h:state.maskH};return {x:minx,y:miny,w:maxx-minx+1,h:maxy-miny+1};
+  }
+  function exportCanvas(kind='composite'){
+    const preset=canvasPreset.value||'original',pad=Number(padding.value)/100;const source=kind==='subject'?state.subjectCanvas:afterCanvas;
+    if(preset==='original')return copyCanvas(source);
+    const long=Math.min(Math.max(state.outW,state.outH),IS_MOBILE?4096:8192);let w,h;if(preset==='square'){w=h=long;}else if(preset==='45'){h=long;w=Math.round(long*.8);}else{w=Math.round(long*16/9);h=long;if(w>8192){const s=8192/w;w=Math.round(w*s);h=Math.round(h*s);}}
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
+    // background for composite; transparent for subject-only
+    if(kind!=='subject'){
+      if(state.bgMode==='transparent'){}else if(state.bgMode==='white'||state.bgMode==='black'||state.bgMode==='custom'){x.fillStyle=state.bgMode==='white'?'#fff':state.bgMode==='black'?'#000':customColor.value;x.fillRect(0,0,w,h);}else if(state.bgMode==='gradient'){const g=x.createLinearGradient(0,0,w,h);g.addColorStop(0,'#0a1029');g.addColorStop(.45,'#4051d8');g.addColorStop(1,'#e341ba');x.fillStyle=g;x.fillRect(0,0,w,h);}else if(state.bgMode==='image'&&state.customBgBitmap)drawCover(x,state.customBgBitmap,w,h);else if(state.bgMode==='blur'){x.save();x.filter=`blur(${Math.round(Math.min(w,h)*.014)}px)`;drawCover(x,state.sourceCanvas,w,h);x.restore();}
+    }
+    const b=currentBBox(),sx=b.x/state.maskW*state.outW,sy=b.y/state.maskH*state.outH,sw=b.w/state.maskW*state.outW,sh=b.h/state.maskH*state.outH;const availW=w*(1-pad*2),availH=h*(1-pad*2),s=Math.min(availW/sw,availH/sh),dw=sw*s,dh=sh*s,dx=(w-dw)/2,dy=(h-dh)/2;
+    if(kind!=='subject'&&state.shadow){const crop=document.createElement('canvas');crop.width=Math.max(1,Math.round(sw));crop.height=Math.max(1,Math.round(sh));crop.getContext('2d').drawImage(state.subjectCanvas,sx,sy,sw,sh,0,0,crop.width,crop.height);drawShadow(x,crop,dx,dy,dw,dh);}
+    x.drawImage(state.subjectCanvas,sx,sy,sw,sh,dx,dy,dw,dh);return c;
+  }
+  function copyCanvas(src){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').drawImage(src,0,0);return c;}
+  function canvasBlob(canvas,type='image/png',quality=.92){return new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error('Encoding failed')),type,quality));}
+  function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
+  function maskExportCanvas(){const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.imageSmoothingEnabled=true;x.drawImage(maskCanvas(),0,0,c.width,c.height);return c;}
+  function shadowExportCanvas(){const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');drawShadow(x,state.subjectCanvas,0,0,c.width,c.height);return c;}
+  async function exportResult(){
+    if(!state.subjectCanvas)return;downloadBtn.disabled=true;downloadBtn.textContent='Preparing download…';
+    try{
+      const type=exportType.value,q=exportQuality.value==='standard'?.82:exportQuality.value==='max'?.98:.92;const base=(state.file.name||'image').replace(/\.[^.]+$/,'');
+      if(type==='mask'){downloadBlob(await canvasBlob(maskExportCanvas(),'image/png'),`${base}-alpha-mask.png`);}
+      else if(type==='shadow'){downloadBlob(await canvasBlob(shadowExportCanvas(),'image/png'),`${base}-shadow.png`);}
+      else if(type==='subject-webp'){downloadBlob(await canvasBlob(exportCanvas('subject'),'image/webp',q),`${base}-cutout.webp`);}
+      else if(type==='composite-jpeg'){const c=exportCanvas('composite');if(state.bgMode==='transparent'){const x=c.getContext('2d');x.globalCompositeOperation='destination-over';x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.globalCompositeOperation='source-over';}downloadBlob(await canvasBlob(c,'image/jpeg',q),`${base}-background-removed.jpg`);}
+      else if(type==='pack'){
+        const {default:JSZip}=await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');const zip=new JSZip();
+        zip.file(`${base}-cutout.png`,await canvasBlob(exportCanvas('subject'),'image/png'));zip.file(`${base}-alpha-mask.png`,await canvasBlob(maskExportCanvas(),'image/png'));zip.file(`${base}-shadow.png`,await canvasBlob(shadowExportCanvas(),'image/png'));zip.file(`${base}-preview.webp`,await canvasBlob(exportCanvas('composite'),'image/webp',.9));
+        downloadBlob(await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}}),`${base}-rivani-cutout-pack.zip`);
+      } else {downloadBlob(await canvasBlob(exportCanvas('subject'),'image/png'),`${base}-cutout.png`);}
+    }catch(err){alert(`Export failed: ${err.message||err}`);}finally{downloadBtn.disabled=false;downloadBtn.textContent='Download →';}
+  }
+
+  chooseBtn.addEventListener('click',()=>fileInput.click());replaceBtn?.addEventListener('click',()=>fileInput.click());fileInput.addEventListener('change',()=>loadFile(fileInput.files?.[0]).catch(e=>alert(e.message)));
+  newImageBtn?.addEventListener('click',()=>fileInput.click());removeBtn.addEventListener('click',()=>startRemoval().catch(e=>{showProcessing(false);alert(e.message||e);}));
+  ['dragenter','dragover'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.add('dragging');}));['dragleave','drop'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.remove('dragging');}));dropZone.addEventListener('drop',e=>loadFile(e.dataTransfer.files?.[0]).catch(err=>alert(err.message)));
+  document.addEventListener('paste',e=>{const f=[...(e.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));if(f)loadFile(f).catch(err=>alert(err.message));});
+  compareRange.addEventListener('input',()=>compareWrap.style.setProperty('--compare-position',`${compareRange.value}%`));
+  modeGroup.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>applyModePreset(b.dataset.bgMode)));
+  [edgeClean,edgeShift,feather,decontam].forEach(el=>el.addEventListener('input',()=>{syncSliderLabels();scheduleRebuild();}));
+  bgModeGroup.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setBackground(b.dataset.bgBackground)));
+  customColor.addEventListener('input',()=>{if(state.bgMode==='custom')renderPreview();});customBgBtn.addEventListener('click',()=>customBgInput.click());customBgInput.addEventListener('change',()=>loadCustomBackground(customBgInput.files?.[0]).catch(console.error));
+  shadowToggle.addEventListener('click',()=>{state.shadow=!state.shadow;shadowToggle.classList.toggle('active',state.shadow);shadowToggle.setAttribute('aria-pressed',String(state.shadow));renderPreview();});shadowStrength.addEventListener('input',()=>{syncSliderLabels();if(state.shadow)renderPreview();});
+  brushToggle.addEventListener('click',()=>setBrush(!state.brush));eraseBrush.addEventListener('click',()=>{state.brushMode='erase';eraseBrush.classList.add('active');restoreBrush.classList.remove('active');});restoreBrush.addEventListener('click',()=>{state.brushMode='restore';restoreBrush.classList.add('active');eraseBrush.classList.remove('active');});brushSize.addEventListener('input',syncSliderLabels);
+  undoBrush.addEventListener('click',()=>{if(state.undoMask){const tmp=state.mask;state.mask=state.undoMask;state.undoMask=tmp;scheduleRebuild();}});resetMask.addEventListener('click',()=>{if(state.baseMask){state.undoMask=state.mask?.slice();state.mask=state.baseMask.slice();state.selectedComponent='all';subjectButtons.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active',i===0));scheduleRebuild();}});
+  canvasPreset.addEventListener('change',()=>{});padding.addEventListener('input',syncSliderLabels);downloadBtn.addEventListener('click',exportResult);
+  window.addEventListener('beforeunload',()=>{cleanupFile();try{state.customBgBitmap?.close?.();}catch(_e){}state.worker?.terminate?.();});
+  syncSliderLabels();updateUsage();
+})();
