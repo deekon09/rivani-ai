@@ -67,7 +67,7 @@
 
   function makeWorker(){
     if(state.worker)return state.worker;
-    const w=new Worker('background-remover-worker.js?v=27.0-cutout',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.1-reliable',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -76,7 +76,7 @@
     if(m.type==='progress'){setProgress(m.value,m.title,m.text,m.value<50?'Loading model':'RIVANI Cutout Engine');return;}
     if(m.type==='error'){
       showProcessing(false);setProgress(0);
-      alert(`Background removal failed: ${m.message}\n\nTry the Fast compatibility engine if the Precision engine is not stable on this device.`);
+      alert(`Background removal failed: ${m.message}\n\nRIVANI already tried the safe local path automatically. Retry once with Auto; if the browser blocked local AI, refresh the page and try again.`);
       updateUsage();return;
     }
     if(m.type==='result'){
@@ -147,7 +147,7 @@
     setTimeout(()=>showProcessing(false),220);
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
-    resultMeta.textContent=`${state.outW} × ${state.outH} · ${m.provider==='WebGPU'?'GPU precision':'portable compatibility'} · ${(state.inferenceMs/1000).toFixed(1)}s inference${m.fallbackFrom?' · safe fallback used':''}`;
+    resultMeta.textContent=`${state.outW} × ${state.outH} · ${m.engine==='precision'?'Precision AI':(m.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · compatibility')} · ${(state.inferenceMs/1000).toFixed(1)}s inference${m.fallbackFrom?' · automatic safe fallback used':''}`;
   }
 
   function estimateBackground(canvas){
@@ -295,7 +295,7 @@
     if(!state.effectiveMask)return;const m=state.effectiveMask;let fg=0,soft=0;for(const a of m){if(a>20)fg++;if(a>30&&a<225)soft++;}
     const coverage=fg/m.length*100,softPct=fg?soft/fg*100:0;const bgCons=state.bgEstimate.variance<28?'Uniform':state.bgEstimate.variance<60?'Mixed':'Complex';
     const modeName={auto:'Auto',portrait:'Portrait / Hair',product:'Product',glass:'Glass / Soft',logo:'Logo / Text'}[state.mode];
-    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.provider==='WebGPU'?'GPU precision':'Compatibility safe'}</span></div>`;
+    scanGrid.innerHTML=`<div><b>Subject</b><span>${coverage.toFixed(0)}% frame · ${state.components?.list?.length||1} region${(state.components?.list?.length||1)>1?'s':''}</span></div><div><b>Soft edges</b><span>${softPct.toFixed(0)}% of subject · ${modeName}</span></div><div><b>Background</b><span>${bgCons} corners</span></div><div><b>Engine</b><span>${state.engine==='precision'?'Precision AI':(state.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · safe')}</span></div>`;
   }
   function updateHardEdge(){
     if(!state.effectiveMask||!state.sourceCanvas)return;const m=state.effectiveMask,w=state.maskW,h=state.maskH,block=Math.max(12,Math.round(Math.min(w,h)/12));let best=-1,bx=0,by=0;
@@ -356,8 +356,9 @@
     }catch(err){alert(`Export failed: ${err.message||err}`);}finally{downloadBtn.disabled=false;downloadBtn.textContent='Download →';}
   }
 
-  chooseBtn.addEventListener('click',()=>fileInput.click());replaceBtn?.addEventListener('click',()=>fileInput.click());fileInput.addEventListener('change',()=>loadFile(fileInput.files?.[0]).catch(e=>alert(e.message)));
-  newImageBtn?.addEventListener('click',()=>fileInput.click());removeBtn.addEventListener('click',()=>startRemoval().catch(e=>{showProcessing(false);alert(e.message||e);}));
+  function openImagePicker(){fileInput.value='';fileInput.click();}
+  chooseBtn.addEventListener('click',openImagePicker);replaceBtn?.addEventListener('click',openImagePicker);fileInput.addEventListener('change',()=>loadFile(fileInput.files?.[0]).catch(e=>alert(e.message)));
+  newImageBtn?.addEventListener('click',openImagePicker);removeBtn.addEventListener('click',()=>startRemoval().catch(e=>{showProcessing(false);alert(e.message||e);}));
   ['dragenter','dragover'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.add('dragging');}));['dragleave','drop'].forEach(t=>dropZone.addEventListener(t,e=>{e.preventDefault();dropZone.classList.remove('dragging');}));dropZone.addEventListener('drop',e=>loadFile(e.dataTransfer.files?.[0]).catch(err=>alert(err.message)));
   document.addEventListener('paste',e=>{const f=[...(e.clipboardData?.files||[])].find(x=>x.type.startsWith('image/'));if(f)loadFile(f).catch(err=>alert(err.message));});
   compareRange.addEventListener('input',()=>compareWrap.style.setProperty('--compare-position',`${compareRange.value}%`));
