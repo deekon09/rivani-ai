@@ -7,7 +7,7 @@
   <meta name="description" content="Remove image backgrounds locally with RIVANI Cutout Studio, precision alpha edges, manual refine controls and transparent exports.">
   <title>Background Remover — RIVANI AI</title>
   <link rel="stylesheet" href="styles.css?v=26.3-precision">
-  <link rel="stylesheet" href="background-remover.css?v=27.2-preview-fix">
+  <link rel="stylesheet" href="background-remover.css?v=27.3-alpha-fix">
 </head>
 <body class="bg-remover-page">
   <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -53,7 +53,7 @@
           </div>
 
           <button class="btn btn-primary bg-remove-btn" id="bgRemoveBtn" type="button" disabled><span>✦</span> Remove Background →</button>
-          <div class="bg-usage-card"><div><b>Free plan</b><span id="bgUsageText">Sign in to start removing backgrounds.</span></div><button id="bgUsageProBtn" type="button">Go Pro</button></div>
+          <div class="bg-usage-card"><div><b>Testing mode</b><span id="bgUsageText">Unlimited removals while we test Cutout Studio.</span></div><button id="bgUsageProBtn" class="hidden" type="button">Go Pro</button></div>
           <div class="bg-local-note">Your image pixels are not uploaded. Auto starts with the lightweight local cutout model; the larger Precision model downloads only if you select it.</div>
         </aside>
 
@@ -112,7 +112,7 @@
 
   <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">All Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="articles.html">Articles</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div></footer>
   <script src="script.js?v=27.1-reliable"></script>
-  <script src="background-remover.js?v=27.2-preview-fix"></script>
+  <script src="background-remover.js?v=27.3-alpha-fix"></script>
   <script type="module" src="auth-nav.js?v=26.3-auth"></script>
 </body>
 </html>

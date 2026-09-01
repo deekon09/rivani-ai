@@ -1,4 +1,4 @@
-/* RIVANI Cutout Studio inference worker — V27.2 Reliable Cutout
+/* RIVANI Cutout Studio inference worker — V27.3 Alpha Composite Fix
    Image pixels stay local. Only model weights are fetched from the RIVANI model-delivery Worker.
    Auto defaults to the lightweight general-object model for fast, reliable completion.
    Precision is opt-in and uses a browser-safe 512px BiRefNet graph. */
@@ -201,15 +201,25 @@ async function runModel(bitmap,kind,id,pack,size){
 }
 
 function sanitizeMask(mask,size){
-  const patch=Math.max(8,Math.round(size*.08));
-  const corners=[[0,0],[size-patch,0],[0,size-patch],[size-patch,size-patch]];
-  let cornerSum=0,cornerN=0;
-  for(const [sx,sy] of corners){for(let y=sy;y<sy+patch;y+=2)for(let x=sx;x<sx+patch;x+=2){cornerSum+=mask[y*size+x];cornerN++;}}
-  const cornerMean=cornerN?cornerSum/cornerN:0;
-  let low=0,high=0;for(let i=0;i<mask.length;i+=17){if(mask[i]<40)low++;if(mask[i]>215)high++;}
-  if(cornerMean>205 && low<high*.35){for(let i=0;i<mask.length;i++)mask[i]=255-mask[i];}
-  let min=255,max=0;for(let i=0;i<mask.length;i+=13){const v=mask[i];if(v<min)min=v;if(v>max)max=v;}
+  // Both U2NetP and BiRefNet are foreground-high. Do not casually flip polarity:
+  // full-frame portraits can legitimately occupy lower corners. Only flip when the
+  // whole border is strongly foreground-like AND the center is clearly darker.
+  const band=Math.max(4,Math.round(size*.035));
+  let borderSum=0,borderN=0,centerSum=0,centerN=0;
+  for(let y=0;y<size;y+=2){for(let x=0;x<size;x+=2){
+    const v=mask[y*size+x];
+    if(x<band||y<band||x>=size-band||y>=size-band){borderSum+=v;borderN++;}
+    if(x>=size*.3&&x<size*.7&&y>=size*.25&&y<size*.75){centerSum+=v;centerN++;}
+  }}
+  const borderMean=borderN?borderSum/borderN:0;
+  const centerMean=centerN?centerSum/centerN:0;
+  if(borderMean>190 && centerMean+45<borderMean){for(let i=0;i<mask.length;i++)mask[i]=255-mask[i];}
+
+  let min=255,max=0,fg=0,bg=0;
+  for(let i=0;i<mask.length;i+=13){const v=mask[i];if(v<min)min=v;if(v>max)max=v;if(v>32)fg++;if(v<223)bg++;}
   if(max-min<18)throw new Error('AI mask was nearly constant; retry Auto once.');
+  if(fg===0)throw new Error('AI could not find a foreground subject in this image.');
+  if(bg===0)throw new Error('AI returned an all-foreground mask; retry Auto once.');
   return mask;
 }
 

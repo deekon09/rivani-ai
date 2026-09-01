@@ -2,6 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const FREE_DAILY=9;
+  const TESTING_UNLIMITED=true; // TEMP: disable daily/Pro cap while Cutout Studio is being tested
   const PRO_PRICE_INR=499;
   const IS_MOBILE=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent||'');
 
@@ -37,9 +38,16 @@
     return `rivani:bgremove:${uid}:${day}`;
   }
   function usageCount(){return Math.max(0,Number(localStorage.getItem(usageKey())||0)||0);}
-  function incrementUsage(){if(!isPro())localStorage.setItem(usageKey(),String(usageCount()+1));updateUsage();}
+  function incrementUsage(){if(TESTING_UNLIMITED){updateUsage();return;}if(!isPro())localStorage.setItem(usageKey(),String(usageCount()+1));updateUsage();}
   function updateUsage(){
     if(!usageText)return;
+    if(TESTING_UNLIMITED){
+      usageText.textContent='Testing mode · unlimited removals';
+      removeBtn.disabled=!state.file;
+      if(usageProBtn)usageProBtn.classList.add('hidden');
+      return;
+    }
+    if(usageProBtn)usageProBtn.classList.remove('hidden');
     if(!signedIn()){usageText.textContent='Sign in to start removing backgrounds.';removeBtn.disabled=!state.file;return;}
     if(isPro()){usageText.textContent='Pro · unlimited background removals';removeBtn.disabled=!state.file;return;}
     const used=usageCount(),left=Math.max(0,FREE_DAILY-used);
@@ -67,7 +75,7 @@
 
   function makeWorker(){
     if(state.worker)return state.worker;
-    const w=new Worker('background-remover-worker.js?v=27.2-preview-fix',{type:'module'});
+    const w=new Worker('background-remover-worker.js?v=27.3-alpha-fix',{type:'module'});
     w.addEventListener('message',onWorkerMessage);
     state.worker=w;return w;
   }
@@ -129,7 +137,7 @@
     if(!state.file)return;
     const ok=await window.RIVANI_REQUIRE_AUTH?.({tool:'Background Remover'});
     if(ok===false)return;
-    if(!isPro()&&usageCount()>=FREE_DAILY){openPro();updateUsage();return;}
+    if(!TESTING_UNLIMITED&&!isPro()&&usageCount()>=FREE_DAILY){openPro();updateUsage();return;}
     const worker=makeWorker();state.jobId++;
     showProcessing(true);setProgress(2,'Preparing image…','Your image stays on this device.','RIVANI Cutout Engine');
     const bitmap=await createImageBitmap(state.file);
@@ -150,7 +158,15 @@
     setTimeout(()=>showProcessing(false),220);
     incrementUsage();
     downloadBtn.disabled=false;newImageBtn.classList.remove('hidden');brushToggle.disabled=false;
-    resultMeta.textContent=`Background removed · ${state.outW} × ${state.outH} · ${m.engine==='precision'?'Precision AI':(m.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · compatibility')} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · automatic safe fallback used':''}`;
+    const stats=maskStats(state.effectiveMask);
+    resultMeta.textContent=`Background removed · foreground ${stats.coverage.toFixed(0)}% · ${state.outW} × ${state.outH} · ${m.engine==='precision'?'Precision AI':(m.provider==='WebGPU'?'Fast AI · GPU':'Fast AI · compatibility')} · ${(state.inferenceMs/1000).toFixed(1)}s${m.fallbackFrom?' · automatic safe fallback used':''}`;
+  }
+
+  function maskStats(mask){
+    if(!mask?.length)return {coverage:0,mean:0,min:0,max:0};
+    let fg=0,sum=0,min=255,max=0;
+    for(let i=0;i<mask.length;i++){const v=mask[i];sum+=v;if(v>32)fg++;if(v<min)min=v;if(v>max)max=v;}
+    return {coverage:fg/mask.length*100,mean:sum/mask.length,min,max};
   }
 
   function estimateBackground(canvas){
@@ -204,6 +220,14 @@
   }
 
   function maskCanvas(mask=state.effectiveMask,w=state.maskW,h=state.maskH){
+    // IMPORTANT: this canvas is used with destination-in. The mask MUST live in
+    // the alpha channel. V27.2 accidentally kept alpha at 255 everywhere, so the
+    // original image stayed fully opaque even when the AI mask itself was correct.
+    const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),d=x.createImageData(w,h);
+    for(let i=0,j=0;i<mask.length;i++,j+=4){const v=mask[i];d.data[j]=d.data[j+1]=d.data[j+2]=255;d.data[j+3]=v;}x.putImageData(d,0,0);return c;
+  }
+  function maskPreviewCanvas(mask=state.effectiveMask,w=state.maskW,h=state.maskH){
+    // Opaque grayscale visualization/export of the same alpha matte.
     const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d'),d=x.createImageData(w,h);
     for(let i=0,j=0;i<mask.length;i++,j+=4){const v=mask[i];d.data[j]=d.data[j+1]=d.data[j+2]=v;d.data[j+3]=255;}x.putImageData(d,0,0);return c;
   }
@@ -363,7 +387,7 @@
   function copyCanvas(src){const c=document.createElement('canvas');c.width=src.width;c.height=src.height;c.getContext('2d').drawImage(src,0,0);return c;}
   function canvasBlob(canvas,type='image/png',quality=.92){return new Promise((res,rej)=>canvas.toBlob(b=>b?res(b):rej(new Error('Encoding failed')),type,quality));}
   function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
-  function maskExportCanvas(){const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.imageSmoothingEnabled=true;x.drawImage(maskCanvas(),0,0,c.width,c.height);return c;}
+  function maskExportCanvas(){const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,c.width,c.height);x.imageSmoothingEnabled=true;x.drawImage(maskPreviewCanvas(),0,0,c.width,c.height);return c;}
   function shadowExportCanvas(){const c=document.createElement('canvas');c.width=state.outW;c.height=state.outH;const x=c.getContext('2d');drawShadow(x,state.subjectCanvas,0,0,c.width,c.height);return c;}
   async function exportResult(){
     if(!state.subjectCanvas)return;downloadBtn.disabled=true;downloadBtn.textContent='Preparing download…';
