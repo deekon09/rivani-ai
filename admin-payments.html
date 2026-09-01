@@ -16,6 +16,8 @@
 <div class="admin-pay-alert" id="adminPayStatus" role="status" aria-live="polite">Checking admin access…</div>
 <div class="admin-pay-stats" id="adminPayStats" hidden><article><span>PENDING</span><strong id="pendingCount">0</strong></article><article><span>RECENT APPROVED</span><strong id="approvedCount">0</strong></article><article><span>PRICE</span><strong>₹199</strong></article></div>
 <section class="admin-pay-list" id="paymentList" hidden></section>
+<section class="admin-pay-list" id="activeSubscriptionSection" hidden><div><span class="section-kicker">ACTIVE PRO</span><h2>Active subscriptions</h2></div><div id="activeSubscriptionList"></div></section>
+<section class="admin-pay-list" id="paymentAuditSection" hidden><div><span class="section-kicker">AUDIT LOG</span><h2>Recent payment actions</h2></div><div id="paymentAuditList"></div></section>
 </div></main>
 <div class="admin-proof-modal" id="proofModal" hidden><div class="admin-proof-backdrop" data-proof-close></div><div class="admin-proof-card"><button type="button" class="admin-proof-close" data-proof-close aria-label="Close">×</button><span class="section-kicker">PAYMENT PROOF</span><h2 id="proofTitle">Screenshot</h2><img id="proofImage" alt="Uploaded payment screenshot"/><div class="admin-proof-meta" id="proofMeta"></div></div></div>
 <script src="script.js?v=30.0-secure-launch"></script>

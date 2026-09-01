@@ -299,10 +299,12 @@ form?.addEventListener('submit',async event=>{
   if(!session?.id)return;
   if(Date.now()>=Number(session.expiresAt||0))return renderTimer();
   if(!proofDataUrl)return setProofStatus('Choose the successful-payment screenshot first.','error');
+  const utr=String(utrInput.value||'').trim();
+  if(utr.replace(/[^A-Za-z0-9]/g,'').length<6)return setProofStatus('Enter the UPI transaction / UTR reference from the successful payment.','error');
   submitBtn.disabled=true;submitBtn.textContent='Submitting securely…';
   setProofStatus('Uploading proof for manual verification…');
   try{
-    const data=await window.RIVANI_PRO_API.api('/api/payment/proof',{method:'POST',body:{sessionId:session.id,utr:String(utrInput.value||'').trim(),proofDataUrl}});
+    const data=await window.RIVANI_PRO_API.api('/api/payment/proof',{method:'POST',body:{sessionId:session.id,utr,proofDataUrl}});
     session={...session,...data.session};
     setProofStatus('Screenshot submitted. Waiting for RIVANI verification.','success');
     showSubmitted();

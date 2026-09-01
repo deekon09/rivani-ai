@@ -5,6 +5,10 @@ const stats=$('adminPayStats');
 const pendingCount=$('pendingCount');
 const approvedCount=$('approvedCount');
 const refresh=$('refreshPayments');
+const activeSection=$('activeSubscriptionSection');
+const activeList=$('activeSubscriptionList');
+const auditSection=$('paymentAuditSection');
+const auditList=$('paymentAuditList');
 const modal=$('proofModal');
 const proofImage=$('proofImage');
 const proofTitle=$('proofTitle');
@@ -54,6 +58,25 @@ function renderItems(items){
   }
 }
 
+function renderActive(items){
+  activeList.innerHTML='';
+  if(!items.length){activeList.innerHTML='<div class="admin-pay-empty">No active Pro subscriptions.</div>';return;}
+  for(const item of items){
+    const card=document.createElement('article');card.className='admin-pay-item';
+    card.innerHTML=`<div class="admin-pay-item-main"><div class="admin-pay-reference"><span>PRO ACTIVE</span><b>until ${esc(fmt(item.expiresAt))}</b></div><h3>${esc(item.email||'RIVANI account')}</h3><p>Started ${esc(fmt(item.startsAt))}</p><div class="admin-pay-tags"><span>Server verified</span><span>UID: ${esc(String(item.uid||'').slice(0,12))}…</span></div></div><div class="admin-pay-actions"><button type="button" class="admin-reject-btn" data-revoke="${esc(item.uid)}">Revoke Pro</button></div>`;
+    activeList.appendChild(card);
+  }
+}
+function renderAudit(items){
+  auditList.innerHTML='';
+  if(!items.length){auditList.innerHTML='<div class="admin-pay-empty">No payment audit actions yet.</div>';return;}
+  for(const item of items){
+    const card=document.createElement('article');card.className='admin-pay-item';
+    card.innerHTML=`<div class="admin-pay-item-main"><div class="admin-pay-reference"><span>${esc(item.action)}</span><b>${esc(fmt(item.createdAt))}</b></div><h3>${esc(item.email||item.actor||'RIVANI account')}</h3><p>${esc(item.note||'No note')}</p><div class="admin-pay-tags"><span>Payment: ${esc(item.reference||'—')}</span><span>Admin: ${esc(item.actor||'system')}</span></div></div>`;
+    auditList.appendChild(card);
+  }
+}
+
 async function load(){
   refresh.disabled=true;setStatus('Loading secure payment queue…');
   try{
@@ -62,9 +85,11 @@ async function load(){
     pendingCount.textContent=String(data.pending?.length||0);
     approvedCount.textContent=String(data.recentApproved||0);
     renderItems(data.pending||[]);
-    setStatus(`Admin verified · ${data.pending?.length||0} payment${(data.pending?.length||0)===1?'':'s'} waiting.`, 'success');
+    activeSection.hidden=false;auditSection.hidden=false;
+    renderActive(data.activeSubscriptions||[]);renderAudit(data.audit||[]);
+    setStatus(`Admin verified · ${data.pending?.length||0} payment${(data.pending?.length||0)===1?'':'s'} waiting · ${data.activeSubscriptions?.length||0} active Pro.`, 'success');
   }catch(error){
-    stats.hidden=true;list.hidden=true;
+    stats.hidden=true;list.hidden=true;activeSection.hidden=true;auditSection.hidden=true;
     setStatus(error.code==='ADMIN_FORBIDDEN'?'This signed-in account is not authorized to review payments.':error.message,'error');
   }finally{refresh.disabled=false;}
 }
@@ -97,6 +122,18 @@ document.addEventListener('click',async event=>{
       setStatus(`Approved. Pro active until ${fmt(data.subscription?.expiresAt)}.`, 'success');
       await load();
     }catch(error){setStatus(error.message,'error');approve.disabled=false;}
+    return;
+  }
+  const revoke=event.target.closest('[data-revoke]');
+  if(revoke){
+    const note=prompt('Reason for revoking Pro:','Payment was reversed, refunded, duplicated or approved in error.');
+    if(note===null)return;
+    if(!confirm("Revoke this account's Pro access immediately?"))return;
+    revoke.disabled=true;setStatus('Revoking Pro access…');
+    try{
+      await adminFetch('/api/admin/subscription/revoke',{method:'POST',body:JSON.stringify({uid:revoke.dataset.revoke,note})});
+      setStatus('Pro access revoked. The account is back on Free.', 'success');await load();
+    }catch(error){setStatus(error.message,'error');revoke.disabled=false;}
     return;
   }
   const reject=event.target.closest('[data-reject]');

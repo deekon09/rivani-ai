@@ -31,7 +31,7 @@
 <a class="btn btn-secondary pro-upi-link" id="upiPayLink" href="#" hidden>Open UPI app →</a>
 <div class="pro-payment-warning" id="paymentWarning">Do not pay until your unique payment reference and QR are visible.</div>
 <form id="paymentProofForm" class="pro-proof-form" hidden novalidate>
-<label><span>UPI transaction / UTR <small>optional but recommended</small></span><input id="paymentUtr" maxlength="60" autocomplete="off" placeholder="Example: transaction reference"/></label>
+<label><span>UPI transaction / UTR <small>required</small></span><input id="paymentUtr" maxlength="60" minlength="6" autocomplete="off" placeholder="Enter the transaction / UTR reference" required/></label>
 <label class="pro-proof-upload"><span>Payment screenshot *</span><input id="paymentProof" type="file" accept="image/png,image/jpeg,image/webp" required/><b id="paymentProofLabel">Choose successful-payment screenshot</b><small>PNG/JPG/WebP · automatically compressed before secure upload.</small></label>
 <img id="paymentProofPreview" class="pro-proof-preview" alt="Selected payment screenshot preview" hidden/>
 <button class="btn btn-primary" id="submitPaymentProof" type="submit">Submit screenshot for verification →</button>
