@@ -36,12 +36,16 @@ CURRENT TOOL STATUS
    Tool: audio-repair.html
    Guide: article-audio-repair.html
 
-2. Image Enhancer — planned.
-   Purpose: improve clarity and perceived detail in low-quality images with preview before export.
+2. Image Enhancer — live.
+   Purpose: improve clarity and perceived detail with browser-side AI restoration, Studio Finish, Fidelity Guard, 1×/2×/4×/8× options, detail controls, filters and export choices.
+   Tool: image-enhancer.html
+   Free: 9 successful enhancements/day.
    Guide: article-image-enhancer.html
 
-3. Background Remover — planned.
-   Purpose: isolate the main subject and export a transparent result; useful for profile pictures, products, and creator graphics.
+3. Background Remover — live.
+   Purpose: isolate the main subject with browser-side AI cutout, hair/glass/logo presets, edge cleanup, Cutout Guard, multi-subject selection, manual erase/restore refinement, backgrounds, shadow and transparent/mask exports.
+   Tool: background-remover.html
+   Free: all quality controls plus 9 successful removals/day. Pro removes the daily cap.
    Guide: article-background-remover.html
 
 4. Video Subtitle Generator — planned.
