@@ -1,4 +1,4 @@
-# RIVANI AI V32 — security + indexing + performance headers for Public Beta All Access
+# RIVANI AI — security + indexing + safe caching
 /*
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
@@ -9,12 +9,10 @@
   Permissions-Policy: camera=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), browsing-topics=(), microphone=(self)
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com https://cdn.jsdelivr.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com; font-src 'self' data:; media-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self' https://rivani-account-api.rivani.workers.dev https://rivani-models.rivani.workers.dev https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.googleapis.com https://www.googleapis.com https://cdn.jsdelivr.net https://challenges.cloudflare.com https://rivani-ai.firebaseapp.com; frame-src https://challenges.cloudflare.com https://rivani-ai.firebaseapp.com https://accounts.google.com https://apis.google.com; manifest-src 'self'; upgrade-insecure-requests
 
-# Clear Voice uses the proven non-cross-origin-isolated browser path.
 /audio-repair.html
   Cross-Origin-Opener-Policy: unsafe-none
   Cross-Origin-Embedder-Policy: unsafe-none
 
-# Private/upcoming utility pages should not be indexed.
 /auth.html
   X-Robots-Tag: noindex, nofollow
 /dashboard.html
@@ -26,13 +24,26 @@
 /calculator.html
   X-Robots-Tag: noindex, nofollow
 
-# Cache static media aggressively; versioned CSS can also be cached long-term.
-/assets/*
+# Runtime config must never be pinned in the browser/CDN.
+# It contains public environment configuration that can change after launch.
+/assets/runtime-config.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+# Cache only stable media aggressively, not every file under /assets.
+/assets/*.png
   Cache-Control: public, max-age=31536000, immutable
+/assets/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.jpeg
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+
 /styles.css
   Cache-Control: public, max-age=31536000, immutable
 
-# Keep shared runtime scripts reasonably fresh for Beta hotfixes.
 /script.js
   Cache-Control: public, max-age=3600, must-revalidate
 /pro-access.js

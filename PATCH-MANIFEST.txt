@@ -1,21 +1,15 @@
-RIVANI AI V32 — Public Beta All Access + Performance Patch
+RIVANI Turnstile cache fix
 
-CHANGED FILES
-- index.html — homepage LCP/performance work, Beta All Access copy, lazy media, idle auth-nav boot
-- script.js — Beta All Access UI state, LUKI knowledge update, LUKI inert accessibility fix, removes document-wide visual MutationObservers
-- pro-access.js — disables legacy daily usage authorization/counting for the 3 active AI tools and returns Beta unlock compatibility state; sign-in still required to process
-- dashboard.html / dashboard.js — Beta All Access account messaging while preserving real existing Pro subscription display
-- pro.html — future paid Pro stays Coming Soon; current previously Pro-labelled controls described as included during Beta
-- features.html / about.html / articles.html / 3 detailed guides / privacy.html / terms.html — public copy aligned with no daily successful-job cap and unlocked current controls
-- _headers — static asset/CSS caching improvements while keeping JS hotfix-safe
+Changed files only:
+- assets/runtime-config.js
+- _headers
 
-NOT CHANGED
-- audio-repair.js
-- image-enhancer.js
-- background-remover.js
-- model Worker / model URLs / AI quality / processing pipelines
-- payment/QR backend
-- calculator status (remains Upcoming)
+Reason:
+The previous /assets/* immutable 1-year cache rule also cached assets/runtime-config.js.
+That can keep the old blank Turnstile site key in browsers/CDN after deployment.
 
-CONTACT / TURNSTILE
-The Contact form itself cannot be safely completed from this package because the real public Cloudflare Turnstile Site Key is not available in the current files. Do NOT invent a production key and do NOT disable server-side Turnstile. Add the real public Site Key to the existing assets/runtime-config.js once available; keep TURNSTILE_SECRET_KEY private in the Worker.
+This patch:
+- keeps the public Turnstile site key in assets/runtime-config.js
+- marks runtime-config.js no-store/no-cache
+- keeps aggressive caching only for stable media assets
+- does not touch AI inference/model files

@@ -6,5 +6,5 @@ export const runtimeConfig = {
 
   // Public Cloudflare Turnstile site key. Put ONLY the site key here.
   // Keep TURNSTILE_SECRET_KEY in the rivani-account-api Worker environment.
-  turnstileSiteKey: ''
+  turnstileSiteKey: '0x4AAAAAAEkLoYPaUKHX_xuL'
 };
