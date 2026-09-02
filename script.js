@@ -1,4 +1,4 @@
-// RIVANI AI V32.1 — unlimited Beta access + normal controls + performance/accessibility + LUKI
+// RIVANI AI V33 — real Beta tool entitlement + clean Beta UI + performance/accessibility + LUKI
 const mobileMenuBtn=document.getElementById('mobileMenuBtn');const mainNav=document.getElementById('mainNav');mobileMenuBtn?.addEventListener('click',()=>{const open=mainNav?.classList.toggle('open');mobileMenuBtn.setAttribute('aria-expanded',String(open));});document.querySelectorAll('.main-nav a').forEach(a=>a.addEventListener('click',()=>mainNav?.classList.remove('open')));const year=document.getElementById('year');if(year)year.textContent=new Date().getFullYear();
 
 (function ensureGrowthLinks(){
@@ -82,21 +82,19 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
   function setText(id,text){setNodeText(document.getElementById(id),text);}
   function apply(){
     [
-      ['freeLimitProBtn','All Access'],
-      ['proBuyBtn','All Access'],
-      ['imageFreeUsageProBtn','All Access'],
-      ['imageProBuyBtn','All Access'],
-      ['bgUsageProBtn','All Access'],
-      ['bgProBuyBtn','All Access']
-    ].forEach(([id,text])=>{
+      'freeLimitProBtn',
+      'proBuyBtn',
+      'imageFreeUsageProBtn',
+      'imageProBuyBtn',
+      'bgUsageProBtn',
+      'bgProBuyBtn'
+    ].forEach(id=>{
       const btn=document.getElementById(id);
       if(!btn)return;
-      setNodeText(btn,text);
-      btn.removeAttribute('disabled');
-      btn.removeAttribute('aria-disabled');
+      btn.hidden=true;
+      btn.style.display='none';
+      btn.setAttribute('aria-hidden','true');
       btn.classList.remove('pro-locked','is-pro-locked','locked-pro');
-      btn.dataset.rivaniAllAccess='true';
-      btn.title='All Access is active during Public Beta';
     });
 
     const panels=[
@@ -114,19 +112,35 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
     setNodeText(document.getElementById('imageProModalCopy'),'This currently implemented precision control is temporarily unlocked during Public Beta All Access. Future paid Pro is still upcoming.');
     setNodeText(document.getElementById('bgProModalCopy'),'Public Beta All Access has no successful-job daily cap. Current Background Remover controls use the same RIVANI Precision quality.');
 
-    document.querySelectorAll('.pro-lock-badge').forEach(el=>setNodeText(el,'✓ AVAILABLE'));
-    document.querySelectorAll('.image-pro-heading span,.image-pro-tool em').forEach(el=>setNodeText(el,'AVAILABLE'));
+    document.querySelectorAll('.pro-lock-badge').forEach(el=>setNodeText(el,'✓ BETA ACCESS'));
+    document.querySelectorAll('.image-pro-heading span').forEach(el=>setNodeText(el,'BETA ACCESS'));
 
     setNodeText(document.querySelector('.audio-tool-hero .status-pill'),'PUBLIC BETA · ALL ACCESS');
     setNodeText(document.querySelector('.image-tool-badges .status-pill'),'PUBLIC BETA · ALL ACCESS');
     setNodeText(document.querySelector('.bg-badges .status-pill'),'PUBLIC BETA · ALL ACCESS');
 
     document.querySelectorAll('.upload-support-info .support-line').forEach(line=>{
-      if(/^Pro:/i.test((line.textContent||'').trim())){
-        const html='<b>Beta:</b> Current implemented advanced controls are temporarily unlocked';
+      const text=(line.textContent||'').trim();
+      if(/^Free:/i.test(text)){
+        const html='<b>Beta:</b> No successful-job daily cap';
+        if(line.innerHTML!==html)line.innerHTML=html;
+      }else if(/^Pro:/i.test(text)){
+        const html='<b>Controls:</b> Current implemented advanced controls unlocked';
+        if(line.innerHTML!==html)line.innerHTML=html;
+      }else if(/^Mic:/i.test(text)){
+        const html='<b>Mic:</b> Same technical recording safeguards apply';
         if(line.innerHTML!==html)line.innerHTML=html;
       }
     });
+
+    const signedIn=Boolean(window.RIVANI_LUKI_CONTEXT?.signedIn);
+    const imageUsage=document.getElementById('imageFreeUsageText');
+    if(imageUsage)setNodeText(imageUsage,signedIn?'Public Beta · unlimited enhancements':'Sign in to enhance images.');
+    const bgUsage=document.getElementById('bgUsageText');
+    if(bgUsage)setNodeText(bgUsage,signedIn?'Public Beta · unlimited removals':'Sign in to remove backgrounds.');
+    const audioBadge=document.getElementById('proAudioBadge');
+    if(audioBadge)setNodeText(audioBadge,'✓ BETA ACCESS');
+    document.querySelectorAll('.pro-chip').forEach(el=>setNodeText(el,'BETA'));
 
     const limitCard=document.getElementById('freeDailyLimitCard');
     if(limitCard){limitCard.hidden=true;limitCard.style.display='none';}
@@ -198,6 +212,7 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
   [0,120,350,900,1800,3200].forEach(delay=>setTimeout(apply,delay));
   window.addEventListener('rivani:usage-update',()=>setTimeout(apply,0));
   window.addEventListener('rivani:beta-all-access',()=>setTimeout(apply,0));
+  window.addEventListener('rivani:auth-context',()=>setTimeout(apply,0));
 })();
 
 // LUKI — RIVANI website assistant.

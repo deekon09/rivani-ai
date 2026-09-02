@@ -48,3 +48,14 @@
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /pro-access.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+# Beta control/contact scripts change frequently during testing.
+/contact.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/contact.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/audio-repair.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/image-enhancer.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/background-remover.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0

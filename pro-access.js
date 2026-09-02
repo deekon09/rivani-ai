@@ -1,4 +1,4 @@
-// RIVANI AI V32.1 — Public Beta unlimited-access compatibility layer
+// RIVANI AI V33 — Public Beta real tool entitlement compatibility layer
 // Stable AI inference/model files are intentionally untouched.
 (() => {
   'use strict';
@@ -6,6 +6,65 @@
   const MEDIA_TOOLS = new Set(['audio-repair','image-enhancer','background-remover']);
   const UNLIMITED_NUMBER = 999999999;
   const nativeFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
+
+  // The three live media tools still contain historical Pro checks that read
+  // window.RIVANI_LUKI_CONTEXT.plan directly. During Public Beta All Access,
+  // present an entitlement-compatible "pro" plan ONLY inside those tool pages.
+  // This does not create a paid subscription and does not touch backend billing.
+  function isLiveBetaToolPage(){
+    const body=document.body;
+    return Boolean(body && (
+      body.classList.contains('audio-repair-page') ||
+      body.classList.contains('image-enhancer-page') ||
+      body.classList.contains('bg-remover-page')
+    ));
+  }
+
+  function applyBetaToolEntitlement(target){
+    if(!isLiveBetaToolPage() || !target || typeof target!=='object')return target;
+    try{
+      target.plan='pro';
+      target.pro=true;
+      target.isPro=true;
+      target.hasPro=true;
+      target.active=true;
+      target.betaAllAccess=true;
+      target.unlimited=true;
+      target.betaPlan='beta-all-access';
+    }catch(_error){}
+    return target;
+  }
+
+  function syncBetaToolContext(detail){
+    if(!isLiveBetaToolPage())return;
+    applyBetaToolEntitlement(detail);
+    applyBetaToolEntitlement(window.RIVANI_LUKI_CONTEXT);
+    window.RIVANI_PLAN='pro';
+    window.RIVANI_PRO_ACTIVE=true;
+    window.RIVANI_IS_PRO=true;
+  }
+
+  // auth-nav.js assigns this object after pro-access.js loads. Intercept that
+  // assignment so the original tool modules receive the Beta entitlement before
+  // they run their own Pro/Free gating logic.
+  if(isLiveBetaToolPage()){
+    try{
+      let rivaniContext=window.RIVANI_LUKI_CONTEXT;
+      Object.defineProperty(window,'RIVANI_LUKI_CONTEXT',{
+        configurable:true,
+        enumerable:true,
+        get(){return rivaniContext;},
+        set(value){
+          rivaniContext=applyBetaToolEntitlement(value);
+        }
+      });
+      if(rivaniContext)applyBetaToolEntitlement(rivaniContext);
+    }catch(_error){}
+    window.addEventListener('rivani:auth-context',event=>{
+      syncBetaToolContext(event.detail);
+    },true);
+    [0,80,250,700,1600,3200].forEach(ms=>setTimeout(()=>syncBetaToolContext(),ms));
+  }
 
   async function waitForAuth(){
     try{
@@ -271,7 +330,7 @@
   window.RIVANI_UNLIMITED_ACCESS=true;
   window.RIVANI_PRO_ACTIVE=true;
   window.RIVANI_IS_PRO=true;
-  window.RIVANI_PLAN='beta-all-access';
+  window.RIVANI_PLAN=isLiveBetaToolPage()?'pro':'beta-all-access';
   window.RIVANI_PRO_API={api,getSubscription,getToken,base:API};
   window.RIVANI_USAGE={authorize,complete,cancel,getUsage};
   window.RIVANI_OPEN_PRO_CHECKOUT=openCheckout;
