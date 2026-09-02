@@ -1,45 +1,29 @@
-RIVANI V34 — Brand SEO + Mobile LCP Phase
+RIVANI AI V35.4 — Brand/Favicon SEO identity patch
 
-Changed files only:
+UPLOAD/REPLACE ONLY THESE FILES:
 - index.html
 - about.html
-- script.js
-- _headers
+- audio-repair.html
+- image-enhancer.html
+- background-remover.html
+- favicon.ico
+- assets/rivani-ai-favicon.png
 
-What changed:
-1) Brand SEO/entity signals
-   - Added Organization + WebSite schema on homepage.
-   - Added AboutPage + Organization schema on About.
-   - Added official-domain and slogan wording.
-   - Linked the official public GitHub repository in schema.
+WHAT CHANGED
+- Adds an explicit square 512x512 RIVANI favicon on the homepage and all 3 live tool pages.
+- Adds favicon.ico fallback for browsers.
+- Strengthens RIVANI AI Organization/WebSite identity with alternateName signals.
+- Links all 3 WebApplication schemas to the official RIVANI AI organization entity.
+- Keeps production canonicals at https://rivaniai.online/.
+- Does NOT change AI models, inference, DSP, tool controls, styles, performance logic, auth, or Beta entitlement logic.
 
-2) Mobile PageSpeed/LCP
-   - Homepage hero carousel no longer auto-rotates at ~5.2 seconds.
-     This prevents a late lazy-loaded slide from becoming a new LCP candidate.
-   - Preloads the tiny Audio SVG that is used in the first hero tool slide.
-   - The large PNG wordmark is now low fetch-priority so it does not compete with hero LCP.
-   - Added intrinsic 900x560 dimensions to homepage SVG illustrations.
-   - LUKI reuses the already-loaded official full RIVANI wordmark and crops the R,
-     instead of requesting the separate ~333 KB R-mark PNG.
+AFTER DEPLOY
+1. Open https://rivaniai.online/ and hard-refresh once.
+2. In Google Search Console -> URL Inspection -> inspect the homepage -> Request indexing once.
+3. Favicon changes can take several days to several weeks to appear in Google Search.
 
-3) Cache cleanup
-   - Removed the temporary Clear-Site-Data: "cache" headers now that V33 is confirmed working.
-   - Normal no-store rules for Beta HTML/scripts remain.
-
-Not touched:
-- Audio model / DSP / inference
-- Image Enhancer quality pipeline
-- Background Remover model
-- rivani-models Worker
-- Account/payment backend
-
-After deploy:
-- Re-run PageSpeed Insights on homepage Mobile + Desktop.
-- Compare against baseline:
-  Mobile: 76 / 90 / 92 / 100, LCP 7.4s
-  Desktop: 94 / 95 / 92 / 100, LCP 1.6s
-- Search Console does not need another sitemap submission.
-
-Remaining external brand SEO (not a code patch):
-- Create/maintain official social/profile pages and link them consistently.
-- Earn relevant backlinks/mentions over time.
+WWW / WORKERS.DEV
+Do not solve hostname redirects by editing these site files. Configure Cloudflare redirect rules separately so:
+- www.rivaniai.online/* -> https://rivaniai.online/$1 (301)
+- rivani-ai.rivani.workers.dev/* -> https://rivaniai.online/$1 (301)
+Preserve path and query string.
