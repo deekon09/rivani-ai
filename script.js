@@ -1,4 +1,4 @@
-// RIVANI AI V32 — Public Beta All Access + performance/accessibility pass + LUKI
+// RIVANI AI V32.1 — unlimited Beta access + normal controls + performance/accessibility + LUKI
 const mobileMenuBtn=document.getElementById('mobileMenuBtn');const mainNav=document.getElementById('mainNav');mobileMenuBtn?.addEventListener('click',()=>{const open=mainNav?.classList.toggle('open');mobileMenuBtn.setAttribute('aria-expanded',String(open));});document.querySelectorAll('.main-nav a').forEach(a=>a.addEventListener('click',()=>mainNav?.classList.remove('open')));const year=document.getElementById('year');if(year)year.textContent=new Date().getFullYear();
 
 (function ensureGrowthLinks(){
@@ -82,13 +82,22 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
   function setText(id,text){setNodeText(document.getElementById(id),text);}
   function apply(){
     [
-      ['freeLimitProBtn','Beta · Unlocked'],
-      ['proBuyBtn','Beta · Unlocked'],
-      ['imageFreeUsageProBtn','Beta · Unlocked'],
-      ['imageProBuyBtn','Beta · Unlocked'],
-      ['bgUsageProBtn','Beta · Unlocked'],
-      ['bgProBuyBtn','Beta · Unlocked']
-    ].forEach(([id,text])=>setText(id,text));
+      ['freeLimitProBtn','All Access'],
+      ['proBuyBtn','All Access'],
+      ['imageFreeUsageProBtn','All Access'],
+      ['imageProBuyBtn','All Access'],
+      ['bgUsageProBtn','All Access'],
+      ['bgProBuyBtn','All Access']
+    ].forEach(([id,text])=>{
+      const btn=document.getElementById(id);
+      if(!btn)return;
+      setNodeText(btn,text);
+      btn.removeAttribute('disabled');
+      btn.removeAttribute('aria-disabled');
+      btn.classList.remove('pro-locked','is-pro-locked','locked-pro');
+      btn.dataset.rivaniAllAccess='true';
+      btn.title='All Access is active during Public Beta';
+    });
 
     const panels=[
       document.querySelector('.pro-price-panel'),
@@ -105,8 +114,8 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
     setNodeText(document.getElementById('imageProModalCopy'),'This currently implemented precision control is temporarily unlocked during Public Beta All Access. Future paid Pro is still upcoming.');
     setNodeText(document.getElementById('bgProModalCopy'),'Public Beta All Access has no successful-job daily cap. Current Background Remover controls use the same RIVANI Precision quality.');
 
-    document.querySelectorAll('.pro-lock-badge').forEach(el=>setNodeText(el,'✓ BETA · UNLOCKED'));
-    document.querySelectorAll('.image-pro-heading span,.image-pro-tool em').forEach(el=>setNodeText(el,'BETA · UNLOCKED'));
+    document.querySelectorAll('.pro-lock-badge').forEach(el=>setNodeText(el,'✓ AVAILABLE'));
+    document.querySelectorAll('.image-pro-heading span,.image-pro-tool em').forEach(el=>setNodeText(el,'AVAILABLE'));
 
     setNodeText(document.querySelector('.audio-tool-hero .status-pill'),'PUBLIC BETA · ALL ACCESS');
     setNodeText(document.querySelector('.image-tool-badges .status-pill'),'PUBLIC BETA · ALL ACCESS');
@@ -138,14 +147,55 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
       if(page.classList.contains('bg-remover-page'))setNodeText(el,'Read the full RIVANI guide for Beta All Access controls, exports, privacy and difficult-edge guidance.');
     });
 
-    // Remove purely visual Pro-lock wrapper states without changing processing logic.
-    document.querySelectorAll('.pro-locked,.is-pro-locked,.locked-pro,[data-pro-locked="true"]').forEach(el=>{
+    // Remove only explicit plan locks. Do not touch processing/model controls
+    // that are disabled for technical reasons such as "no file loaded yet".
+    document.querySelectorAll('.pro-locked,.is-pro-locked,.locked-pro,[data-pro-locked="true"],[data-requires-pro="true"],[data-pro-only="true"]').forEach(el=>{
       el.classList.remove('pro-locked','is-pro-locked','locked-pro');
       if(el.getAttribute('data-pro-locked')==='true')el.setAttribute('data-pro-locked','false');
+      if(el.getAttribute('data-requires-pro')==='true')el.setAttribute('data-requires-pro','false');
+      if(el.getAttribute('data-pro-only')==='true')el.setAttribute('data-pro-only','false');
       if(el.getAttribute('aria-disabled')==='true')el.removeAttribute('aria-disabled');
+      if(/^(BUTTON|INPUT|SELECT|TEXTAREA)$/.test(el.tagName) && el.disabled)el.disabled=false;
     });
+
+    // Clear stale browser-side quota snapshots from older 9/day builds.
+    try{
+      for(let i=localStorage.length-1;i>=0;i--){
+        const key=localStorage.key(i)||'';
+        if(/rivani.*(?:quota|daily.?usage|usage.?count)|(?:audio|image|background).*(?:quota|daily.?usage)/i.test(key)){
+          localStorage.removeItem(key);
+        }
+      }
+    }catch(_error){}
   }
-  [0,250,900,2200].forEach(delay=>setTimeout(apply,delay));
+
+  // Old upgrade buttons are no longer purchase CTAs during public Beta.
+  // Make them ordinary All Access shortcuts instead of opening stale Pro modals.
+  const accessTargets={
+    freeLimitProBtn:'.pro-noise-mixer',
+    proBuyBtn:'.pro-noise-mixer',
+    imageFreeUsageProBtn:'.image-right-panel',
+    imageProBuyBtn:'.image-right-panel',
+    bgUsageProBtn:'.bg-editor,.bg-workspace,.bg-controls',
+    bgProBuyBtn:'.bg-editor,.bg-workspace,.bg-controls'
+  };
+  document.addEventListener('click',event=>{
+    const button=event.target?.closest?.('#freeLimitProBtn,#proBuyBtn,#imageFreeUsageProBtn,#imageProBuyBtn,#bgUsageProBtn,#bgProBuyBtn');
+    if(!button)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    document.querySelectorAll('.pro-modal,.image-pro-modal,.bg-pro-modal,[id*="ProModal"],[id*="proModal"]').forEach(modal=>{
+      modal.hidden=true;
+      modal.classList.remove('open','show','active');
+      modal.setAttribute('aria-hidden','true');
+    });
+    const target=document.querySelector(accessTargets[button.id]||'');
+    if(target){
+      try{target.scrollIntoView({behavior:'smooth',block:'center'});}catch(_error){target.scrollIntoView();}
+    }
+  },true);
+
+  [0,120,350,900,1800,3200].forEach(delay=>setTimeout(apply,delay));
   window.addEventListener('rivani:usage-update',()=>setTimeout(apply,0));
   window.addEventListener('rivani:beta-all-access',()=>setTimeout(apply,0));
 })();

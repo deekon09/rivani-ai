@@ -1,10 +1,11 @@
-// RIVANI AI V32 — Public Beta All Access compatibility layer
+// RIVANI AI V32.1 — Public Beta unlimited-access compatibility layer
 // Stable AI inference/model files are intentionally untouched.
 (() => {
   'use strict';
   const API = 'https://rivani-account-api.rivani.workers.dev';
   const MEDIA_TOOLS = new Set(['audio-repair','image-enhancer','background-remover']);
-  const UNLIMITED_NUMBER = Number.MAX_SAFE_INTEGER;
+  const UNLIMITED_NUMBER = 999999999;
+  const nativeFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
 
   async function waitForAuth(){
     try{
@@ -61,7 +62,7 @@
       }
       requestHeaders.Authorization=`Bearer ${token}`;
     }
-    const response=await fetch(`${API}${path}`,{
+    const response=await nativeFetch(`${API}${path}`,{
       method,
       headers:requestHeaders,
       body:body == null ? undefined : JSON.stringify(body),
@@ -98,6 +99,29 @@
       used:0,
       limit:UNLIMITED_NUMBER,
       remaining:UNLIMITED_NUMBER,
+      dailyLimit:UNLIMITED_NUMBER,
+      daily_limit:UNLIMITED_NUMBER,
+      freeLimit:UNLIMITED_NUMBER,
+      free_limit:UNLIMITED_NUMBER,
+      usedToday:0,
+      used_today:0,
+      dailyUsage:0,
+      daily_usage:0,
+      usageCount:0,
+      usage_count:0,
+      successfulJobs:0,
+      successful_jobs:0,
+      jobsUsed:0,
+      jobs_used:0,
+      jobsRemaining:UNLIMITED_NUMBER,
+      jobs_remaining:UNLIMITED_NUMBER,
+      remainingJobs:UNLIMITED_NUMBER,
+      remaining_jobs:UNLIMITED_NUMBER,
+      quotaExceeded:false,
+      quota_exceeded:false,
+      locked:false,
+      canProcess:true,
+      can_process:true,
       ...extra
     };
   }
@@ -155,7 +179,99 @@
     location.href='pro.html';
   }
 
+  function requestUrl(input){
+    try{
+      if(typeof input==='string')return input;
+      if(input instanceof URL)return input.href;
+      if(input && typeof input.url==='string')return input.url;
+    }catch(_error){}
+    return '';
+  }
+
+  async function readRequestBody(input,init){
+    try{
+      if(init && typeof init.body==='string')return JSON.parse(init.body);
+      if(init && init.body && typeof init.body==='object' && !(init.body instanceof FormData))return init.body;
+      if(typeof Request!=='undefined' && input instanceof Request){
+        const clone=input.clone();
+        const type=(clone.headers.get('content-type')||'').toLowerCase();
+        if(type.includes('application/json'))return await clone.json();
+      }
+    }catch(_error){}
+    return {};
+  }
+
+  function betaJsonResponse(data,status=200){
+    return new Response(JSON.stringify(data),{
+      status,
+      headers:{
+        'content-type':'application/json; charset=UTF-8',
+        'cache-control':'no-store'
+      }
+    });
+  }
+
+  async function betaFetch(input,init){
+    const raw=requestUrl(input);
+    let url;
+    try{url=new URL(raw,location.href);}catch(_error){return nativeFetch(input,init);}
+    let apiOrigin='';
+    try{apiOrigin=new URL(API).origin;}catch(_error){}
+    if(url.origin!==apiOrigin)return nativeFetch(input,init);
+
+    const path=url.pathname;
+    if(path==='/api/subscription/status'){
+      return betaJsonResponse(await getSubscription());
+    }
+
+    // Cover every legacy/new quota route under /api/usage/* so an older tool
+    // script cannot bypass the Public Beta All Access compatibility layer.
+    if(path.startsWith('/api/usage/')){
+      try{
+        await requireSignedIn();
+      }catch(error){
+        return betaJsonResponse({
+          ok:false,
+          error:'AUTH_REQUIRED',
+          message:error?.message||'Please sign in to continue.'
+        },401);
+      }
+
+      const body=await readRequestBody(input,init);
+      let tool=String(body?.tool||url.searchParams.get('tool')||'');
+      if(tool && !MEDIA_TOOLS.has(tool)){
+        // Some historical callers used aliases. Map only obvious RIVANI aliases.
+        const alias=tool.toLowerCase();
+        if(alias.includes('audio'))tool='audio-repair';
+        else if(alias.includes('enhanc')||alias.includes('image'))tool='image-enhancer';
+        else if(alias.includes('background')||alias.includes('remove'))tool='background-remover';
+      }
+
+      const jobId=body?.jobId||body?.job_id||url.searchParams.get('jobId')||url.searchParams.get('job_id')||makeJobId(tool||'tool');
+      const data=betaState(MEDIA_TOOLS.has(tool)?tool:null,{
+        jobId,
+        reservationId:jobId,
+        reservation_id:jobId,
+        completed:/complete|success|commit/i.test(path),
+        cancelled:/cancel|release/i.test(path)
+      });
+      emitUsage(data);
+      return betaJsonResponse(data);
+    }
+
+    return nativeFetch(input,init);
+  }
+
+  if(nativeFetch){
+    window.fetch=betaFetch;
+  }
+
+  // Compatibility flags used by historical tool UI gates.
   window.RIVANI_BETA_ALL_ACCESS=true;
+  window.RIVANI_UNLIMITED_ACCESS=true;
+  window.RIVANI_PRO_ACTIVE=true;
+  window.RIVANI_IS_PRO=true;
+  window.RIVANI_PLAN='beta-all-access';
   window.RIVANI_PRO_API={api,getSubscription,getToken,base:API};
   window.RIVANI_USAGE={authorize,complete,cancel,getUsage};
   window.RIVANI_OPEN_PRO_CHECKOUT=openCheckout;
