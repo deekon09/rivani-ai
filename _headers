@@ -24,6 +24,12 @@
 /calculator.html
   X-Robots-Tag: noindex, nofollow
 
+# Keep the legacy workers.dev hostname accessible for old links,
+# but prevent search engines from indexing that duplicate host.
+# This absolute-URL rule does NOT apply to https://rivaniai.online/.
+https://rivani-ai.rivani.workers.dev/*
+  X-Robots-Tag: noindex
+
 # Runtime config must never be pinned in the browser/CDN.
 # It contains public environment configuration that can change after launch.
 /assets/runtime-config.js
