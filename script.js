@@ -1,4 +1,4 @@
-// RIVANI AI V35.1 — Beta access + brand SEO + interaction-safe home slider + mobile LCP stabilization + LUKI
+// RIVANI AI V35.2 — Beta access + brand SEO + reliable interaction-safe home slider + mobile LCP stabilization + LUKI
 const mobileMenuBtn=document.getElementById('mobileMenuBtn');const mainNav=document.getElementById('mainNav');mobileMenuBtn?.addEventListener('click',()=>{const open=mainNav?.classList.toggle('open');mobileMenuBtn.setAttribute('aria-expanded',String(open));});document.querySelectorAll('.main-nav a').forEach(a=>a.addEventListener('click',()=>mainNav?.classList.remove('open')));const year=document.getElementById('year');if(year)year.textContent=new Date().getFullYear();
 
 (function ensureGrowthLinks(){
@@ -67,46 +67,54 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
   if(!slides.length||!dotsWrap)return;
   const count=document.getElementById('homeLiveCount');
   const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true;
-  let current=0,autoTimer=0,visitorActivated=false;
+  let current=0,autoTimer=null,visitorActivated=false;
 
-  function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=0;}}
-  function startAuto(){
-    stopAuto();
-    // Initial page load stays fully stable for LCP. Rotation begins only after
-    // the visitor deliberately uses this slider, so Lighthouse/first paint
-    // never swaps in a late lazy-loaded hero image.
-    if(!visitorActivated||reduceMotion||document.hidden||slides.length<2)return;
-    autoTimer=setInterval(()=>show(current+1),6500);
+  function stopAuto(){
+    if(autoTimer!==null){clearTimeout(autoTimer);autoTimer=null;}
   }
   function show(i){
     current=(i+slides.length)%slides.length;
-    slides.forEach((s,n)=>s.classList.toggle('active',n===current));
-    dots.forEach((d,n)=>d.classList.toggle('active',n===current));
+    slides.forEach((slide,n)=>slide.classList.toggle('active',n===current));
+    dots.forEach((dot,n)=>dot.classList.toggle('active',n===current));
     if(count)count.textContent=`${current+1} / ${slides.length}`;
+  }
+  function scheduleAuto(){
+    stopAuto();
+    // LCP stays stable on initial load. Auto-rotation begins only after the
+    // visitor deliberately uses the slider, which also ends the LCP window.
+    if(!visitorActivated||reduceMotion||document.hidden||slides.length<2)return;
+    autoTimer=setTimeout(()=>{
+      autoTimer=null;
+      show(current+1);
+      scheduleAuto();
+    },5500);
   }
   function choose(i){
     visitorActivated=true;
     show(i);
-    startAuto();
+    scheduleAuto();
   }
 
   slides.forEach((_,i)=>{
-    const b=document.createElement('button');
-    b.type='button';
-    b.setAttribute('aria-label',`Show Beta tool ${i+1}`);
-    b.addEventListener('click',()=>choose(i));
-    dotsWrap.appendChild(b);
+    const button=document.createElement('button');
+    button.type='button';
+    button.setAttribute('aria-label',`Show Beta tool ${i+1}`);
+    button.addEventListener('click',()=>choose(i));
+    dotsWrap.appendChild(button);
   });
   const dots=[...dotsWrap.children];
 
-  document.getElementById('homeLivePrev')?.addEventListener('click',()=>choose(current-1));
-  document.getElementById('homeLiveNext')?.addEventListener('click',()=>choose(current+1));
+  const prev=document.getElementById('homeLivePrev');
+  const next=document.getElementById('homeLiveNext');
+  prev?.addEventListener('click',()=>choose(current-1));
+  next?.addEventListener('click',()=>choose(current+1));
+
   document.addEventListener('visibilitychange',()=>{
     if(document.hidden)stopAuto();
-    else startAuto();
+    else scheduleAuto();
   });
 
-  // First slide is intentionally static until the visitor interacts.
+  // First paint remains stable; one arrow/dot click starts the 5.5s rotation.
   show(0);
 })();
 
