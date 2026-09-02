@@ -1,4 +1,4 @@
-// RIVANI AI V31 — public Beta + Pro coming soon + LUKI
+// RIVANI AI V32 — Public Beta All Access + performance/accessibility pass + LUKI
 const mobileMenuBtn=document.getElementById('mobileMenuBtn');const mainNav=document.getElementById('mainNav');mobileMenuBtn?.addEventListener('click',()=>{const open=mainNav?.classList.toggle('open');mobileMenuBtn.setAttribute('aria-expanded',String(open));});document.querySelectorAll('.main-nav a').forEach(a=>a.addEventListener('click',()=>mainNav?.classList.remove('open')));const year=document.getElementById('year');if(year)year.textContent=new Date().getFullYear();
 
 (function ensureGrowthLinks(){
@@ -57,7 +57,7 @@ const mobileMenuBtn=document.getElementById('mobileMenuBtn');const mainNav=docum
   });
 })();
 
-const reveals=document.querySelectorAll('.reveal');const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting)entry.target.classList.add('visible')}),{threshold:.1});reveals.forEach(el=>observer.observe(el));
+const reveals=document.querySelectorAll('.reveal');if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target)}}),{threshold:.08,rootMargin:'120px 0px'});reveals.forEach(el=>observer.observe(el));}else{reveals.forEach(el=>el.classList.add('visible'));}
 const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=document.getElementById('sliderDots');let currentSlide=0,slideTimer;if(slides.length&&dotsWrap){slides.forEach((_,i)=>{const dot=document.createElement('button');dot.setAttribute('aria-label',`Show tool ${i+1}`);dot.addEventListener('click',()=>showSlide(i));dotsWrap.appendChild(dot)});const dots=[...dotsWrap.children];window.showSlide=function(index){currentSlide=(index+slides.length)%slides.length;slides.forEach((s,i)=>s.classList.toggle('active',i===currentSlide));dots.forEach((d,i)=>d.classList.toggle('active',i===currentSlide));clearInterval(slideTimer);slideTimer=setInterval(()=>showSlide(currentSlide+1),5000)};document.getElementById('prevSlide')?.addEventListener('click',()=>showSlide(currentSlide-1));document.getElementById('nextSlide')?.addEventListener('click',()=>showSlide(currentSlide+1));showSlide(0);}
 
 // Live-tool slider inside the homepage hero.
@@ -75,130 +75,107 @@ const slides=[...document.querySelectorAll('.spotlight-slide')];const dotsWrap=d
   show(0);
 })();
 
-// Public-Beta commerce state. This intentionally does NOT change inference,
-// model URLs, quality or server-authoritative usage accounting.
-(function installBetaCommerceState(){
-  function setNodeText(el,text){
-    if(el&&el.textContent!==text)el.textContent=text;
-  }
-  function setText(id,text){
-    setNodeText(document.getElementById(id),text);
-  }
+// Public-Beta All Access state. Stable inference/model files are untouched.
+(function installBetaAllAccessState(){
+  const BETA_COPY='Public Beta All Access';
+  function setNodeText(el,text){if(el&&el.textContent!==text)el.textContent=text;}
+  function setText(id,text){setNodeText(document.getElementById(id),text);}
   function apply(){
-    // Buttons can still open pro.html, but that page is now a non-purchasable
-    // Coming Soon page with no QR/payment scripts.
     [
-      ['freeLimitProBtn','Pro · Coming Soon'],
-      ['proBuyBtn','Pro · Coming Soon'],
-      ['imageFreeUsageProBtn','Pro · Coming Soon'],
-      ['imageProBuyBtn','Pro · Coming Soon'],
-      ['bgUsageProBtn','Pro · Coming Soon'],
-      ['bgProBuyBtn','Pro · Coming Soon']
+      ['freeLimitProBtn','Beta · Unlocked'],
+      ['proBuyBtn','Beta · Unlocked'],
+      ['imageFreeUsageProBtn','Beta · Unlocked'],
+      ['imageProBuyBtn','Beta · Unlocked'],
+      ['bgUsageProBtn','Beta · Unlocked'],
+      ['bgProBuyBtn','Beta · Unlocked']
     ].forEach(([id,text])=>setText(id,text));
 
-    const audioPrice=document.querySelector('.pro-price-panel');
-    if(audioPrice&&/₹|LAUNCH OFFER|month/i.test(audioPrice.textContent||'')){
-      audioPrice.innerHTML='<strong>Pro · Coming Soon</strong><small>Pricing and payments are paused during the RIVANI public Beta.</small>';
-    }
-    const imagePrice=document.querySelector('.image-pro-price');
-    if(imagePrice&&/₹|LAUNCH OFFER|month/i.test(imagePrice.textContent||'')){
-      imagePrice.innerHTML='<strong>Pro · Coming Soon</strong><small>Pricing and payments are paused during the RIVANI public Beta.</small>';
-    }
-    const bgPrice=document.querySelector('.bg-pro-price');
-    if(bgPrice&&/₹|LAUNCH OFFER|month/i.test(bgPrice.textContent||'')){
-      bgPrice.innerHTML='<strong>Pro · Coming Soon</strong><small>Pricing and payments are paused during the RIVANI public Beta.</small>';
-    }
+    const panels=[
+      document.querySelector('.pro-price-panel'),
+      document.querySelector('.image-pro-price'),
+      document.querySelector('.bg-pro-price')
+    ];
+    panels.forEach(panel=>{
+      if(!panel)return;
+      const html='<strong>Included in Public Beta</strong><small>Current implemented controls are unlocked at no charge. Future paid Pro remains upcoming.</small>';
+      if(panel.innerHTML!==html)panel.innerHTML=html;
+    });
 
-    const audioCopy=document.getElementById('proPreviewCopy');
-    setNodeText(audioCopy,'Advanced audio controls and lossless WAV are planned for RIVANI Pro. Pro is not for sale during the public Beta.');
-    const imageCopy=document.getElementById('imageProModalCopy');
-    setNodeText(imageCopy,'This precision control is planned for RIVANI Pro. Pro is coming soon and cannot be purchased during the public Beta.');
-    const bgCopy=document.getElementById('bgProModalCopy');
-    setNodeText(bgCopy,'Free Beta includes 9 successful removals per day with the same RIVANI Precision cutout quality. Pro is coming soon.');
+    setNodeText(document.getElementById('proPreviewCopy'),'Current advanced audio controls and lossless export options are temporarily included in Public Beta All Access. Future paid Pro is still upcoming.');
+    setNodeText(document.getElementById('imageProModalCopy'),'This currently implemented precision control is temporarily unlocked during Public Beta All Access. Future paid Pro is still upcoming.');
+    setNodeText(document.getElementById('bgProModalCopy'),'Public Beta All Access has no successful-job daily cap. Current Background Remover controls use the same RIVANI Precision quality.');
 
-    document.querySelectorAll('.pro-lock-badge').forEach(el=>setNodeText(el,'🔒 PRO · SOON'));
+    document.querySelectorAll('.pro-lock-badge').forEach(el=>setNodeText(el,'✓ BETA · UNLOCKED'));
+    document.querySelectorAll('.image-pro-heading span,.image-pro-tool em').forEach(el=>setNodeText(el,'BETA · UNLOCKED'));
 
-    // Tool-page Beta labels and public-plan copy. Runtime/inference code is untouched.
-    const audioStatus=document.querySelector('.audio-tool-hero .status-pill');
-    setNodeText(audioStatus,'PUBLIC BETA · AI CLEAR VOICE');
-    const imageStatus=document.querySelector('.image-tool-badges .status-pill');
-    setNodeText(imageStatus,'PUBLIC BETA · AI POWERED');
-    const bgStatus=document.querySelector('.bg-badges .status-pill');
-    setNodeText(bgStatus,'PUBLIC BETA · FREE');
+    setNodeText(document.querySelector('.audio-tool-hero .status-pill'),'PUBLIC BETA · ALL ACCESS');
+    setNodeText(document.querySelector('.image-tool-badges .status-pill'),'PUBLIC BETA · ALL ACCESS');
+    setNodeText(document.querySelector('.bg-badges .status-pill'),'PUBLIC BETA · ALL ACCESS');
 
     document.querySelectorAll('.upload-support-info .support-line').forEach(line=>{
       if(/^Pro:/i.test((line.textContent||'').trim())){
-        const html='<b>Pro:</b> Coming Soon · advanced controls remain locked during Beta';
+        const html='<b>Beta:</b> Current implemented advanced controls are temporarily unlocked';
         if(line.innerHTML!==html)line.innerHTML=html;
       }
     });
 
     const limitCard=document.getElementById('freeDailyLimitCard');
-    if(limitCard){
-      const h=limitCard.querySelector('h3');
-      const p=limitCard.querySelector('p');
-      const meta=limitCard.querySelector('.free-limit-lock-meta');
-      setNodeText(h,'Your 9 free enhancements are used for today.');
-      setNodeText(p,'Free Beta daily limit is over. Try again tomorrow. RIVANI Pro is coming soon.');
-      const metaHtml='<span><b>RIVANI PRO</b> Coming Soon</span><span>Higher-volume workflows and advanced controls are planned</span>';
-      if(meta&&meta.innerHTML!==metaHtml)meta.innerHTML=metaHtml;
-    }
+    if(limitCard){limitCard.hidden=true;limitCard.style.display='none';}
 
-    const audioProHead=document.getElementById('proPreviewTitle');
-    setNodeText(audioProHead,'RIVANI Pro · Coming Soon');
-    const imageProHead=document.getElementById('imageProModalTitle');
-    setNodeText(imageProHead,'RIVANI Pro · Coming Soon');
-    const bgProHead=document.getElementById('bgProModalTitle');
-    setNodeText(bgProHead,'RIVANI Pro · Coming Soon');
+    setNodeText(document.getElementById('proPreviewTitle'),BETA_COPY);
+    setNodeText(document.getElementById('imageProModalTitle'),BETA_COPY);
+    setNodeText(document.getElementById('bgProModalTitle'),BETA_COPY);
 
-    const audioPlanNote=document.querySelector('.audio-beta-note p');
-    setNodeText(audioPlanNote,'WAV, MP3, M4A, AAC, OGG and FLAC · Free Beta: 30 minutes, 500 MB and 9 successful enhancements per day. Pro is coming soon.');
-    const proMixerCopy=document.querySelector('.pro-noise-mixer .pro-mixer-head p');
-    setNodeText(proMixerCopy,'Advanced cleanup and specialist separation controls are planned for RIVANI Pro.');
-    const imageRightCopy=document.querySelector('.image-right-panel .image-panel-head p');
-    setNodeText(imageRightCopy,'Filters are Free during Beta. Identity, brand and verification controls are planned for RIVANI Pro.');
-    const bgProNote=document.querySelector('.bg-pro-note');
-    setNodeText(bgProNote,'Pro is coming soon and is expected to focus on higher-volume workflow benefits. Cutout quality stays the same on Free Beta.');
-
-    document.querySelectorAll('.image-pro-heading span,.image-pro-tool em').forEach(el=>setNodeText(el,'PRO · SOON'));
+    setNodeText(document.querySelector('.audio-beta-note p'),'Public Beta All Access: current implemented controls are unlocked and there is no successful-job daily cap. Sign-in and technical safeguards still apply.');
+    setNodeText(document.querySelector('.pro-noise-mixer .pro-mixer-head p'),'Current advanced cleanup and specialist separation controls are temporarily included during public Beta.');
+    setNodeText(document.querySelector('.image-right-panel .image-panel-head p'),'Filters and currently implemented identity, brand and verification controls are temporarily included during public Beta.');
+    setNodeText(document.querySelector('.bg-pro-note'),'Public Beta All Access has no successful-job daily cap. Future paid Pro remains upcoming; cutout quality is not paywalled.');
 
     document.querySelectorAll('.seo-live-tool-copy .seo-tool-note p').forEach(el=>{
       const page=document.body;
-      if(page.classList.contains('audio-repair-page'))setNodeText(el,'Read the full RIVANI guide for Beta controls, Free limits, exports, privacy, realistic quality limits and future Pro controls.');
-      if(page.classList.contains('image-enhancer-page'))setNodeText(el,'Read the full RIVANI guide for Beta controls, Free limits, exports, privacy, adaptive 8× details and future Pro precision tools.');
-      if(page.classList.contains('bg-remover-page'))setNodeText(el,'Read the full RIVANI guide for Beta controls, Free limits, exports, privacy, difficult-edge guidance and future Pro workflow benefits.');
+      if(page.classList.contains('audio-repair-page'))setNodeText(el,'Read the full RIVANI guide for Beta All Access controls, exports, privacy and realistic repair limits.');
+      if(page.classList.contains('image-enhancer-page'))setNodeText(el,'Read the full RIVANI guide for Beta All Access controls, exports, privacy, adaptive 8× details and precision tools.');
+      if(page.classList.contains('bg-remover-page'))setNodeText(el,'Read the full RIVANI guide for Beta All Access controls, exports, privacy and difficult-edge guidance.');
+    });
+
+    // Remove purely visual Pro-lock wrapper states without changing processing logic.
+    document.querySelectorAll('.pro-locked,.is-pro-locked,.locked-pro,[data-pro-locked="true"]').forEach(el=>{
+      el.classList.remove('pro-locked','is-pro-locked','locked-pro');
+      if(el.getAttribute('data-pro-locked')==='true')el.setAttribute('data-pro-locked','false');
+      if(el.getAttribute('aria-disabled')==='true')el.removeAttribute('aria-disabled');
     });
   }
-  apply();
-  const mo=new MutationObserver(()=>apply());
-  mo.observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+  [0,250,900,2200].forEach(delay=>setTimeout(apply,delay));
+  window.addEventListener('rivani:usage-update',()=>setTimeout(apply,0));
+  window.addEventListener('rivani:beta-all-access',()=>setTimeout(apply,0));
 })();
 
 // LUKI — RIVANI website assistant.
 const LUKI_API_BASE='https://rivani-account-api.rivani.workers.dev';
-if(!document.getElementById('lukiLauncher')){document.body.insertAdjacentHTML('beforeend',`<button class="luki-launcher" id="lukiLauncher" type="button" aria-label="Open LUKI assistant" aria-expanded="false"><span class="luki-launcher-orb rivani-r-crop luki-r-logo" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""></span><span class="luki-launcher-copy"><strong>LUKI</strong><small>Ask about RIVANI AI</small></span><span class="luki-online-dot"></span></button><aside class="luki-panel" id="lukiPanel" aria-label="LUKI RIVANI assistant" aria-hidden="true"><div class="luki-head"><div class="luki-avatar rivani-r-crop luki-r-logo" aria-hidden="true"><img src="assets/rivani-ai-logo.png" alt=""></div><div><strong>LUKI</strong><span>RIVANI AI Assistant</span></div><button class="luki-close" id="lukiClose" type="button" aria-label="Close LUKI">×</button></div><div class="luki-scope"><span>✦</span>Ask naturally. LUKI understands questions about RIVANI tools, accounts, plans, policies and website features.</div><div class="luki-messages" id="lukiMessages" aria-live="polite"><div class="luki-message bot"><div class="luki-bubble">Hi, I’m LUKI. Ask me anything about RIVANI AI — tools, your account, plans, policies, or how a feature works.</div></div></div><div class="luki-quick" id="lukiQuick"><button type="button" data-question="What can AI Audio Repair do?">Audio Repair</button><button type="button" data-question="Which RIVANI tools are in Beta?">Beta tools</button><button type="button" data-question="Which RIVANI tools are upcoming?">Upcoming</button><button type="button" data-question="How does the 7-day account deletion work?">Account deletion</button><button type="button" data-question="What is the Free Beta plan?">Plans</button></div><form class="luki-form" id="lukiForm"><input id="lukiInput" type="text" maxlength="500" autocomplete="off" placeholder="Ask LUKI about RIVANI AI…"><button type="submit" aria-label="Send question">➜</button></form><div class="luki-foot">RIVANI help only · AI responses can be imperfect</div></aside>`)}
+if(!document.getElementById('lukiLauncher')){document.body.insertAdjacentHTML('beforeend',`<button class="luki-launcher" id="lukiLauncher" type="button" aria-label="Open LUKI assistant" aria-expanded="false"><span class="luki-launcher-orb rivani-r-crop luki-r-logo" aria-hidden="true"><img src="assets/rivani-r-mark.png" alt="" decoding="async"></span><span class="luki-launcher-copy"><strong>LUKI</strong><small>Ask about RIVANI AI</small></span><span class="luki-online-dot"></span></button><aside class="luki-panel" id="lukiPanel" aria-label="LUKI RIVANI assistant" aria-hidden="true"><div class="luki-head"><div class="luki-avatar rivani-r-crop luki-r-logo" aria-hidden="true"><img src="assets/rivani-r-mark.png" alt="" decoding="async"></div><div><strong>LUKI</strong><span>RIVANI AI Assistant</span></div><button class="luki-close" id="lukiClose" type="button" aria-label="Close LUKI">×</button></div><div class="luki-scope"><span>✦</span>Ask naturally. LUKI understands RIVANI tools, Beta access, accounts, policies and roadmap.</div><div class="luki-messages" id="lukiMessages" aria-live="polite"><div class="luki-message bot"><div class="luki-bubble">Hi, I’m LUKI. The three active AI tools are in Public Beta All Access right now. Ask me about features, accounts, policies or what is upcoming.</div></div></div><div class="luki-quick" id="lukiQuick"><button type="button" data-question="What can AI Audio Repair do?">Audio Repair</button><button type="button" data-question="Which RIVANI tools are live in Beta?">Beta tools</button><button type="button" data-question="What does Beta All Access include?">All Access</button><button type="button" data-question="Which RIVANI tools are upcoming?">Upcoming</button><button type="button" data-question="How does the 7-day account deletion work?">Account deletion</button></div><form class="luki-form" id="lukiForm"><input id="lukiInput" type="text" maxlength="500" autocomplete="off" placeholder="Ask LUKI about RIVANI AI…"><button type="submit" aria-label="Send question">➜</button></form><div class="luki-foot">RIVANI help only · AI responses can be imperfect</div></aside>`)}
 const lukiLauncher=document.getElementById('lukiLauncher'),lukiPanel=document.getElementById('lukiPanel'),lukiClose=document.getElementById('lukiClose'),lukiForm=document.getElementById('lukiForm'),lukiInput=document.getElementById('lukiInput'),lukiMessages=document.getElementById('lukiMessages'),lukiQuick=document.getElementById('lukiQuick');
+if(lukiPanel){try{lukiPanel.inert=true;}catch(_error){}}
 const lukiHistory=[];
 function lukiAdd(text,who='bot',extraClass=''){if(!lukiMessages)return null;const row=document.createElement('div');row.className=`luki-message ${who} ${extraClass}`.trim();const b=document.createElement('div');b.className='luki-bubble';b.textContent=text;row.appendChild(b);lukiMessages.appendChild(row);lukiMessages.scrollTop=lukiMessages.scrollHeight;return row}
 function lukiFallbackReply(raw){
   const q=raw.toLowerCase().trim();
-  if(/(audio|voice|noise|echo|recording|sound|podcast|wav|mp3|dereverb|background voices|music control)/.test(q))return 'AI Audio Repair is available in public Beta. Free accounts get 9 successful repairs per day, up to 30 minutes and 500 MB per file, with MP3 export. Clear Voice runs in the browser and includes scan, repair strength, microphone recording and Before/After playback. Advanced specialist controls and lossless WAV are planned for RIVANI Pro, which is coming soon and is not currently for sale.';
-  if(/(background|remove bg|cutout|transparent|alpha|hair|product|glass)/.test(q))return 'Background Remover is available in public Beta. RIVANI Precision supports Hair/Product/Glass/Logo presets, edge cleanup, manual Erase/Restore, background replacement, shadow and transparent exports. Free Beta gets 9 successful removals per day with the same cutout quality. Pro is coming soon; pricing and payments are not active.';
-  if(/(image|photo|picture|upscale|enhance|fidelity|8x|8×|filter)/.test(q))return 'Image Enhancer is available in public Beta. It supports 1×, 2×, 4× and adaptive 8× output, AI Strength, Clarity, Sharpness, Studio Finish, Smart Scan, Fidelity Guard, filters and Before/After comparison. Free Beta gets 9 successful enhancements per day. Precision Pro controls are planned for later; Pro is not currently purchasable.';
-  if(/(calculator|scientific|fraction|percentage|equation|quadratic|statistics|geometry|converter|emi|interest|student math)/.test(q))return 'The Advanced Student Calculator has been moved to Upcoming while RIVANI focuses the public Beta on its three AI media tools. It is not being promoted as a live tool right now.';
-  if(/(upcoming|roadmap|passport|resizer|compressor|converter|ocr|object remover|pdf|subtitle|transcription|rewriter|grammar|qr|photo restorer|colorizer)/.test(q))return 'RIVANI’s roadmap includes the Advanced Student Calculator, Passport Photo Maker, image resize/compress/convert tools, Object Remover, OCR, photo restoration/colorization, PDF tools, subtitle/transcription tools, text utilities and QR tools. Upcoming means planned, not live.';
-  if(/(contact|support|send message|feedback|bug report)/.test(q))return 'Use the Contact page to send RIVANI tool feedback, bug reports, account help, feature requests or business enquiries. Do not send passwords, private keys or banking secrets.';
-  if(/(plan|free|pro|premium|price|billing|payment|upi|qr|limit|9 per day|9\/day)/.test(q)){const c=window.RIVANI_LUKI_CONTEXT||{};const prefix=c.signedIn?`You’re currently on the ${c.plan||'Free'} plan${c.username?`, ${c.username}`:''}. `:'';return prefix+'RIVANI is in public Beta. The three active AI media tools each use a 9-successful-jobs-per-day Free limit. Pro and Premium are upcoming tiers; public pricing is not finalized and the QR/UPI purchase flow is disabled during Beta.';}
-  if(/(all tool|which tool|tools|feature|about|rivani|platform|live|beta)/.test(q))return 'RIVANI AI currently has three public-Beta AI media tools: AI Audio Repair, Image Enhancer and Background Remover. The Advanced Student Calculator is now marked Upcoming, together with the broader image, PDF, audio/video and text roadmap. Pro is also coming later and is not currently for sale.';
-  if(/(login|sign up|account|google|password|dashboard)/.test(q))return 'RIVANI AI supports email/password and Google authentication through Firebase. Processing actions require an account, and the dashboard shows account and plan information.';
+  if(/(audio|voice|noise|echo|recording|sound|podcast|wav|mp3|dereverb|de-reverb|background voices|music control|fan|traffic|click repair)/.test(q))return 'AI Audio Repair is live in public Beta. Current implemented controls are temporarily unlocked, including the advanced/specialist controls where present in the interface, and there is no successful-job daily cap. The workflow still requires sign-in and normal technical safeguards apply. Audio quality/model processing has not been changed by the Beta access update.';
+  if(/(background|remove bg|cutout|transparent|alpha|hair|product|glass|shadow|erase|restore)/.test(q))return 'Background Remover is live in public Beta with RIVANI Precision. Current controls, edge repair, manual Erase/Restore, background replacement, shadow and transparent exports are available without a successful-job daily cap. Cutout quality is not paywalled.';
+  if(/(image|photo|picture|upscale|enhance|fidelity|8x|8×|filter|critical area|face identity|logo reference|brand color|truth map|print proof|barcode|batch)/.test(q))return 'Image Enhancer is live in public Beta. Current implemented enhancement and precision controls are temporarily unlocked, including the previously Pro-labelled controls where present in the interface, and there is no successful-job daily cap. The accepted enhancement quality pipeline itself has not been retuned.';
+  if(/(calculator|scientific|fraction|percentage|equation|quadratic|statistics|geometry|converter|emi|interest|student math)/.test(q))return 'The Advanced Student Calculator is marked Upcoming while RIVANI focuses the public Beta on its three AI media tools. It is not being promoted as a live tool right now.';
+  if(/(upcoming|roadmap|passport|resizer|compressor|converter|ocr|object remover|pdf|subtitle|transcription|rewriter|grammar|qr|photo restorer|colorizer)/.test(q))return 'RIVANI’s roadmap includes the Advanced Student Calculator, Passport Photo Maker, image utilities, Object Remover, OCR, photo restoration/colorization, PDF tools, subtitle/transcription tools, text utilities and QR tools. Upcoming means planned, not live.';
+  if(/(contact|support|send message|feedback|bug report|turnstile|security check)/.test(q))return 'Use the Contact page for feedback, bug reports, account help, feature requests or business enquiries. Contact uses Cloudflare Turnstile for anti-abuse protection. If the page says the public site key is not configured, the real public Turnstile site key must be present in the site runtime configuration; the secret key must stay server-side.';
+  if(/(plan|free|pro|premium|price|billing|payment|upi|qr|limit|daily|unlimited|all access)/.test(q)){const c=window.RIVANI_LUKI_CONTEXT||{};const prefix=c.signedIn?`You’re signed in${c.username?` as ${c.username}`:''}. `:'';return prefix+'RIVANI is currently running Public Beta All Access for AI Audio Repair, Image Enhancer and Background Remover: current implemented controls are temporarily unlocked and there is no successful-job daily cap. Future paid Pro/Premium tiers are not currently for sale; no public price or QR/UPI checkout is active.';}
+  if(/(all tool|which tool|tools|feature|about|rivani|platform|live|beta)/.test(q))return 'RIVANI AI currently has three live public-Beta AI media tools: AI Audio Repair, Image Enhancer and Background Remover. They are temporarily on Beta All Access with current implemented controls unlocked and no successful-job daily cap. The Advanced Student Calculator and the broader image, PDF, creator and text roadmap remain Upcoming.';
+  if(/(login|sign up|account|google|password|dashboard)/.test(q))return 'RIVANI AI supports email/password and Google authentication through Firebase. Processing actions still require an account, and the dashboard shows account and current Beta access information.';
   if(/(delete|deletion|7 day|cancel account)/.test(q))return 'A signed-in user can schedule account deletion from the dashboard. RIVANI signs the user out after a successful request, then keeps a 7-day grace period during which the user can log back in and cancel the deletion.';
-  if(/(privacy|policy|file|upload|data|secure|terms|cookie)/.test(q))return 'RIVANI AI has Privacy, Terms, Acceptable Use and Cookie pages. The current Audio Repair, Image Enhancer and Background Remover workflows process the selected media in the browser; model weights may be downloaded to the device and cached.';
-  return 'I can help with the RIVANI public-Beta tools, Upcoming Tools, accounts, Free limits, future Pro status, exports, policies and website navigation.';
+  if(/(privacy|policy|file|upload|data|secure|terms|cookie)/.test(q))return 'RIVANI AI has Privacy, Terms, Acceptable Use and Cookie pages. Tool-specific processing and realistic limitations should be reviewed before use. Technical security and abuse-prevention data may still be processed even while the successful-job daily cap is disabled.';
+  return 'I can help with RIVANI’s three live Beta tools, Beta All Access, Upcoming Tools, accounts, exports, policies and website navigation.';
 }
-function openLuki(){lukiPanel?.classList.add('open');lukiPanel?.setAttribute('aria-hidden','false');lukiLauncher?.setAttribute('aria-expanded','true');setTimeout(()=>lukiInput?.focus(),100)}
-function closeLuki(){lukiPanel?.classList.remove('open');lukiPanel?.setAttribute('aria-hidden','true');lukiLauncher?.setAttribute('aria-expanded','false')}
-function betaLocalQuestion(q){return /(plan|free|pro|premium|price|billing|payment|upi|qr|calculator|upcoming|roadmap|which rivani tools|tool status)/i.test(q)}
-function staleCommerceAnswer(text){return /(₹\s*(?:199|499)|launch offer|15-minute|15 minute|upi\/qr|manual (?:upi|payment) verification|payment screenshot|calculator is (?:a )?live|live free advanced)/i.test(text)}
+function openLuki(){if(lukiPanel){try{lukiPanel.inert=false;}catch(_error){}lukiPanel.classList.add('open');lukiPanel.setAttribute('aria-hidden','false')}lukiLauncher?.setAttribute('aria-expanded','true');setTimeout(()=>lukiInput?.focus(),100)}
+function closeLuki(){if(lukiPanel){lukiPanel.classList.remove('open');lukiPanel.setAttribute('aria-hidden','true');try{lukiPanel.inert=true;}catch(_error){}}lukiLauncher?.setAttribute('aria-expanded','false');lukiLauncher?.focus?.({preventScroll:true})}
+function betaLocalQuestion(q){return /(audio|image|photo|background|remove bg|plan|free|pro|premium|price|billing|payment|upi|qr|limit|daily|all access|calculator|upcoming|roadmap|which rivani tools|tool status|contact|turnstile|security check)/i.test(q)}
+function staleCommerceAnswer(text){return /(₹\s*(?:199|499)|launch offer|15-minute|15 minute|upi\/qr|manual (?:upi|payment) verification|payment screenshot|calculator is (?:a )?live|live free advanced|9\s*(?:successful|free|\/day|per day)|daily limit|controls? (?:remain|are) locked|planned for rivani pro|image enhancer\s+(?:is\s+)?planned|background remover\s+(?:is\s+)?planned|flagship,? in development)/i.test(text)}
 async function lukiAsk(question){
   const q=String(question||'').trim();if(!q)return;
   const historyForRequest=lukiHistory.slice(-8);
@@ -212,7 +189,7 @@ async function lukiAsk(question){
       typing?.remove();lukiAdd(answer,'bot');lukiHistory.push({role:'assistant',content:answer});
       return;
     }
-    const response=await fetch(`${LUKI_API_BASE}/api/luki/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:q,history:historyForRequest,context:window.RIVANI_LUKI_CONTEXT||{signedIn:false}})});
+    const response=await fetch(`${LUKI_API_BASE}/api/luki/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:q,history:historyForRequest,context:{...(window.RIVANI_LUKI_CONTEXT||{signedIn:false}),betaAllAccess:true}})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.message||'LUKI is temporarily unavailable.');
     const remote=String(data.answer||'').trim();
@@ -226,7 +203,18 @@ async function lukiAsk(question){
     if(send)send.disabled=false;
   }
 }
-lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')?closeLuki():openLuki());lukiClose?.addEventListener('click',closeLuki);lukiForm?.addEventListener('submit',async e=>{e.preventDefault();const q=lukiInput?.value.trim();if(!q)return;lukiInput.value='';await lukiAsk(q)});lukiQuick?.addEventListener('click',async e=>{const b=e.target.closest('button[data-question]');if(!b)return;openLuki();await lukiAsk(b.dataset.question)});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLuki()});
+lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')?closeLuki():openLuki());
+lukiClose?.addEventListener('click',closeLuki);
+lukiForm?.addEventListener('submit',async e=>{e.preventDefault();const q=lukiInput?.value.trim();if(!q)return;lukiInput.value='';await lukiAsk(q)});
+lukiQuick?.addEventListener('click',async e=>{const b=e.target.closest('button[data-question]');if(!b)return;openLuki();await lukiAsk(b.dataset.question)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&lukiPanel?.classList.contains('open'))closeLuki()});
+
+// Small accessibility pass for recurring interactive controls.
+(function installA11yMinimumTargets(){
+  const style=document.createElement('style');
+  style.textContent='.luki-close,.luki-form button,.luki-quick button,.home-live-controls button,.mobile-menu-btn{min-width:44px;min-height:44px}';
+  document.head.appendChild(style);
+})();
 
 /* ==========================================================
    RIVANI V20.1 · Global brand text + background pulse
@@ -294,16 +282,6 @@ lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')
   function start(){
     ensureBackgroundPulse();
     decorateWithin(document.body);
-    const observer=new MutationObserver(mutations=>{
-      for(const mutation of mutations){
-        if(mutation.type==="characterData"){decorateTextNode(mutation.target);continue;}
-        mutation.addedNodes.forEach(node=>{
-          if(node.nodeType===Node.TEXT_NODE)decorateTextNode(node);
-          else if(node.nodeType===Node.ELEMENT_NODE)decorateWithin(node);
-        });
-      }
-    });
-    observer.observe(document.body,{subtree:true,childList:true,characterData:true});
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});
   else start();
@@ -326,16 +304,6 @@ lukiLauncher?.addEventListener('click',()=>lukiPanel?.classList.contains('open')
   }
   function start(){
     wrapLogos(document);
-    const observer=new MutationObserver(mutations=>{
-      for(const mutation of mutations){
-        mutation.addedNodes.forEach(node=>{
-          if(node.nodeType!==Node.ELEMENT_NODE)return;
-          if(node.matches?.('img[src*="assets/rivani-ai-logo.png"]'))wrapLogos(node.parentElement||document);
-          else wrapLogos(node);
-        });
-      }
-    });
-    observer.observe(document.body,{subtree:true,childList:true});
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",start,{once:true});
   else start();

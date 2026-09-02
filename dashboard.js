@@ -190,18 +190,22 @@ async function loadPlanState(){
   try{
     const data=await accountApi('/api/subscription/status');
     const pro=String(data?.plan||'free').toLowerCase()==='pro';
-    const label=pro?'PRO':'FREE';
-    ['sidePlan','overviewPlan','currentPlan','planBadge','planPanelName'].forEach(id=>setText(id,label));
-    setText('membershipMark',label);
     const offer=$('dashboardProOffer');
-    if(offer)offer.hidden=pro;
     if(pro){
+      const label='PRO';
+      ['sidePlan','overviewPlan','currentPlan','planBadge','planPanelName'].forEach(id=>setText(id,label));
+      setText('membershipMark',label);
+      if(offer)offer.hidden=true;
       const expiry=data?.subscription?.expiresAt;
-      setText('currentPlanCopy',expiry?`RIVANI Pro is active on this account until ${formatDate(expiry)}.`:'RIVANI Pro is active on this account.');
+      setText('currentPlanCopy',expiry?`RIVANI Pro is active on this account until ${formatDate(expiry)}. Beta All Access does not remove your existing subscription record.`:'RIVANI Pro is active on this account. Beta All Access does not remove your existing subscription record.');
       setText('membershipCopy',expiry?`Your existing Pro membership remains active until ${formatDate(expiry)}.`:'Your existing RIVANI Pro membership is active.');
     }else{
-      setText('currentPlanCopy','RIVANI is in public Beta. Free includes 9 successful jobs per day on each active AI media tool. Pro is coming soon and cannot be purchased right now.');
-      setText('membershipCopy','No payment method is required for Free Beta access. Pro pricing and public checkout are paused until a later launch.');
+      ['sidePlan','overviewPlan','planBadge'].forEach(id=>setText(id,'BETA'));
+      ['currentPlan','planPanelName'].forEach(id=>setText(id,'BETA ALL ACCESS'));
+      setText('membershipMark','BETA');
+      if(offer)offer.hidden=false;
+      setText('currentPlanCopy','RIVANI Public Beta All Access has no successful-job daily cap on the three active AI media tools, and current implemented controls are temporarily unlocked. Future paid Pro is still upcoming.');
+      setText('membershipCopy','No payment method is required for Public Beta All Access. Future Pro pricing and public checkout remain paused.');
     }
   }catch(error){
     console.warn('Plan status unavailable',error);

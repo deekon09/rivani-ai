@@ -1,56 +1,21 @@
-RIVANI AI V31 — PUBLIC BETA + DOMAIN SEO PATCH
-Production domain: https://rivaniai.online
-Date: 2026-09-02
+RIVANI AI V32 — Public Beta All Access + Performance Patch
 
-REPLACE ONLY THE FILES IN THIS ZIP.
+CHANGED FILES
+- index.html — homepage LCP/performance work, Beta All Access copy, lazy media, idle auth-nav boot
+- script.js — Beta All Access UI state, LUKI knowledge update, LUKI inert accessibility fix, removes document-wide visual MutationObservers
+- pro-access.js — disables legacy daily usage authorization/counting for the 3 active AI tools and returns Beta unlock compatibility state; sign-in still required to process
+- dashboard.html / dashboard.js — Beta All Access account messaging while preserving real existing Pro subscription display
+- pro.html — future paid Pro stays Coming Soon; current previously Pro-labelled controls described as included during Beta
+- features.html / about.html / articles.html / 3 detailed guides / privacy.html / terms.html — public copy aligned with no daily successful-job cap and unlocked current controls
+- _headers — static asset/CSS caching improvements while keeping JS hotfix-safe
 
-WHAT THIS PATCH DOES
-- Repositions the public product as RIVANI AI Public Beta.
-- Keeps the 3 current AI media tools as the active suite:
-  1) AI Audio Repair
-  2) Image Enhancer
-  3) Background Remover
-- Moves Advanced Student Calculator to Upcoming and makes calculator.html noindex.
-- Pauses public Pro purchasing:
-  - no public price
-  - no QR
-  - no UTR
-  - no payment screenshot form
-  - Pro page = Coming Soon
-- Keeps server-authoritative Free usage/quota calls intact.
-- Keeps any already-active server-side Pro entitlement readable on the dashboard.
-- Updates homepage/guides/legal pages for the Beta state.
-- Updates sitemap + robots for https://rivaniai.online.
-- Adds noindex headers for auth/dashboard/admin/pro/calculator.
-- Adds a production-domain canonical/OG/JSON-LD safety net in script.js for older public HTML pages,
-  including the 3 tool pages, without changing their inference/runtime code.
-- Updates LUKI frontend fallback/status answers so it does not quote retired pricing or call Calculator live.
-
-IMPORTANT: NOT CHANGED
+NOT CHANGED
 - audio-repair.js
 - image-enhancer.js
 - background-remover.js
-- any AI worker/model/inference code
-- model URLs
-- Audio DSP/model quality
-- Image Enhancer V26.3 quality pipeline
-- Background Remover V27.9 desktop/mobile architecture
-- Account API backend payment/admin code
-- admin-payments.html / admin-payments.js
+- model Worker / model URLs / AI quality / processing pipelines
+- payment/QR backend
+- calculator status (remains Upcoming)
 
-NOTE ABOUT THE 3 TOOL HTML FILES
-The tool runtime HTML files are intentionally not replaced in this patch to avoid touching stable processing markup/IDs.
-The shared script.js changes their visible Beta/Pro state at runtime and updates the existing canonical/og:url/JSON-LD
-to https://rivaniai.online when served on the production domain.
-
-AFTER UPLOAD
-1. Replace these files in the repository.
-2. Wait for Cloudflare deployment.
-3. Open https://rivaniai.online and hard refresh (Ctrl+Shift+R).
-4. Test all 3 tools.
-5. Open /pro.html — it must show Coming Soon and must NOT show QR/payment.
-6. Open /calculator.html — it must show Upcoming and no calculator runtime.
-7. Check:
-   https://rivaniai.online/robots.txt
-   https://rivaniai.online/sitemap.xml
-8. Then configure Google Search Console and submit the sitemap.
+CONTACT / TURNSTILE
+The Contact form itself cannot be safely completed from this package because the real public Cloudflare Turnstile Site Key is not available in the current files. Do NOT invent a production key and do NOT disable server-side Turnstile. Add the real public Site Key to the existing assets/runtime-config.js once available; keep TURNSTILE_SECRET_KEY private in the Worker.
