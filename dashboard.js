@@ -42,7 +42,7 @@ function setDeleteStatus(text,type='info'){
 }
 async function accountApi(path, options={}){
   if (!currentUser) throw new Error('Please sign in again.');
-  if (!DELETION_API) throw new Error('Account deletion service is not configured.');
+  if (!DELETION_API) throw new Error('Account service is not configured.');
   const idToken = await currentUser.getIdToken();
   const response = await fetch(`${DELETION_API}${path}`, {
     ...options,
@@ -170,7 +170,6 @@ logoutBtn?.addEventListener('click',async()=>{
   finally { logoutBtn.disabled=false; }
 });
 
-
 async function loadAdminQueueBadge(){
   const link=$('paymentReviewLink');
   if(!link||!currentUser)return;
@@ -199,10 +198,10 @@ async function loadPlanState(){
     if(pro){
       const expiry=data?.subscription?.expiresAt;
       setText('currentPlanCopy',expiry?`RIVANI Pro is active on this account until ${formatDate(expiry)}.`:'RIVANI Pro is active on this account.');
-      setText('membershipCopy',expiry?`Your Pro membership remains active until ${formatDate(expiry)}.`:'Your RIVANI Pro membership is active.');
+      setText('membershipCopy',expiry?`Your existing Pro membership remains active until ${formatDate(expiry)}.`:'Your existing RIVANI Pro membership is active.');
     }else{
-      setText('currentPlanCopy','Free includes 9 successful jobs per day on each active AI media tool. Upgrade to Pro with the ₹199 launch offer after manual payment verification.');
-      setText('membershipCopy','No payment method is required for Free. Pro is available at the ₹199/month launch offer.');
+      setText('currentPlanCopy','RIVANI is in public Beta. Free includes 9 successful jobs per day on each active AI media tool. Pro is coming soon and cannot be purchased right now.');
+      setText('membershipCopy','No payment method is required for Free Beta access. Pro pricing and public checkout are paused until a later launch.');
     }
   }catch(error){
     console.warn('Plan status unavailable',error);

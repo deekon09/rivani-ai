@@ -1,4 +1,4 @@
-// RIVANI AI V30 — shared Pro checkout + server-authoritative usage client
+// RIVANI AI V31 — shared usage client + Pro Coming Soon routing
 (() => {
   'use strict';
   const API = 'https://rivani-account-api.rivani.workers.dev';
@@ -70,11 +70,8 @@
 
   async function cancel(jobId){
     if(!jobId) return null;
-    try{
-      return await api('/api/usage/cancel',{method:'POST',body:{jobId}});
-    }catch(_error){
-      return null;
-    }
+    try{return await api('/api/usage/cancel',{method:'POST',body:{jobId}});}
+    catch(_error){return null;}
   }
 
   async function getUsage(tool){
@@ -88,18 +85,10 @@
     return api('/api/subscription/status');
   }
 
-  async function openCheckout(source='website'){
-    await waitForAuth();
-    if(!window.RIVANI_LUKI_CONTEXT?.signedIn){
-      if(typeof window.RIVANI_REQUIRE_AUTH === 'function'){
-        const allowed = await window.RIVANI_REQUIRE_AUTH({tool:'RIVANI Pro'});
-        if(!allowed) return;
-      }else{
-        location.href=`auth.html?mode=login&next=${encodeURIComponent('pro.html')}`;
-        return;
-      }
-    }
-    location.href=`pro.html?from=${encodeURIComponent(source)}`;
+  // Public purchasing is paused during Beta. Keep every existing Pro button
+  // functional by routing it to the non-purchasable Coming Soon page.
+  async function openCheckout(_source='website'){
+    location.href='pro.html';
   }
 
   window.RIVANI_PRO_API = {api,getSubscription,getToken,base:API};

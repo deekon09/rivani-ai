@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://rivani-ai.rivani.workers.dev/sitemap.xml
+Sitemap: https://rivaniai.online/sitemap.xml

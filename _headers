@@ -1,4 +1,4 @@
-# RIVANI AI V30 — security headers for the public site
+# RIVANI AI V31 — security + indexing headers for public Beta
 /*
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
@@ -13,3 +13,21 @@
 /audio-repair.html
   Cross-Origin-Opener-Policy: unsafe-none
   Cross-Origin-Embedder-Policy: unsafe-none
+
+# Private/upcoming utility pages should not be indexed.
+/auth.html
+  X-Robots-Tag: noindex, nofollow
+/dashboard.html
+  X-Robots-Tag: noindex, nofollow
+/admin-payments.html
+  X-Robots-Tag: noindex, nofollow
+/pro.html
+  X-Robots-Tag: noindex, nofollow
+/calculator.html
+  X-Robots-Tag: noindex, nofollow
+
+# Avoid stale public-Beta state after deployment.
+/script.js
+  Cache-Control: no-cache
+/pro-access.js
+  Cache-Control: no-cache
