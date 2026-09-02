@@ -53,13 +53,9 @@
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /contact.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
-  Clear-Site-Data: "cache"
 /audio-repair.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
-  Clear-Site-Data: "cache"
 /image-enhancer.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
-  Clear-Site-Data: "cache"
 /background-remover.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
-  Clear-Site-Data: "cache"
