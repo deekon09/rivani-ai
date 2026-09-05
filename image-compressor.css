@@ -85,3 +85,15 @@
 .image-compressor-page #chooseCompressorFiles{background:linear-gradient(135deg,#4f8cff,#795cff 58%,#a55cff)!important;color:#fff!important;border-color:rgba(163,185,255,.55)!important}
 @media(max-width:680px){.compressor-primary-actions{grid-template-columns:1fr 1fr;position:sticky;bottom:8px;z-index:12;backdrop-filter:blur(14px)}.compressor-primary-download{grid-column:1/-1}.compressor-primary-actions .btn{font-size:10px;white-space:normal;line-height:1.2;padding:12px 9px}}
 @media(max-width:420px){.compressor-primary-actions{grid-template-columns:1fr}.compressor-primary-download{grid-column:auto}}
+
+
+/* V36.3 — unmistakable quick actions displayed directly on the result preview. */
+.compressor-preview-shell{position:relative}
+.compressor-preview-actions{position:absolute;left:14px;right:14px;bottom:14px;z-index:18;display:flex;gap:9px;justify-content:center;align-items:center;padding:10px;border:1px solid rgba(139,184,255,.5);border-radius:16px;background:linear-gradient(135deg,rgba(31,80,168,.92),rgba(89,58,177,.92));box-shadow:0 12px 30px rgba(22,44,111,.34);backdrop-filter:blur(12px)}
+.compressor-preview-actions button{min-height:44px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.24);font:inherit;font-size:10px;font-weight:900;letter-spacing:.015em;color:#fff;cursor:pointer;box-shadow:none;transition:transform .18s ease,filter .18s ease}
+.compressor-preview-actions button:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.compressor-preview-download{background:linear-gradient(135deg,#21b7ff,#5c6cff 55%,#a344ff)}
+.compressor-preview-edit{background:linear-gradient(135deg,#557ee8,#775bd4)}
+.compressor-preview-new{background:linear-gradient(135deg,#13b8ae,#2786e7)}
+@media(max-width:680px){.compressor-preview-actions{left:8px;right:8px;bottom:8px;display:grid!important;grid-template-columns:1fr 1fr;padding:8px}.compressor-preview-download{grid-column:1/-1}.compressor-preview-actions button{font-size:9px;padding:9px 7px;white-space:normal;line-height:1.2}}
+@media(max-width:420px){.compressor-preview-actions{grid-template-columns:1fr}.compressor-preview-download{grid-column:auto}}

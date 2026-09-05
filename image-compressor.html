@@ -21,7 +21,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large"/>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","@id":"https://rivaniai.online/image-compressor.html#app","name":"RIVANI Smart Image Compressor","url":"https://rivaniai.online/image-compressor.html","applicationCategory":"MultimediaApplication","operatingSystem":"Any","browserRequirements":"Requires a modern browser with Canvas and Blob support","publisher":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI","url":"https://rivaniai.online/"},"isAccessibleForFree":true,"description":"Browser-side image compressor for JPG, PNG, WebP and AVIF with exact-size targeting, Smart Format Race, Quality Guard, Text & Logo Guard, batch compression and Website Pack export.","featureList":["Compress image to exact KB","JPG PNG WebP and AVIF output","Smart Format Race","Visual Quality Guard","Text and Logo Guard","Transparency Guard","Batch Consistency","Compression Artifact Map","Website Pack export"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"RIVANI AI","item":"https://rivaniai.online/"},{"@type":"ListItem","position":2,"name":"Tools","item":"https://rivaniai.online/#tools"},{"@type":"ListItem","position":3,"name":"Smart Image Compressor","item":"https://rivaniai.online/image-compressor.html"}]}]}</script>
 <link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
-<link rel="stylesheet" href="image-compressor.css?v=36.2"/>
+<link rel="stylesheet" href="image-compressor.css?v=36.3"/>
 </head>
 <body class="image-compressor-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -125,6 +125,11 @@
 <input aria-label="Compare original and compressed image" class="compressor-compare-range" id="compressorCompareRange" min="0" max="100" value="50" type="range"/>
 <canvas class="compressor-artifact-map hidden" id="compressorArtifactMap" aria-label="Compression artifact map"></canvas>
 <div class="compressor-processing hidden" id="compressorProcessing"><div class="compressor-processing-orb"><img alt="" src="assets/rivani-r-mark.png"/></div><strong id="compressorProcessingTitle">Preparing image…</strong><p id="compressorProcessingText">Your file stays in this browser.</p><div class="compressor-progress"><span id="compressorProgressFill"></span></div><div class="compressor-progress-meta"><span id="compressorProgressPercent">0%</span><span id="compressorProgressStep">Ready</span></div></div>
+<div class="compressor-preview-actions" id="compressorPreviewActions" style="display:none" aria-label="Compressed image quick actions">
+<button class="compressor-preview-download" id="compressorPreviewDownload" type="button">↓ Download Image</button>
+<button class="compressor-preview-edit" id="compressorPreviewEdit" type="button">✦ Edit / Re-compress</button>
+<button class="compressor-preview-new" id="compressorPreviewNew" type="button">＋ Another Image</button>
+</div>
 </div>
 
 <div class="compressor-primary-actions hidden" id="compressorPrimaryActions" aria-label="Compressed image actions">
@@ -186,7 +191,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
 <script src="script.js?v=36.0-compressor" defer></script>
-<script src="image-compressor.js?v=36.2" defer></script>
+<script src="image-compressor.js?v=36.3" defer></script>
 <script src="auth-nav.js?v=36.0-compressor" type="module"></script>
 </body>
 </html>

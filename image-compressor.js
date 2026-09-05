@@ -1,4 +1,4 @@
-// RIVANI AI V36.2 — Smart Image Compressor result actions visibility fix
+// RIVANI AI V36.3 — Smart Image Compressor always-visible result actions
 // Browser-side compression only. Existing AI inference/model pipelines are untouched.
 (() => {
   'use strict';
@@ -16,6 +16,7 @@
     processing: $('compressorProcessing'), processingTitle: $('compressorProcessingTitle'), processingText: $('compressorProcessingText'), progressFill: $('compressorProgressFill'), progressPercent: $('compressorProgressPercent'), progressStep: $('compressorProgressStep'),
     scanSummary: $('compressorScanSummary'), scanGrid: $('compressorScanGrid'), result: $('compressorResult'), resultTitle: $('compressorResultTitle'), targetStatus: $('compressorTargetStatus'),
     originalSize: $('reportOriginalSize'), originalFormat: $('reportOriginalFormat'), outputSize: $('reportOutputSize'), outputFormat: $('reportOutputFormat'), saved: $('reportSavedPercent'), dimensions: $('reportDimensions'), similarity: $('reportSimilarity'), race: $('compressorRace'), resultNote: $('compressorResultNote'),
+    previewActions: $('compressorPreviewActions'), previewDownload: $('compressorPreviewDownload'), previewEdit: $('compressorPreviewEdit'), previewNew: $('compressorPreviewNew'),
     primaryActions: $('compressorPrimaryActions'), primaryDownload: $('compressorPrimaryDownload'), primaryEdit: $('compressorPrimaryEdit'), primaryNew: $('compressorPrimaryNew'),
     downloadOne: $('compressorDownloadOne'), editOne: $('compressorEditOne'), newImage: $('compressorNewImage'), toggleArtifact: $('compressorToggleArtifact'), downloadAll: $('compressorDownloadAll'), websitePack: $('compressorWebsitePack')
   };
@@ -326,6 +327,7 @@
     if(entry.result){
       els.result.classList.remove('hidden');
       els.primaryActions?.classList.remove('hidden');
+      if(els.previewActions)els.previewActions.style.display='flex';
       els.resultTitle.textContent=entry.result.target&&entry.result.blob.size<=entry.result.target?'Target met':'Compression complete';
       els.originalSize.textContent=formatBytes(entry.file.size);els.originalFormat.textContent=(entry.file.type||'image').replace('image/','').toUpperCase();
       els.outputSize.textContent=formatBytes(entry.result.blob.size);els.outputFormat.textContent=mimeLabel[entry.result.mime]||entry.result.mime;
@@ -341,7 +343,7 @@
       els.targetStatus.textContent=status;els.targetStatus.className='compressor-target-status '+(status==='TARGET MET'?'safe':status==='TARGET MISSED'?'miss':status==='QUALITY FIRST'?'warn':'');els.resultNote.textContent=note;
       renderRace(entry);
       makeArtifactMap(entry).catch(()=>{});
-    }else{els.result.classList.add('hidden');els.primaryActions?.classList.add('hidden');}
+    }else{els.result.classList.add('hidden');els.primaryActions?.classList.add('hidden');if(els.previewActions)els.previewActions.style.display='none';}
     els.artifactMap.classList.toggle('hidden',!state.artifactVisible||!entry.result);
     els.before.classList.toggle('hidden',state.artifactVisible);
     els.afterWrap?.classList.toggle('hidden',state.artifactVisible);
@@ -373,7 +375,7 @@
   }
   function clearAll(){
     state.files.forEach(e=>{if(e.originalUrl)URL.revokeObjectURL(e.originalUrl);if(e.resultUrl)URL.revokeObjectURL(e.resultUrl)});state.files=[];state.selectedIndex=0;state.batchFormat=null;state.artifactVisible=false;state.scope='all';
-    els.fileInput.value='';els.editor.classList.add('hidden');els.drop.classList.remove('hidden');els.result.classList.add('hidden');els.primaryActions?.classList.add('hidden');els.run.disabled=true;renderQueue();
+    els.fileInput.value='';els.editor.classList.add('hidden');els.drop.classList.remove('hidden');els.result.classList.add('hidden');els.primaryActions?.classList.add('hidden');if(els.previewActions)els.previewActions.style.display='none';els.run.disabled=true;renderQueue();
   }
 
   async function requireAuth(label='Image Compressor'){
@@ -468,6 +470,9 @@
   els.compareRange?.addEventListener('input',()=>els.compare.style.setProperty('--compressor-compare',`${els.compareRange.value}%`));
   els.run?.addEventListener('click',runCompression);
   const downloadSelected=()=>{const e=state.files[state.selectedIndex];if(e?.result)downloadBlob(e.result.blob,outputName(e.file.name,e.result.mime));};
+  els.previewDownload?.addEventListener('click',downloadSelected);
+  els.previewEdit?.addEventListener('click',editSelected);
+  els.previewNew?.addEventListener('click',startAnotherImage);
   els.primaryDownload?.addEventListener('click',downloadSelected);
   els.primaryEdit?.addEventListener('click',editSelected);
   els.primaryNew?.addEventListener('click',startAnotherImage);
