@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#1de5ff"/>
+      <stop offset=".52" stop-color="#4b66ff"/>
+      <stop offset="1" stop-color="#d62cff"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#37d8ff"/>
+      <stop offset="1" stop-color="#8a42ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="900" height="560" rx="44" fill="#050b20"/>
+  <text x="70" y="88" font-family="Arial, sans-serif" font-weight="700" font-size="30" fill="#fff">IMAGE COMPRESSOR</text>
+  <text x="70" y="128" font-family="Arial, sans-serif" font-size="18" fill="#9bb0d8">Smaller files, quality-aware output.</text>
+
+  <g transform="translate(70 175)">
+    <rect width="318" height="270" rx="26" fill="#0b1637" stroke="#274883" stroke-width="2"/>
+    <rect x="24" y="28" width="270" height="182" rx="18" fill="#0e1b42" stroke="#3a5f9d"/>
+    <circle cx="225" cy="78" r="28" fill="#2b5aa4"/>
+    <path d="M42 190l72-82 54 57 42-47 66 72z" fill="#1d467e"/>
+    <rect x="32" y="224" width="118" height="28" rx="14" fill="#152a55" stroke="#315995"/>
+    <text x="91" y="243" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="14" fill="#b9c9e8">2.4 MB</text>
+    <rect x="166" y="224" width="126" height="28" rx="14" fill="#11203f"/>
+    <text x="229" y="243" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#8fa8d4">ORIGINAL</text>
+  </g>
+
+  <g transform="translate(414 258)" fill="none" stroke="url(#g)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 22h58"/>
+    <path d="M38 2l20 20-20 20"/>
+    <path d="M108 22H78" opacity=".55"/>
+    <path d="M94 8L78 22l16 14" opacity=".55"/>
+  </g>
+  <text x="463" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#67cfff">SMART</text>
+  <text x="463" y="359" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#8399c3">QUALITY GUARD</text>
+
+  <g transform="translate(545 188)">
+    <rect width="285" height="245" rx="28" fill="#0d183c" stroke="url(#g)" stroke-width="3"/>
+    <rect x="24" y="24" width="237" height="145" rx="16" fill="#101f49"/>
+    <circle cx="203" cy="67" r="24" fill="#43c8ff"/>
+    <path d="M42 153l60-72 46 49 37-43 58 66z" fill="url(#g2)"/>
+    <rect x="28" y="187" width="101" height="34" rx="17" fill="url(#g)"/>
+    <text x="78.5" y="209" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="15" fill="#fff">320 KB</text>
+    <g transform="translate(148 188)">
+      <rect width="106" height="32" rx="16" fill="#12244d" stroke="#315995"/>
+      <path d="M18 17h13M37 13h13M56 9h13M75 5h13" stroke="#6edcff" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <g transform="translate(572 448)">
+    <rect width="232" height="36" rx="18" fill="#0d1c3e" stroke="#294a83"/>
+    <text x="116" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#a9bae0">EXACT SIZE • FORMAT RACE</text>
+  </g>
+</svg>
