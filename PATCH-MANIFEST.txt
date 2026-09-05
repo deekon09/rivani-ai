@@ -1,15 +1,15 @@
-RIVANI Turnstile cache fix
-
-Changed files only:
-- assets/runtime-config.js
-- _headers
-
-Reason:
-The previous /assets/* immutable 1-year cache rule also cached assets/runtime-config.js.
-That can keep the old blank Turnstile site key in browsers/CDN after deployment.
-
-This patch:
-- keeps the public Turnstile site key in assets/runtime-config.js
-- marks runtime-config.js no-store/no-cache
-- keeps aggressive caching only for stable media assets
-- does not touch AI inference/model files
+PATCH-MANIFEST.txt
+README-V37-IMAGE-TO-TEXT.md
+_headers
+about.html
+article-image-to-text.html
+articles.html
+auth-nav.js
+backend/LUKI-KNOWLEDGE-V37.md
+features.html
+image-to-text.css
+image-to-text.html
+image-to-text.js
+index.html
+script.js
+sitemap.xml

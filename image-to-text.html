@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#030616"/>
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/rivani-ai-favicon.png"/>
+<link rel="shortcut icon" href="/favicon.ico"/>
+<link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
+<meta name="description" content="Convert image to text online with RIVANI OCR. Extract text from photos, screenshots, scanned documents and receipts with Smart OCR Race, multilingual OCR, cleanup, batch extraction and browser-side privacy."/>
+<title>Image to Text Converter & OCR Online — Free | RIVANI AI</title>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Image to Text Converter & OCR Online | RIVANI AI"/>
+<meta name="twitter:description" content="Extract editable text from images with multilingual OCR, Smart OCR Race, table-to-CSV and browser-side processing."/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="RIVANI AI"/>
+<meta property="og:title" content="Image to Text Converter & OCR Online | RIVANI AI"/>
+<meta property="og:description" content="Turn photos, screenshots and scanned documents into editable text with RIVANI OCR."/>
+<meta property="og:url" content="https://rivaniai.online/image-to-text.html"/>
+<link rel="canonical" href="https://rivaniai.online/image-to-text.html"/>
+<meta name="robots" content="index,follow,max-image-preview:large"/>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","@id":"https://rivaniai.online/image-to-text.html#app","name":"RIVANI Image to Text OCR","url":"https://rivaniai.online/image-to-text.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Any","browserRequirements":"Requires a modern browser with JavaScript, Canvas and Web Worker support","publisher":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI","url":"https://rivaniai.online/"},"isAccessibleForFree":true,"description":"Browser-side OCR tool for extracting editable text from photos, screenshots, scanned documents and receipts with multilingual recognition, Smart OCR Race, cleanup and export tools.","featureList":["Image to text OCR","Screenshot to text","Multilingual OCR","Smart OCR Race","Document cleanup","Batch image OCR","Table to CSV best-effort export","Privacy pattern scan","TXT Markdown JSON export"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"RIVANI AI","item":"https://rivaniai.online/"},{"@type":"ListItem","position":2,"name":"Tools","item":"https://rivaniai.online/#tools"},{"@type":"ListItem","position":3,"name":"Image to Text OCR","item":"https://rivaniai.online/image-to-text.html"}]}]}</script>
+<link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
+<link rel="stylesheet" href="image-to-text.css?v=37.0"/>
+</head>
+<body class="image-to-text-page">
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+<header class="site-header"><div class="container nav-wrap">
+<a aria-label="RIVANI AI home" class="brand" href="index.html"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png" decoding="async"/></a>
+<button aria-expanded="false" aria-label="Open menu" class="mobile-menu-btn" id="mobileMenuBtn"><span></span><span></span><span></span></button>
+<nav aria-label="Primary navigation" class="main-nav" id="mainNav"><a href="index.html">Home</a><a class="active" href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a></nav>
+<div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+</div></header>
+<main>
+<section class="ocr-hero section"><div class="container ocr-hero-grid">
+<div class="reveal"><div class="ocr-badges"><span class="status-pill">PUBLIC BETA · ALL ACCESS</span><span class="ocr-private-chip">◆ OCR runs in your browser</span></div><span class="section-kicker">RIVANI IMAGE TO TEXT</span><h1>See the image.<br/><span>Get the text.</span></h1><p>Extract editable text from photos, screenshots, scanned pages and receipts. RIVANI checks the image first, can clean difficult text, and gives you copy, search and export tools after OCR.</p><div class="ocr-hero-points"><span>✓ English + Indian languages</span><span>✓ Smart OCR Race</span><span>✓ Table to CSV · best effort</span><span>✓ Batch images</span></div></div>
+<div class="ocr-trust-card reveal delay-1"><span class="section-kicker">RIVANI OCR CHECK</span><strong>Read the pixels.<br/>Flag uncertain results.</strong><div class="ocr-trust-grid"><div><b>Image scan</b><span>Before OCR</span></div><div><b>Confidence</b><span>Reported</span></div><div><b>Privacy patterns</b><span>Local scan</span></div><div><b>Handwriting</b><span>Experimental</span></div></div></div>
+</div></section>
+
+<section class="section"><div class="container ocr-workspace-grid">
+<aside class="ocr-control-panel reveal">
+<div class="ocr-panel-head"><span class="section-kicker">OCR CONTROL</span><h2>Image to Text</h2><p>Start with Auto, or choose a mode for documents, screenshots, tables or handwriting.</p></div>
+<div class="ocr-control-block"><label class="ocr-label">Recognition mode</label><div class="ocr-mode-grid" id="ocrModeGrid">
+<button class="active" type="button" data-ocr-mode="auto"><b>Auto</b><small>Recommended</small></button>
+<button type="button" data-ocr-mode="document"><b>Document</b><small>Scans & printed pages</small></button>
+<button type="button" data-ocr-mode="screenshot"><b>Screenshot</b><small>Small UI text</small></button>
+<button type="button" data-ocr-mode="table"><b>Table / Receipt</b><small>Rows & columns</small></button>
+<button type="button" data-ocr-mode="handwriting"><b>Handwriting</b><small>Experimental</small></button>
+</div></div>
+<div class="ocr-control-block"><label class="ocr-label" for="ocrLanguage">Language</label><select id="ocrLanguage">
+<option value="eng" selected>English</option><option value="hin">Hindi</option><option value="eng+hin">English + Hindi</option><option value="mar">Marathi</option><option value="ben">Bengali</option><option value="guj">Gujarati</option><option value="tam">Tamil</option><option value="tel">Telugu</option><option value="kan">Kannada</option><option value="mal">Malayalam</option><option value="pan">Punjabi</option><option value="urd">Urdu</option>
+</select><p class="ocr-help">The selected OCR language file is downloaded when needed. Multi-language OCR takes longer.</p></div>
+<div class="ocr-control-block"><label class="ocr-label">Smart processing</label>
+<button class="ocr-toggle enabled" aria-pressed="true" id="ocrAutoClean" type="button"><span><b>Auto Clean</b><small>Improves contrast when the scan needs it</small></span><i></i></button>
+<button class="ocr-toggle enabled" aria-pressed="true" id="ocrTinyText" type="button"><span><b>Tiny Text Upscale</b><small>Enlarges small text before recognition</small></span><i></i></button>
+<button class="ocr-toggle enabled" aria-pressed="true" id="ocrPreserveLines" type="button"><span><b>Preserve Line Breaks</b><small>Keeps OCR line structure where possible</small></span><i></i></button>
+<button class="ocr-toggle" aria-pressed="false" id="ocrRace" type="button"><span><b>Smart OCR Race</b><small>Runs two cleanup paths and keeps the higher-confidence result</small></span><i></i></button>
+</div>
+<div class="ocr-control-block"><label class="ocr-label">Manual image correction</label><div class="ocr-rotate-row"><button id="ocrRotateLeft" type="button">↶ Rotate</button><button id="ocrRotateRight" type="button">Rotate ↷</button></div><div class="ocr-slider-row"><div><span>Extra contrast</span><b id="ocrContrastValue">0</b></div><input id="ocrContrast" aria-label="Extra contrast" min="-20" max="40" value="0" step="5" type="range"/></div></div>
+<button class="btn ocr-run-btn" id="runOcrBtn" type="button" disabled>✦ Extract Text →</button>
+<div class="ocr-beta-note"><b>Public Beta All Access</b><span>No successful-job daily cap. Sign-in is required before OCR starts.</span></div>
+<div class="ocr-local-note">Your image pixels are processed in this browser. The OCR engine and selected language data are downloaded to your device; images are not uploaded to the RIVANI account API.</div>
+</aside>
+
+<div class="ocr-main-panel reveal delay-1">
+<div class="ocr-drop-zone" id="ocrDropZone"><input id="ocrFileInput" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/avif,image/*"/><div class="ocr-drop-icon">▤</div><span class="section-kicker">UPLOAD IMAGE</span><h2>Drop an image here</h2><p>Photos, screenshots, scans and receipts · drag, paste or choose up to 10 images.</p><button class="btn ocr-accent-btn" id="chooseOcrImages" type="button">Choose Images</button><small>JPG, PNG, WebP, AVIF and other browser-decodable image formats.</small></div>
+<div class="ocr-editor hidden" id="ocrEditor"><div class="ocr-filebar"><div><strong id="ocrCurrentName">image.jpg</strong><span id="ocrCurrentMeta">—</span></div><div class="ocr-filebar-actions"><button id="ocrAddMore" type="button">Add more</button><button id="ocrClearAll" type="button">Clear</button></div></div><div class="ocr-queue" id="ocrQueue"></div><div class="ocr-preview-shell"><img id="ocrPreview" alt="Image selected for text extraction"/><span class="ocr-preview-badge" id="ocrPreviewBadge">ORIGINAL</span><div class="ocr-processing hidden" id="ocrProcessing"><div class="ocr-processing-orb"><img src="assets/rivani-r-mark.png" alt=""/></div><strong id="ocrProcessingTitle">Preparing OCR…</strong><p id="ocrProcessingText">The first run can take longer while the OCR engine loads.</p><div class="ocr-progress"><span id="ocrProgressFill"></span></div><div class="ocr-progress-meta"><span id="ocrProgressPercent">0%</span><span id="ocrProgressStep">Ready</span></div></div></div>
+<div class="ocr-scan-card"><div class="ocr-section-title"><div><span class="section-kicker">SMART SCAN</span><h3>Before OCR</h3></div><span id="ocrScanSummary">Ready</span></div><div class="ocr-scan-grid" id="ocrScanGrid"></div></div>
+<div class="ocr-result hidden" id="ocrResult"><div class="ocr-section-title"><div><span class="section-kicker">EXTRACTED TEXT</span><h3 id="ocrResultTitle">Text ready</h3></div><span id="ocrConfidenceBadge">—</span></div><div class="ocr-report-grid"><article><span>Confidence</span><b id="ocrConfidence">—</b><small id="ocrConfidenceNote">OCR estimate</small></article><article><span>Words</span><b id="ocrWords">0</b><small>Editable output</small></article><article><span>Characters</span><b id="ocrCharacters">0</b><small>Including spaces</small></article><article><span>Winning path</span><b id="ocrWinningPath">—</b><small id="ocrIntegrity">Integrity check</small></article></div>
+<div class="ocr-output-wrap"><textarea class="ocr-textarea" id="ocrTextOutput" spellcheck="false" aria-label="Extracted text"></textarea><div class="ocr-result-tools"><button class="ocr-action primary" id="ocrCopy" type="button">Copy Text</button><button class="ocr-action teal" id="ocrDownloadTxt" type="button">Download .TXT</button><button class="ocr-action violet" id="ocrDownloadMd" type="button">Download .MD</button><button class="ocr-action" id="ocrDownloadJson" type="button">Download .JSON</button><button class="ocr-action" id="ocrExportCsv" type="button">Table → CSV</button><button class="ocr-action" id="ocrPrivacyScan" type="button">Privacy Pattern Scan</button><label class="ocr-label" for="ocrFind">Find in text</label><input id="ocrFind" type="search" placeholder="Search extracted text"/><div class="ocr-find-note" id="ocrFindNote">Type a word to count matches.</div><div class="ocr-integrity-note" id="ocrPrivacyNote">Privacy scan looks for common email and phone-like patterns locally. Review before relying on it.</div></div></div>
+<div class="ocr-secondary-actions" id="ocrSecondaryActions"><button class="ocr-action primary" id="ocrDownloadMain" type="button">↓ Download Text</button><button class="ocr-action violet" id="ocrRerun" type="button">✦ Re-run / Edit</button><button class="ocr-action teal" id="ocrAnotherImage" type="button">＋ Another Image</button></div></div>
+</div></div>
+</div></section>
+
+<section class="section ocr-seo"><div class="container ocr-seo-card"><span class="section-kicker">IMAGE TO TEXT · OCR</span><h2>Turn image text into editable text without retyping it.</h2><p>RIVANI Image to Text is designed for screenshots, printed documents, photographed pages and receipts. Use Auto mode for normal images, Document mode for scans, Screenshot mode for small UI text and Table / Receipt mode when row structure matters. Handwriting recognition is experimental and should be checked carefully.</p><div class="ocr-seo-grid"><article><h3>Image to text</h3><p>Upload an image, run OCR and copy or download the extracted text.</p></article><article><h3>Multilingual OCR</h3><p>Choose English, Hindi and several Indian languages. Accuracy depends on image quality, font and script.</p></article><article><h3>Review, do not blindly trust</h3><p>OCR can misread similar characters, tiny text and unusual layouts. RIVANI reports a confidence estimate and keeps the result editable.</p></article></div><div class="ocr-related"><a href="image-enhancer.html">Enhance a difficult image first →</a><a href="image-compressor.html">Compress an image →</a><a href="article-image-to-text.html">Read the OCR guide →</a></div></div></section>
+</main>
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"/><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">Beta Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="contact.html">Contact</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Public Beta · Pro Coming Soon</span></div></footer>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
+<script src="script.js?v=37.0-ocr" defer></script>
+<script src="image-to-text.js?v=37.0" defer></script>
+<script src="auth-nav.js?v=37.0-ocr" type="module"></script>
+</body></html>
