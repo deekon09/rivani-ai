@@ -21,7 +21,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large"/>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","@id":"https://rivaniai.online/image-compressor.html#app","name":"RIVANI Smart Image Compressor","url":"https://rivaniai.online/image-compressor.html","applicationCategory":"MultimediaApplication","operatingSystem":"Any","browserRequirements":"Requires a modern browser with Canvas and Blob support","publisher":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI","url":"https://rivaniai.online/"},"isAccessibleForFree":true,"description":"Browser-side image compressor for JPG, PNG, WebP and AVIF with exact-size targeting, Smart Format Race, Quality Guard, Text & Logo Guard, batch compression and Website Pack export.","featureList":["Compress image to exact KB","JPG PNG WebP and AVIF output","Smart Format Race","Visual Quality Guard","Text and Logo Guard","Transparency Guard","Batch Consistency","Compression Artifact Map","Website Pack export"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"RIVANI AI","item":"https://rivaniai.online/"},{"@type":"ListItem","position":2,"name":"Tools","item":"https://rivaniai.online/#tools"},{"@type":"ListItem","position":3,"name":"Smart Image Compressor","item":"https://rivaniai.online/image-compressor.html"}]}]}</script>
 <link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
-<link rel="stylesheet" href="image-compressor.css?v=36.1"/>
+<link rel="stylesheet" href="image-compressor.css?v=36.2"/>
 </head>
 <body class="image-compressor-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -127,6 +127,12 @@
 <div class="compressor-processing hidden" id="compressorProcessing"><div class="compressor-processing-orb"><img alt="" src="assets/rivani-r-mark.png"/></div><strong id="compressorProcessingTitle">Preparing image…</strong><p id="compressorProcessingText">Your file stays in this browser.</p><div class="compressor-progress"><span id="compressorProgressFill"></span></div><div class="compressor-progress-meta"><span id="compressorProgressPercent">0%</span><span id="compressorProgressStep">Ready</span></div></div>
 </div>
 
+<div class="compressor-primary-actions hidden" id="compressorPrimaryActions" aria-label="Compressed image actions">
+<button class="btn compressor-primary-download" id="compressorPrimaryDownload" type="button">↓ Download Image</button>
+<button class="btn compressor-primary-edit" id="compressorPrimaryEdit" type="button">✦ Edit / Re-compress</button>
+<button class="btn compressor-primary-new" id="compressorPrimaryNew" type="button">＋ Choose Another Image</button>
+</div>
+
 <div class="compressor-scan-card" id="compressorScanCard">
 <div class="compressor-section-title"><div><span class="section-kicker">SMART SCAN</span><h3>What RIVANI sees</h3></div><span id="compressorScanSummary">Ready</span></div>
 <div class="compressor-scan-grid" id="compressorScanGrid"></div>
@@ -144,7 +150,7 @@
 <div class="compressor-result-actions">
 <button class="btn compressor-download-btn" id="compressorDownloadOne" type="button">↓ Download Image</button>
 <button class="btn compressor-edit-btn" id="compressorEditOne" type="button">✦ Edit / Re-compress</button>
-<button class="btn compressor-new-btn" id="compressorNewImage" type="button">＋ Compress Another Image</button>
+<button class="btn compressor-new-btn" id="compressorNewImage" type="button">＋ Choose Another Image</button>
 <button class="btn compressor-soft-btn" id="compressorToggleArtifact" type="button">Artifact Map</button>
 <button class="btn compressor-soft-btn" id="compressorDownloadAll" type="button">Download Batch ZIP</button>
 <button class="btn compressor-soft-btn" id="compressorWebsitePack" type="button">Build Website Pack</button>
@@ -180,7 +186,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
 <script src="script.js?v=36.0-compressor" defer></script>
-<script src="image-compressor.js?v=36.1" defer></script>
+<script src="image-compressor.js?v=36.2" defer></script>
 <script src="auth-nav.js?v=36.0-compressor" type="module"></script>
 </body>
 </html>

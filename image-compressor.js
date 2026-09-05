@@ -1,4 +1,4 @@
-// RIVANI AI V36.1 — Smart Image Compressor UX polish
+// RIVANI AI V36.2 — Smart Image Compressor result actions visibility fix
 // Browser-side compression only. Existing AI inference/model pipelines are untouched.
 (() => {
   'use strict';
@@ -16,6 +16,7 @@
     processing: $('compressorProcessing'), processingTitle: $('compressorProcessingTitle'), processingText: $('compressorProcessingText'), progressFill: $('compressorProgressFill'), progressPercent: $('compressorProgressPercent'), progressStep: $('compressorProgressStep'),
     scanSummary: $('compressorScanSummary'), scanGrid: $('compressorScanGrid'), result: $('compressorResult'), resultTitle: $('compressorResultTitle'), targetStatus: $('compressorTargetStatus'),
     originalSize: $('reportOriginalSize'), originalFormat: $('reportOriginalFormat'), outputSize: $('reportOutputSize'), outputFormat: $('reportOutputFormat'), saved: $('reportSavedPercent'), dimensions: $('reportDimensions'), similarity: $('reportSimilarity'), race: $('compressorRace'), resultNote: $('compressorResultNote'),
+    primaryActions: $('compressorPrimaryActions'), primaryDownload: $('compressorPrimaryDownload'), primaryEdit: $('compressorPrimaryEdit'), primaryNew: $('compressorPrimaryNew'),
     downloadOne: $('compressorDownloadOne'), editOne: $('compressorEditOne'), newImage: $('compressorNewImage'), toggleArtifact: $('compressorToggleArtifact'), downloadAll: $('compressorDownloadAll'), websitePack: $('compressorWebsitePack')
   };
 
@@ -324,6 +325,7 @@
     renderScan(entry);
     if(entry.result){
       els.result.classList.remove('hidden');
+      els.primaryActions?.classList.remove('hidden');
       els.resultTitle.textContent=entry.result.target&&entry.result.blob.size<=entry.result.target?'Target met':'Compression complete';
       els.originalSize.textContent=formatBytes(entry.file.size);els.originalFormat.textContent=(entry.file.type||'image').replace('image/','').toUpperCase();
       els.outputSize.textContent=formatBytes(entry.result.blob.size);els.outputFormat.textContent=mimeLabel[entry.result.mime]||entry.result.mime;
@@ -339,7 +341,7 @@
       els.targetStatus.textContent=status;els.targetStatus.className='compressor-target-status '+(status==='TARGET MET'?'safe':status==='TARGET MISSED'?'miss':status==='QUALITY FIRST'?'warn':'');els.resultNote.textContent=note;
       renderRace(entry);
       makeArtifactMap(entry).catch(()=>{});
-    }else{els.result.classList.add('hidden');}
+    }else{els.result.classList.add('hidden');els.primaryActions?.classList.add('hidden');}
     els.artifactMap.classList.toggle('hidden',!state.artifactVisible||!entry.result);
     els.before.classList.toggle('hidden',state.artifactVisible);
     els.afterWrap?.classList.toggle('hidden',state.artifactVisible);
@@ -371,7 +373,7 @@
   }
   function clearAll(){
     state.files.forEach(e=>{if(e.originalUrl)URL.revokeObjectURL(e.originalUrl);if(e.resultUrl)URL.revokeObjectURL(e.resultUrl)});state.files=[];state.selectedIndex=0;state.batchFormat=null;state.artifactVisible=false;state.scope='all';
-    els.fileInput.value='';els.editor.classList.add('hidden');els.drop.classList.remove('hidden');els.result.classList.add('hidden');els.run.disabled=true;renderQueue();
+    els.fileInput.value='';els.editor.classList.add('hidden');els.drop.classList.remove('hidden');els.result.classList.add('hidden');els.primaryActions?.classList.add('hidden');els.run.disabled=true;renderQueue();
   }
 
   async function requireAuth(label='Image Compressor'){
@@ -465,7 +467,11 @@
   els.clear?.addEventListener('click',clearAll);els.queue?.addEventListener('click',e=>{const b=e.target.closest('[data-index]');if(!b)return;state.selectedIndex=Number(b.dataset.index);state.artifactVisible=false;renderQueue();renderSelected();});
   els.compareRange?.addEventListener('input',()=>els.compare.style.setProperty('--compressor-compare',`${els.compareRange.value}%`));
   els.run?.addEventListener('click',runCompression);
-  els.downloadOne?.addEventListener('click',()=>{const e=state.files[state.selectedIndex];if(e?.result)downloadBlob(e.result.blob,outputName(e.file.name,e.result.mime));});
+  const downloadSelected=()=>{const e=state.files[state.selectedIndex];if(e?.result)downloadBlob(e.result.blob,outputName(e.file.name,e.result.mime));};
+  els.primaryDownload?.addEventListener('click',downloadSelected);
+  els.primaryEdit?.addEventListener('click',editSelected);
+  els.primaryNew?.addEventListener('click',startAnotherImage);
+  els.downloadOne?.addEventListener('click',downloadSelected);
   els.editOne?.addEventListener('click',editSelected);
   els.newImage?.addEventListener('click',startAnotherImage);
   els.downloadAll?.addEventListener('click',downloadBatch);
