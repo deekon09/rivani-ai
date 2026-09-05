@@ -50,7 +50,7 @@ function openAuthGate(toolName='this tool'){
   const signup=modal.querySelector('#rivaniAuthGateSignup');
   const login=modal.querySelector('#rivaniAuthGateLogin');
   if(title)title.textContent=`Sign up to use ${toolName}`;
-  if(copy)copy.textContent=`Create a free RIVANI account before starting ${toolName}. Free-plan limits are tied to your signed-in account experience.`;
+  if(copy)copy.textContent=`Create a free RIVANI account before starting ${toolName}. Public Beta All Access currently has no successful-job daily cap; sign-in is still required for processing.`;
   if(signup)signup.href=`auth.html?mode=signup&next=${encodeURIComponent(next)}`;
   if(login)login.href=`auth.html?mode=login&next=${encodeURIComponent(next)}`;
   modal.classList.remove('hidden');
@@ -116,14 +116,7 @@ if (configured) {
           if(claim==='pro'||tokenResult?.claims?.pro===true)plan='Pro';
         }catch(_error){}
         const resolvedPlan=await serverPlan(user,plan);
-        context={
-          signedIn:true,
-          uid:user.uid||'',
-          username:user.displayName?.trim() || '',
-          email:user.email || '',
-          plan:resolvedPlan.plan,
-          proExpiresAt:resolvedPlan.expiresAt
-        };
+        context={signedIn:true,uid:user.uid||'',username:user.displayName?.trim() || '',email:user.email || '',plan:resolvedPlan.plan,proExpiresAt:resolvedPlan.expiresAt};
       }else{
         context={signedIn:false,uid:'',plan:null};
       }
@@ -158,3 +151,42 @@ if (configured) {
   window.RIVANI_LUKI_CONTEXT=context;
   finishAuthReady(context);
 }
+
+// V36 global LUKI refresh: four live tools + mobile-safe quick suggestions.
+(function patchLukiV36(attempt=0){
+  if(typeof window.lukiFallbackReply!=='function' && attempt<40){setTimeout(()=>patchLukiV36(attempt+1),50);return;}
+  const compressorReply='RIVANI Smart Image Compressor is live in Public Beta All Access. It can compress images to exact KB/MB targets, compare supported formats with Smart Format Race, use Visual Quality Guard, Text & Logo Guard and Transparency Guard, process batches and build a Website Pack. Image pixels are decoded and re-encoded in the browser; sign-in is required before processing and there is no successful-job daily cap.';
+  const toolsReply='RIVANI AI currently has four live Public Beta tools: AI Audio Repair, Image Enhancer, Background Remover and Smart Image Compressor. Current implemented controls are available during Beta All Access with no successful-job daily cap. Advanced Student Calculator, Image to Text/OCR, PDF Toolkit, AI Resume Builder and AI Logo Generator are Upcoming.';
+  const originalFallback=window.lukiFallbackReply;
+  window.lukiFallbackReply=function(raw){
+    const q=String(raw||'').toLowerCase().trim();
+    if(/(compress image|image compressor|photo compressor|reduce image size|smaller image|exact\s*(?:kb|mb)|\b20\s*kb\b|\b50\s*kb\b|\b100\s*kb\b|\b200\s*kb\b|smart format race|quality guard|artifact map|website pack)/.test(q))return compressorReply;
+    if(/(all tool|which tool|tools|feature|about|rivani|platform|live|beta)/.test(q))return toolsReply;
+    if(/(upcoming|roadmap|passport|resizer|ocr|object remover|pdf|subtitle|transcription|rewriter|grammar|qr|photo restorer|colorizer|resume|logo generator)/.test(q))return 'RIVANI’s next planned tools include Image to Text/OCR, PDF Toolkit, AI Resume Builder and AI Logo Generator. Advanced Student Calculator and broader image, creator and text utilities also remain on the roadmap. Upcoming means planned, not live.';
+    const answer=typeof originalFallback==='function'?originalFallback(raw):'';
+    return String(answer||'').replace(/three live Beta tools/gi,'four live Beta tools').replace(/three live public-Beta AI media tools/gi,'four live Public Beta tools').replace(/AI Audio Repair, Image Enhancer and Background Remover/g,'AI Audio Repair, Image Enhancer, Background Remover and Smart Image Compressor').replace(/three AI media tools/gi,'four live tools').replace(/three active AI tools/gi,'four active tools');
+  };
+  const originalBetaLocal=window.betaLocalQuestion;
+  window.betaLocalQuestion=function(q){
+    if(/(compress image|image compressor|photo compressor|reduce image size|exact\s*(?:kb|mb)|smart format race|artifact map|website pack|which rivani tools|tool status|all tool|tools|live|beta|roadmap|upcoming)/i.test(q))return true;
+    return typeof originalBetaLocal==='function'?originalBetaLocal(q):false;
+  };
+  const originalStale=window.staleCommerceAnswer;
+  window.staleCommerceAnswer=function(text){return /image compressor.{0,30}(?:planned|upcoming|not live)/i.test(String(text||'')) || (typeof originalStale==='function'&&originalStale(text));};
+
+  function refreshDom(){
+    const bubble=document.querySelector('#lukiMessages .luki-message.bot:first-child .luki-bubble');
+    if(bubble&&/three active/i.test(bubble.textContent||''))bubble.textContent='Hi, I’m LUKI. Four RIVANI tools are live in Public Beta All Access right now. Ask me about Audio Repair, Image Enhancer, Background Remover, Smart Image Compressor, accounts, policies or what is upcoming.';
+    const quick=document.getElementById('lukiQuick');
+    if(quick&&!quick.dataset.v36){
+      quick.dataset.v36='1';
+      quick.innerHTML='<button type="button" data-question="What can AI Audio Repair do?">Audio Repair</button><button type="button" data-question="What can Image Enhancer do?">Enhancer</button><button type="button" data-question="What can Smart Image Compressor do?">Compressor</button><button type="button" data-question="What can Background Remover do?">Background</button><button type="button" data-question="What does Beta All Access include?">Beta Access</button><button type="button" data-question="Which RIVANI tools are upcoming?">Upcoming</button>';
+    }
+    if(!document.getElementById('lukiV36MobileStyle')){
+      const s=document.createElement('style');s.id='lukiV36MobileStyle';
+      s.textContent='.luki-quick{display:flex;flex-wrap:wrap;gap:7px}.luki-quick button{box-sizing:border-box;max-width:100%;min-width:0!important;min-height:38px!important;height:auto!important;white-space:normal!important;overflow-wrap:anywhere;word-break:normal;line-height:1.15;text-align:center;padding:8px 11px}@media(max-width:520px){.luki-quick{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.luki-quick button{width:100%;font-size:11px!important;padding:7px 6px!important;border-radius:13px!important}.luki-panel{max-width:calc(100vw - 16px)!important}}';
+      document.head.appendChild(s);
+    }
+  }
+  refreshDom();setTimeout(refreshDom,0);setTimeout(refreshDom,900);
+})();

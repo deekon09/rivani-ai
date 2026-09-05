@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#030616"/>
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/rivani-ai-favicon.png"/>
+<link rel="shortcut icon" href="/favicon.ico"/>
+<link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
+<meta name="description" content="Compress JPG, PNG, WebP and AVIF images online with RIVANI Smart Image Compressor. Hit 20KB, 50KB, 100KB, 200KB or a custom target with Quality Guard, batch compression and browser-side privacy."/>
+<title>Free Image Compressor Online — Compress to Exact KB | RIVANI AI</title>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Free Image Compressor Online — Exact KB | RIVANI AI"/>
+<meta name="twitter:description" content="Compress photos to an exact KB target with Smart Format Race, Quality Guard, batch processing and browser-side privacy."/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="RIVANI AI"/>
+<meta property="og:title" content="Free Image Compressor Online — Exact KB | RIVANI AI"/>
+<meta property="og:description" content="Compress JPG, PNG, WebP and AVIF images to a smaller size or exact KB target while protecting visible quality."/>
+<meta property="og:url" content="https://rivaniai.online/image-compressor.html"/>
+<link rel="canonical" href="https://rivaniai.online/image-compressor.html"/>
+<meta name="robots" content="index,follow,max-image-preview:large"/>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","@id":"https://rivaniai.online/image-compressor.html#app","name":"RIVANI Smart Image Compressor","url":"https://rivaniai.online/image-compressor.html","applicationCategory":"MultimediaApplication","operatingSystem":"Any","browserRequirements":"Requires a modern browser with Canvas and Blob support","publisher":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI","url":"https://rivaniai.online/"},"isAccessibleForFree":true,"description":"Browser-side image compressor for JPG, PNG, WebP and AVIF with exact-size targeting, Smart Format Race, Quality Guard, Text & Logo Guard, batch compression and Website Pack export.","featureList":["Compress image to exact KB","JPG PNG WebP and AVIF output","Smart Format Race","Visual Quality Guard","Text and Logo Guard","Transparency Guard","Batch Consistency","Compression Artifact Map","Website Pack export"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"RIVANI AI","item":"https://rivaniai.online/"},{"@type":"ListItem","position":2,"name":"Tools","item":"https://rivaniai.online/#tools"},{"@type":"ListItem","position":3,"name":"Smart Image Compressor","item":"https://rivaniai.online/image-compressor.html"}]}]}</script>
+<link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
+<link rel="stylesheet" href="image-compressor.css?v=36.0"/>
+</head>
+<body class="image-compressor-page">
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+<header class="site-header"><div class="container nav-wrap">
+<a aria-label="RIVANI AI home" class="brand" href="index.html"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png" decoding="async"/></a>
+<button aria-expanded="false" aria-label="Open menu" class="mobile-menu-btn" id="mobileMenuBtn"><span></span><span></span><span></span></button>
+<nav aria-label="Primary navigation" class="main-nav" id="mainNav"><a href="index.html">Home</a><a class="active" href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a href="articles.html">Articles</a><a href="privacy.html">Policies</a></nav>
+<div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+</div></header>
+
+<main>
+<section class="compressor-hero section">
+<div class="container compressor-hero-grid">
+<div class="reveal">
+<div class="compressor-badges"><span class="status-pill">PUBLIC BETA · ALL ACCESS</span><span class="compressor-private-chip">◆ Browser-side image processing</span></div>
+<span class="section-kicker">RIVANI SMART COMPRESSION</span>
+<h1>Hit the size target.<br/><span>Keep the detail.</span></h1>
+<p>Compress photos, screenshots, graphics and transparent images with exact-KB targeting, format racing and visual checks instead of guessing a quality percentage.</p>
+<div class="compressor-hero-points"><span>✓ Exact 20KB / 50KB / 100KB / 200KB</span><span>✓ Smart Format Race</span><span>✓ Quality + Text/Logo Guard</span><span>✓ Batch + Website Pack</span></div>
+</div>
+<div class="compressor-trust-card reveal delay-1">
+<span class="section-kicker">RIVANI QUALITY GUARD</span>
+<strong>Smaller file.<br/>Visible quality checked.</strong>
+<div class="compressor-trust-grid"><div><b>Exact target</b><span>Adaptive</span></div><div><b>Fine edges</b><span>Guarded</span></div><div><b>Transparency</b><span>Protected</span></div><div><b>Metadata</b><span>Stripped by default</span></div></div>
+</div>
+</div>
+</section>
+
+<section class="section compressor-workspace-section">
+<div class="container compressor-workspace-grid">
+<aside class="compressor-control-panel reveal">
+<div class="compressor-panel-head"><span class="section-kicker">COMPRESSION CONTROL</span><h2>Smart Image Compressor</h2><p>Choose a simple preset, an exact file size, or full precision controls.</p></div>
+
+<div class="compressor-mode-tabs" role="tablist" aria-label="Compression mode">
+<button class="active" data-compressor-mode="easy" type="button">Easy</button>
+<button data-compressor-mode="exact" type="button">Exact Size</button>
+<button data-compressor-mode="precision" type="button">Precision</button>
+</div>
+
+<div class="compressor-mode-panel active" data-mode-panel="easy">
+<label class="compressor-label">Compression goal</label>
+<div class="compressor-preset-grid" id="compressorEasyPresets">
+<button type="button" data-preset="small"><b>Smallest</b><small>Strong reduction</small></button>
+<button class="active" type="button" data-preset="balanced"><b>Balanced</b><small>Best default</small></button>
+<button type="button" data-preset="max"><b>Maximum Quality</b><small>Gentle compression</small></button>
+</div>
+<p class="compressor-help">RIVANI automatically picks a sensible format and quality for each image.</p>
+</div>
+
+<div class="compressor-mode-panel" data-mode-panel="exact">
+<label class="compressor-label" for="targetSizeValue">Target file size</label>
+<div class="compressor-target-row"><input id="targetSizeValue" inputmode="decimal" min="1" max="102400" value="100" type="number"/><select id="targetSizeUnit"><option value="KB" selected>KB</option><option value="MB">MB</option></select></div>
+<div class="compressor-quick-targets" id="compressorQuickTargets"><button type="button" data-kb="20">20 KB</button><button type="button" data-kb="50">50 KB</button><button class="active" type="button" data-kb="100">100 KB</button><button type="button" data-kb="200">200 KB</button><button type="button" data-kb="500">500 KB</button></div>
+<label class="compressor-label" for="targetStrategy">Target strategy</label>
+<select id="targetStrategy"><option value="quality" selected>Quality-first · may stay above target</option><option value="strict">Strict target · can reduce dimensions if needed</option></select>
+<p class="compressor-help">Exact targeting uses repeated encoding passes. Strict mode can reduce dimensions when quality alone cannot reach the target.</p>
+</div>
+
+<div class="compressor-mode-panel" data-mode-panel="precision">
+<label class="compressor-label" for="compressorFormat">Output format</label>
+<select id="compressorFormat"><option value="smart" selected>Smart · race supported formats</option><option value="image/webp">WebP</option><option value="image/jpeg">JPEG</option><option value="image/png">PNG</option><option value="image/avif">AVIF · if supported</option></select>
+<div class="compressor-slider-control"><div><span>Photo quality</span><b id="compressorQualityValue">82%</b></div><input aria-label="Photo quality" id="compressorQuality" min="35" max="98" step="1" value="82" type="range"/></div>
+<label class="compressor-label">Resize before compression</label>
+<div class="compressor-dimension-grid"><div><span>Max width</span><input id="compressorWidth" min="0" max="16000" value="0" type="number" inputmode="numeric"/><small>0 = original</small></div><div><span>Max height</span><input id="compressorHeight" min="0" max="16000" value="0" type="number" inputmode="numeric"/><small>0 = original</small></div></div>
+</div>
+
+<div class="compressor-control-block">
+<div class="compressor-control-title"><label>Smart guards</label><span>BETA</span></div>
+<button aria-pressed="true" class="compressor-toggle enabled" id="qualityGuardToggle" type="button"><span><b>Visual Quality Guard</b><small>Checks decoded output against the resized source</small></span><i></i></button>
+<div class="compressor-slider-control compact"><div><span>Similarity floor</span><b id="qualityFloorValue">84</b></div><input aria-label="Visual similarity floor" id="qualityFloor" min="70" max="95" step="1" value="84" type="range"/></div>
+<button aria-pressed="true" class="compressor-toggle enabled" id="textLogoGuardToggle" type="button"><span><b>Text &amp; Logo Guard</b><small>Uses a safer quality floor when fine edges dominate</small></span><i></i></button>
+<button aria-pressed="true" class="compressor-toggle enabled" id="transparencyGuardToggle" type="button"><span><b>Transparency Guard</b><small>Avoids JPEG when alpha pixels are detected</small></span><i></i></button>
+<button aria-pressed="true" class="compressor-toggle enabled" id="formatRaceToggle" type="button"><span><b>Smart Format Race</b><small>Tests compatible formats and keeps the smallest safe winner</small></span><i></i></button>
+<button aria-pressed="true" class="compressor-toggle enabled" id="batchConsistencyToggle" type="button"><span><b>Batch Consistency</b><small>Keeps one winning format across a batch when possible</small></span><i></i></button>
+</div>
+
+<button class="btn btn-primary compressor-run-btn" id="compressImagesBtn" type="button" disabled><span>⇣</span> Compress Image<span id="compressorBatchLabel"></span> →</button>
+<div class="compressor-beta-note"><b>Public Beta All Access</b><span>No successful-job daily cap. Sign-in is required before processing.</span></div>
+<div class="compressor-local-note">Images are decoded, resized and re-encoded in your browser. Re-encoding strips embedded metadata by default.</div>
+</aside>
+
+<div class="compressor-main-panel reveal delay-1">
+<div class="compressor-drop-zone" id="compressorDropZone">
+<input accept="image/jpeg,image/png,image/webp,image/avif,image/*" hidden id="compressorFileInput" type="file" multiple/>
+<div class="compressor-drop-icon">⇣</div><span class="section-kicker">UPLOAD IMAGE</span><h2>Drop images here</h2>
+<p>JPG, PNG, WebP, AVIF and other browser-decodable images · drag, paste or choose files</p>
+<button class="btn btn-secondary" id="chooseCompressorFiles" type="button">Choose Images</button>
+<small>Up to 20 files per batch · large images are adapted to a device-safe working size.</small>
+</div>
+
+<div class="compressor-editor hidden" id="compressorEditor">
+<div class="compressor-filebar"><div><strong id="compressorCurrentName">image.jpg</strong><span id="compressorCurrentMeta">—</span></div><div class="compressor-filebar-actions"><button id="compressorAddMore" type="button">Add more</button><button id="compressorClearAll" type="button">Clear</button></div></div>
+<div class="compressor-queue" id="compressorQueue" aria-label="Selected images"></div>
+
+<div class="compressor-preview-shell">
+<div class="compressor-compare" id="compressorCompare" style="--compressor-compare:50%">
+<img alt="Original image preview" class="compressor-before" id="compressorBefore"/>
+<div class="compressor-after-wrap" id="compressorAfterWrap"><img alt="Compressed image preview" class="compressor-after" id="compressorAfter"/></div>
+<span class="compressor-preview-label before">Before</span><span class="compressor-preview-label after">After</span>
+<div class="compressor-compare-line"><span>↔</span></div>
+<input aria-label="Compare original and compressed image" class="compressor-compare-range" id="compressorCompareRange" min="0" max="100" value="50" type="range"/>
+<canvas class="compressor-artifact-map hidden" id="compressorArtifactMap" aria-label="Compression artifact map"></canvas>
+<div class="compressor-processing hidden" id="compressorProcessing"><div class="compressor-processing-orb"><img alt="" src="assets/rivani-r-mark.png"/></div><strong id="compressorProcessingTitle">Preparing image…</strong><p id="compressorProcessingText">Your file stays in this browser.</p><div class="compressor-progress"><span id="compressorProgressFill"></span></div><div class="compressor-progress-meta"><span id="compressorProgressPercent">0%</span><span id="compressorProgressStep">Ready</span></div></div>
+</div>
+
+<div class="compressor-scan-card" id="compressorScanCard">
+<div class="compressor-section-title"><div><span class="section-kicker">SMART SCAN</span><h3>What RIVANI sees</h3></div><span id="compressorScanSummary">Ready</span></div>
+<div class="compressor-scan-grid" id="compressorScanGrid"></div>
+</div>
+
+<div class="compressor-result hidden" id="compressorResult">
+<div class="compressor-section-title"><div><span class="section-kicker">COMPRESSION REPORT</span><h3 id="compressorResultTitle">Result ready</h3></div><span class="compressor-target-status" id="compressorTargetStatus">READY</span></div>
+<div class="compressor-report-grid">
+<article><span>Original</span><b id="reportOriginalSize">—</b><small id="reportOriginalFormat">—</small></article>
+<article><span>Compressed</span><b id="reportOutputSize">—</b><small id="reportOutputFormat">—</small></article>
+<article><span>Saved</span><b id="reportSavedPercent">—</b><small id="reportDimensions">—</small></article>
+<article><span>Visual similarity</span><b id="reportSimilarity">—</b><small>RIVANI heuristic estimate</small></article>
+</div>
+<div class="compressor-race" id="compressorRace"></div>
+<div class="compressor-result-actions"><button class="btn btn-primary" id="compressorDownloadOne" type="button">Download compressed →</button><button class="btn btn-secondary" id="compressorToggleArtifact" type="button">Artifact Map</button><button class="btn btn-secondary" id="compressorDownloadAll" type="button">Download Batch ZIP</button><button class="btn btn-secondary" id="compressorWebsitePack" type="button">Build Website Pack</button></div>
+<div class="compressor-result-note" id="compressorResultNote"></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<section class="section compressor-seo-section">
+<div class="container seo-live-tool-copy">
+<div><span class="section-kicker">FREE IMAGE COMPRESSION</span><h2>Compress images for forms, websites and everyday sharing.</h2><p>Use Easy mode for a quick reduction, Exact Size for a specific KB/MB limit, or Precision mode to control format, quality and dimensions. Smart Format Race can compare compatible WebP, JPEG and AVIF encodes, while Transparency Guard keeps alpha-safe options in the race.</p><p>For screenshots, logos and document images, Text &amp; Logo Guard raises the quality floor when fine edges are dense. The Artifact Map shows where visible encoding differences concentrate so you can review the result before downloading.</p></div>
+<div class="seo-tool-note"><strong>Need the full explanation?</strong><p>Read the RIVANI guide for exact-size compression, image formats, Quality Guard, batch workflows and Website Pack export.</p><a href="article-image-compressor.html">Read Image Compressor guide →</a></div>
+</div>
+</section>
+
+<section class="section compressor-faq-section"><div class="container"><div class="section-heading"><div><span class="section-kicker">QUICK ANSWERS</span><h2>Image compressor <span>FAQ.</span></h2></div></div><div class="compressor-faq-grid">
+<article><h3>Can I compress an image to 50 KB or 100 KB?</h3><p>Yes. Exact Size mode iterates quality and, in Strict Target mode, can reduce dimensions when needed to get under the requested target.</p></article>
+<article><h3>Does RIVANI upload my image?</h3><p>The compressor decodes and re-encodes image pixels in your browser. Sign-in is used for access gating, not to upload the image to the compressor backend.</p></article>
+<article><h3>Which format should I use?</h3><p>Smart mode can race supported formats. JPEG is widely compatible, WebP is efficient, PNG is useful for lossless graphics and alpha, and AVIF is tested only when the browser can encode it.</p></article>
+<article><h3>Why can an exact target reduce dimensions?</h3><p>Some images cannot reach a very small byte limit at acceptable quality. Strict Target can trade resolution for bytes; Quality-first can keep more detail and report that the target was missed.</p></article>
+</div></div></section>
+</main>
+
+<footer class="site-footer"><div class="container footer-grid">
+<div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI" decoding="async"/><p>Smarter tools. Better results.</p></div>
+<div><strong>Platform</strong><a href="index.html#tools">Beta Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div>
+<div><strong>Company</strong><a href="about.html">About</a><a href="contact.html">Contact</a><a href="auth.html">Account</a></div>
+<div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div>
+</div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Public Beta · Pro Coming Soon</span></div></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
+<script src="script.js?v=36.0-compressor" defer></script>
+<script src="image-compressor.js?v=36.0" defer></script>
+<script src="auth-nav.js?v=36.0-compressor" type="module"></script>
+</body>
+</html>

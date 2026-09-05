@@ -30,12 +30,9 @@
 https://rivani-ai.rivani.workers.dev/*
   X-Robots-Tag: noindex
 
-# Runtime config must never be pinned in the browser/CDN.
-# It contains public environment configuration that can change after launch.
 /assets/runtime-config.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 
-# Cache only stable media aggressively, not every file under /assets.
 /assets/*.png
   Cache-Control: public, max-age=31536000, immutable
 /assets/*.jpg
@@ -52,9 +49,10 @@ https://rivani-ai.rivani.workers.dev/*
 
 /script.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/auth-nav.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /pro-access.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
-# Beta control/contact scripts change frequently during testing.
 /contact.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /contact.html
@@ -64,4 +62,12 @@ https://rivani-ai.rivani.workers.dev/*
 /image-enhancer.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /background-remover.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/image-compressor.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/image-compressor.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/image-compressor.css
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/article-image-compressor.html
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0

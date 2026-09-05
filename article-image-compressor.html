@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#030616"/>
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/rivani-ai-favicon.png"/><link rel="shortcut icon" href="/favicon.ico"/><link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
+<meta name="description" content="Learn how to compress images to 20KB, 50KB, 100KB, 200KB or a custom size while protecting visible quality. RIVANI guide to JPG, PNG, WebP, AVIF, Quality Guard and batch compression."/>
+<title>How to Compress Images to Exact KB Without Ruining Quality | RIVANI AI</title>
+<meta name="twitter:card" content="summary"/><meta property="og:type" content="article"/><meta property="og:site_name" content="RIVANI AI"/><meta property="og:title" content="How to Compress Images to Exact KB Without Ruining Quality | RIVANI AI"/><meta property="og:description" content="A practical guide to exact-size image compression, modern formats, visual quality checks and batch workflows."/><meta property="og:url" content="https://rivaniai.online/article-image-compressor.html"/>
+<link rel="canonical" href="https://rivaniai.online/article-image-compressor.html"/><meta name="robots" content="index,follow,max-image-preview:large"/>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Article","headline":"How to Compress Images to Exact KB Without Ruining Quality","description":"Practical RIVANI guide to image compression, exact KB targets, modern formats, Quality Guard, text/logo protection and batch workflows.","datePublished":"2026-09-05","dateModified":"2026-09-05","author":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI"},"publisher":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI"},"mainEntityOfPage":"https://rivaniai.online/article-image-compressor.html"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"RIVANI AI","item":"https://rivaniai.online/"},{"@type":"ListItem","position":2,"name":"Guides","item":"https://rivaniai.online/articles.html"},{"@type":"ListItem","position":3,"name":"Image Compressor Guide","item":"https://rivaniai.online/article-image-compressor.html"}]}]}</script>
+<link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
+</head>
+<body>
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+<header class="site-header"><div class="container nav-wrap"><a class="brand" href="index.html"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI" decoding="async"/></a><button class="mobile-menu-btn" id="mobileMenuBtn" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button><nav class="main-nav" id="mainNav"><a href="index.html">Home</a><a href="index.html#tools">Tools</a><a href="features.html">Features</a><a href="about.html">About</a><a class="active" href="articles.html">Articles</a><a href="privacy.html">Policies</a></nav><div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div></div></header>
+<main>
+<section class="tool-guide-hero section"><div class="container tool-guide-grid"><div class="reveal"><span class="status-pill">Public Beta · Exact KB</span><span class="section-kicker">IMAGE COMPRESSION GUIDE</span><h1>Smart Image Compressor</h1><p>How to make an image smaller without blindly destroying quality: exact-KB targets, format choice, visual checks, text/logo protection, batch consistency and website-ready exports.</p><div class="hero-actions"><a class="btn btn-primary" href="image-compressor.html">Open compressor →</a><a class="btn btn-secondary" href="articles.html">All guides</a></div></div><img src="assets/image.svg" alt="Image compression illustration" class="tool-guide-art reveal delay-1" loading="lazy" decoding="async"/></div></section>
+<section class="section"><div class="container article-layout"><aside class="article-toc"><strong>On this page</strong><a href="#what">What compression does</a><a href="#exact">Exact KB targets</a><a href="#formats">JPG vs WebP vs PNG vs AVIF</a><a href="#guards">Quality guards</a><a href="#artifact">Artifact Map</a><a href="#batch">Batch workflows</a><a href="#web">Website Pack</a><a href="#privacy">Privacy</a><a href="#limits">Limits</a></aside><article class="long-article">
+<h2 id="what">What image compression actually changes</h2>
+<p>Image compression reduces the number of bytes required to store a picture. Lossy formats such as JPEG, WebP and AVIF can discard some visual information to save space, while PNG is normally lossless and therefore behaves differently. The best result is not simply the smallest file; it is the smallest file that still looks right for its job.</p>
+<p>RIVANI Smart Image Compressor is designed around that trade-off. Easy mode handles normal sharing, Exact Size targets a specific KB or MB ceiling, and Precision mode exposes format, quality and dimension controls.</p>
+
+<h2 id="exact">Compress an image to 20 KB, 50 KB, 100 KB or 200 KB</h2>
+<p>Exact byte limits are common on application forms, profile uploads and document portals. A single quality percentage cannot guarantee a final size because two images with the same dimensions can contain very different detail.</p>
+<p>RIVANI therefore uses repeated encoding passes. It searches for the highest useful quality that fits the target. If a very small target cannot be reached with quality alone, <strong>Strict Target</strong> can reduce dimensions. <strong>Quality-first</strong> is more conservative: it can deliberately stay above the requested size rather than cross the visual floor.</p>
+<div class="article-callout"><strong>Exact size is a constraint, not magic.</strong><p>A detailed 12-megapixel photo cannot always become 20 KB and still retain the same resolution and visible detail. When the target is too aggressive, either quality, dimensions or both must change.</p></div>
+
+<h2 id="formats">JPG, WebP, PNG and AVIF: which should you choose?</h2>
+<ul><li><strong>JPEG:</strong> broad compatibility and predictable photo compression, but no transparency.</li><li><strong>WebP:</strong> efficient for many photos and can retain transparency.</li><li><strong>PNG:</strong> lossless and useful for logos, graphics and alpha, but can remain large.</li><li><strong>AVIF:</strong> can be very efficient when the browser supports encoding it; RIVANI tests support before offering it as a race candidate.</li></ul>
+<p>Smart Format Race can test compatible encoders and keep the smallest candidate that satisfies the current guard rules. Transparency Guard removes JPEG from the race when alpha pixels are detected.</p>
+
+<h2 id="guards">Visual Quality Guard and Text &amp; Logo Guard</h2>
+<p>Visual Quality Guard decodes the compressed result and compares it with the resized source. RIVANI reports a heuristic similarity estimate based on pixel error and edge retention. It is a useful warning signal, not a laboratory or perceptual-quality certification.</p>
+<p>Text &amp; Logo Guard looks for dense fine-edge content. Screenshots, posters, UI captures and logos often need a higher quality floor than smooth photography, so the compressor can become more conservative when that kind of structure dominates.</p>
+
+<h2 id="artifact">Compression Artifact Map</h2>
+<p>The Artifact Map highlights where the decoded result differs most from the resized source. It is useful for spotting blockiness, ringing, damaged small text or gradient banding that may not be obvious at first glance. Review important document images at 100% before using them.</p>
+
+<h2 id="batch">Batch compression with consistency</h2>
+<p>Batch mode accepts multiple images and applies one workflow across them. When Batch Consistency is enabled, Smart Format Race attempts to keep the same winning format across the batch when that format remains compatible. This is useful for product galleries and web assets that should behave predictably.</p>
+<p>Every image still receives its own size and quality pass because visual complexity is different from file to file.</p>
+
+<h2 id="web">Website Pack export</h2>
+<p>Website Pack generates responsive image widths plus modern WebP output, a JPEG fallback and AVIF when the current browser can encode it. The ZIP also includes a ready-to-edit <code>&lt;picture&gt;</code> snippet with <code>srcset</code> candidates. It is intended as a fast starting point for websites, not a substitute for testing your final page layout and Core Web Vitals.</p>
+
+<h2 id="privacy">Browser-side privacy and metadata</h2>
+<p>Image pixels are decoded, resized and re-encoded in the browser. RIVANI account sign-in gates processing access, but the compressor itself does not need to upload the image to a compression backend. Canvas re-encoding also strips embedded metadata by default, which can remove camera and location metadata from the exported file.</p>
+
+<h2 id="limits">Practical limits</h2>
+<ul><li>Very large images can exceed mobile memory, so RIVANI can adapt them to a device-safe working resolution.</li><li>PNG cannot be quality-tuned like a lossy photo format; exact tiny targets may require a modern lossy format or smaller dimensions.</li><li>AVIF encoding depends on browser support and may not appear in every environment.</li><li>A high similarity estimate does not guarantee that tiny text or legally important visual facts are unchanged. Review critical images manually.</li></ul>
+
+<h2>Recommended workflow</h2>
+<ol><li>Start with <strong>Balanced</strong> Easy mode for normal sharing.</li><li>Use <strong>Exact Size</strong> only when a portal requires a hard byte limit.</li><li>Keep Quality Guard and Text &amp; Logo Guard on for screenshots and documents.</li><li>Open Artifact Map when the file becomes dramatically smaller.</li><li>Use Website Pack when preparing responsive assets for a site.</li></ol>
+
+<div class="next-guide"><span>Ready to reduce an image?</span><a href="image-compressor.html">Open Smart Image Compressor →</a></div>
+</article></div></section>
+</main>
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI" decoding="async"/><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">Beta Tools</a><a href="articles.html">Tool Guides</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="contact.html">Contact</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="acceptable-use.html">Acceptable Use</a><a href="cookies.html">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Public Beta · Pro Coming Soon</span></div></footer>
+<script src="script.js?v=36.0-compressor" defer></script><script src="auth-nav.js?v=36.0-compressor" type="module"></script>
+</body>
+</html>

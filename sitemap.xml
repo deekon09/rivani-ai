@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://rivaniai.online/</loc><lastmod>2026-09-02</lastmod><priority>1.0</priority></url>
+  <url><loc>https://rivaniai.online/</loc><lastmod>2026-09-05</lastmod><priority>1.0</priority></url>
   <url><loc>https://rivaniai.online/audio-repair.html</loc><lastmod>2026-09-02</lastmod><priority>0.9</priority></url>
   <url><loc>https://rivaniai.online/image-enhancer.html</loc><lastmod>2026-09-02</lastmod><priority>0.9</priority></url>
   <url><loc>https://rivaniai.online/background-remover.html</loc><lastmod>2026-09-02</lastmod><priority>0.9</priority></url>
-  <url><loc>https://rivaniai.online/articles.html</loc><lastmod>2026-09-02</lastmod><priority>0.8</priority></url>
+  <url><loc>https://rivaniai.online/image-compressor.html</loc><lastmod>2026-09-05</lastmod><priority>0.9</priority></url>
+  <url><loc>https://rivaniai.online/articles.html</loc><lastmod>2026-09-05</lastmod><priority>0.8</priority></url>
   <url><loc>https://rivaniai.online/article-audio-repair.html</loc><lastmod>2026-09-02</lastmod><priority>0.8</priority></url>
   <url><loc>https://rivaniai.online/article-image-enhancer.html</loc><lastmod>2026-09-02</lastmod><priority>0.8</priority></url>
   <url><loc>https://rivaniai.online/article-background-remover.html</loc><lastmod>2026-09-02</lastmod><priority>0.8</priority></url>
-  <url><loc>https://rivaniai.online/features.html</loc><lastmod>2026-09-02</lastmod><priority>0.6</priority></url>
-  <url><loc>https://rivaniai.online/about.html</loc><lastmod>2026-09-02</lastmod><priority>0.5</priority></url>
+  <url><loc>https://rivaniai.online/article-image-compressor.html</loc><lastmod>2026-09-05</lastmod><priority>0.8</priority></url>
+  <url><loc>https://rivaniai.online/features.html</loc><lastmod>2026-09-05</lastmod><priority>0.6</priority></url>
+  <url><loc>https://rivaniai.online/about.html</loc><lastmod>2026-09-05</lastmod><priority>0.5</priority></url>
   <url><loc>https://rivaniai.online/contact.html</loc><lastmod>2026-09-02</lastmod><priority>0.5</priority></url>
   <url><loc>https://rivaniai.online/privacy.html</loc><lastmod>2026-09-02</lastmod><priority>0.3</priority></url>
   <url><loc>https://rivaniai.online/terms.html</loc><lastmod>2026-09-02</lastmod><priority>0.3</priority></url>
