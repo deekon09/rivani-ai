@@ -21,7 +21,7 @@
 <meta name="robots" content="index,follow,max-image-preview:large"/>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","@id":"https://rivaniai.online/image-compressor.html#app","name":"RIVANI Smart Image Compressor","url":"https://rivaniai.online/image-compressor.html","applicationCategory":"MultimediaApplication","operatingSystem":"Any","browserRequirements":"Requires a modern browser with Canvas and Blob support","publisher":{"@type":"Organization","@id":"https://rivaniai.online/#organization","name":"RIVANI AI","url":"https://rivaniai.online/"},"isAccessibleForFree":true,"description":"Browser-side image compressor for JPG, PNG, WebP and AVIF with exact-size targeting, Smart Format Race, Quality Guard, Text & Logo Guard, batch compression and Website Pack export.","featureList":["Compress image to exact KB","JPG PNG WebP and AVIF output","Smart Format Race","Visual Quality Guard","Text and Logo Guard","Transparency Guard","Batch Consistency","Compression Artifact Map","Website Pack export"],"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"RIVANI AI","item":"https://rivaniai.online/"},{"@type":"ListItem","position":2,"name":"Tools","item":"https://rivaniai.online/#tools"},{"@type":"ListItem","position":3,"name":"Smart Image Compressor","item":"https://rivaniai.online/image-compressor.html"}]}]}</script>
 <link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
-<link rel="stylesheet" href="image-compressor.css?v=36.0"/>
+<link rel="stylesheet" href="image-compressor.css?v=36.1"/>
 </head>
 <body class="image-compressor-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -98,7 +98,7 @@
 <button aria-pressed="true" class="compressor-toggle enabled" id="batchConsistencyToggle" type="button"><span><b>Batch Consistency</b><small>Keeps one winning format across a batch when possible</small></span><i></i></button>
 </div>
 
-<button class="btn btn-primary compressor-run-btn" id="compressImagesBtn" type="button" disabled><span>⇣</span> Compress Image<span id="compressorBatchLabel"></span> →</button>
+<button class="btn btn-primary compressor-run-btn" id="compressImagesBtn" type="button" disabled><span>⇣</span> <span id="compressorRunLabel">Compress Image</span><span id="compressorBatchLabel"></span> →</button>
 <div class="compressor-beta-note"><b>Public Beta All Access</b><span>No successful-job daily cap. Sign-in is required before processing.</span></div>
 <div class="compressor-local-note">Images are decoded, resized and re-encoded in your browser. Re-encoding strips embedded metadata by default.</div>
 </aside>
@@ -108,7 +108,7 @@
 <input accept="image/jpeg,image/png,image/webp,image/avif,image/*" hidden id="compressorFileInput" type="file" multiple/>
 <div class="compressor-drop-icon">⇣</div><span class="section-kicker">UPLOAD IMAGE</span><h2>Drop images here</h2>
 <p>JPG, PNG, WebP, AVIF and other browser-decodable images · drag, paste or choose files</p>
-<button class="btn btn-secondary" id="chooseCompressorFiles" type="button">Choose Images</button>
+<button class="btn compressor-accent-btn" id="chooseCompressorFiles" type="button">Choose Images</button>
 <small>Up to 20 files per batch · large images are adapted to a device-safe working size.</small>
 </div>
 
@@ -141,7 +141,14 @@
 <article><span>Visual similarity</span><b id="reportSimilarity">—</b><small>RIVANI heuristic estimate</small></article>
 </div>
 <div class="compressor-race" id="compressorRace"></div>
-<div class="compressor-result-actions"><button class="btn btn-primary" id="compressorDownloadOne" type="button">Download compressed →</button><button class="btn btn-secondary" id="compressorToggleArtifact" type="button">Artifact Map</button><button class="btn btn-secondary" id="compressorDownloadAll" type="button">Download Batch ZIP</button><button class="btn btn-secondary" id="compressorWebsitePack" type="button">Build Website Pack</button></div>
+<div class="compressor-result-actions">
+<button class="btn compressor-download-btn" id="compressorDownloadOne" type="button">↓ Download Image</button>
+<button class="btn compressor-edit-btn" id="compressorEditOne" type="button">✦ Edit / Re-compress</button>
+<button class="btn compressor-new-btn" id="compressorNewImage" type="button">＋ Compress Another Image</button>
+<button class="btn compressor-soft-btn" id="compressorToggleArtifact" type="button">Artifact Map</button>
+<button class="btn compressor-soft-btn" id="compressorDownloadAll" type="button">Download Batch ZIP</button>
+<button class="btn compressor-soft-btn" id="compressorWebsitePack" type="button">Build Website Pack</button>
+</div>
 <div class="compressor-result-note" id="compressorResultNote"></div>
 </div>
 </div>
@@ -173,7 +180,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
 <script src="script.js?v=36.0-compressor" defer></script>
-<script src="image-compressor.js?v=36.0" defer></script>
+<script src="image-compressor.js?v=36.1" defer></script>
 <script src="auth-nav.js?v=36.0-compressor" type="module"></script>
 </body>
 </html>

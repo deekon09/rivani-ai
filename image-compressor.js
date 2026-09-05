@@ -1,4 +1,4 @@
-// RIVANI AI V36 — Smart Image Compressor
+// RIVANI AI V36.1 — Smart Image Compressor UX polish
 // Browser-side compression only. Existing AI inference/model pipelines are untouched.
 (() => {
   'use strict';
@@ -11,18 +11,18 @@
     targetValue: $('targetSizeValue'), targetUnit: $('targetSizeUnit'), quickTargets: $('compressorQuickTargets'), targetStrategy: $('targetStrategy'),
     format: $('compressorFormat'), quality: $('compressorQuality'), qualityValue: $('compressorQualityValue'), width: $('compressorWidth'), height: $('compressorHeight'),
     qualityGuard: $('qualityGuardToggle'), qualityFloor: $('qualityFloor'), qualityFloorValue: $('qualityFloorValue'), textGuard: $('textLogoGuardToggle'), transparencyGuard: $('transparencyGuardToggle'), formatRace: $('formatRaceToggle'), consistency: $('batchConsistencyToggle'),
-    run: $('compressImagesBtn'), batchLabel: $('compressorBatchLabel'), fileInput: $('compressorFileInput'), choose: $('chooseCompressorFiles'), drop: $('compressorDropZone'), editor: $('compressorEditor'), addMore: $('compressorAddMore'), clear: $('compressorClearAll'), queue: $('compressorQueue'),
+    run: $('compressImagesBtn'), runLabel: $('compressorRunLabel'), batchLabel: $('compressorBatchLabel'), fileInput: $('compressorFileInput'), choose: $('chooseCompressorFiles'), drop: $('compressorDropZone'), editor: $('compressorEditor'), addMore: $('compressorAddMore'), clear: $('compressorClearAll'), queue: $('compressorQueue'),
     currentName: $('compressorCurrentName'), currentMeta: $('compressorCurrentMeta'), before: $('compressorBefore'), after: $('compressorAfter'), afterWrap: $('compressorAfterWrap'), compare: $('compressorCompare'), compareRange: $('compressorCompareRange'), artifactMap: $('compressorArtifactMap'),
     processing: $('compressorProcessing'), processingTitle: $('compressorProcessingTitle'), processingText: $('compressorProcessingText'), progressFill: $('compressorProgressFill'), progressPercent: $('compressorProgressPercent'), progressStep: $('compressorProgressStep'),
     scanSummary: $('compressorScanSummary'), scanGrid: $('compressorScanGrid'), result: $('compressorResult'), resultTitle: $('compressorResultTitle'), targetStatus: $('compressorTargetStatus'),
     originalSize: $('reportOriginalSize'), originalFormat: $('reportOriginalFormat'), outputSize: $('reportOutputSize'), outputFormat: $('reportOutputFormat'), saved: $('reportSavedPercent'), dimensions: $('reportDimensions'), similarity: $('reportSimilarity'), race: $('compressorRace'), resultNote: $('compressorResultNote'),
-    downloadOne: $('compressorDownloadOne'), toggleArtifact: $('compressorToggleArtifact'), downloadAll: $('compressorDownloadAll'), websitePack: $('compressorWebsitePack')
+    downloadOne: $('compressorDownloadOne'), editOne: $('compressorEditOne'), newImage: $('compressorNewImage'), toggleArtifact: $('compressorToggleArtifact'), downloadAll: $('compressorDownloadAll'), websitePack: $('compressorWebsitePack')
   };
 
   const MAX_FILES = 20;
   const MAX_FILE_BYTES = 60 * 1024 * 1024;
   const DEVICE_MAX_MP = matchMedia('(max-width: 760px)').matches ? 12 : 24;
-  const state = { files: [], selectedIndex: 0, mode: 'easy', preset: 'balanced', processing: false, batchFormat: null, artifactVisible: false };
+  const state = { files: [], selectedIndex: 0, mode: 'easy', preset: 'balanced', processing: false, batchFormat: null, artifactVisible: false, scope: 'all' };
   const formatSupport = new Map();
 
   const mimeExt = {'image/jpeg':'jpg','image/webp':'webp','image/png':'png','image/avif':'avif'};
@@ -351,12 +351,14 @@
   function renderQueue(){
     if(!els.queue)return;
     els.queue.innerHTML=state.files.map((entry,i)=>`<button type="button" class="compressor-queue-item ${i===state.selectedIndex?'active':''}" data-index="${i}"><span>${entry.result?'✓':'•'}</span><b>${entry.file.name.replace(/[<>]/g,'')}</b><small>${entry.result?formatBytes(entry.result.blob.size):formatBytes(entry.file.size)}</small></button>`).join('');
-    els.batchLabel.textContent=state.files.length>1?'s':'';
+    if(els.runLabel)els.runLabel.textContent=state.scope==='selected'?'Re-compress This Image':'Compress Image';
+    els.batchLabel.textContent=state.scope==='selected'?'':(state.files.length>1?'s':'');
     els.run.disabled=!state.files.length||state.processing;
   }
 
   function setMode(mode){state.mode=mode;els.modeButtons.forEach(b=>b.classList.toggle('active',b.dataset.compressorMode===mode));els.modePanels.forEach(p=>p.classList.toggle('active',p.dataset.modePanel===mode));}
   function addFiles(fileList){
+    state.scope='all';
     const incoming=[...fileList].filter(f=>f.type.startsWith('image/'));
     const room=Math.max(0,MAX_FILES-state.files.length);const accepted=incoming.slice(0,room);
     const oversized=accepted.filter(f=>f.size>MAX_FILE_BYTES);const usable=accepted.filter(f=>f.size<=MAX_FILE_BYTES);
@@ -368,7 +370,7 @@
     els.drop.classList.add('hidden');els.editor.classList.remove('hidden');renderQueue();renderSelected();
   }
   function clearAll(){
-    state.files.forEach(e=>{if(e.originalUrl)URL.revokeObjectURL(e.originalUrl);if(e.resultUrl)URL.revokeObjectURL(e.resultUrl)});state.files=[];state.selectedIndex=0;state.batchFormat=null;state.artifactVisible=false;
+    state.files.forEach(e=>{if(e.originalUrl)URL.revokeObjectURL(e.originalUrl);if(e.resultUrl)URL.revokeObjectURL(e.resultUrl)});state.files=[];state.selectedIndex=0;state.batchFormat=null;state.artifactVisible=false;state.scope='all';
     els.fileInput.value='';els.editor.classList.add('hidden');els.drop.classList.remove('hidden');els.result.classList.add('hidden');els.run.disabled=true;renderQueue();
   }
 
@@ -386,15 +388,19 @@
     if(!(await requireAuth('Image Compressor')))return;
     state.processing=true;state.batchFormat=null;els.run.disabled=true;els.processing.classList.remove('hidden');state.artifactVisible=false;
     try{
-      for(let i=0;i<state.files.length;i++){
-        state.selectedIndex=i;renderQueue();renderSelected();
-        await compressEntry(state.files[i],i,state.files.length);
+      const targets=state.scope==='selected'?[state.files[state.selectedIndex]]:state.files.slice();
+      for(let i=0;i<targets.length;i++){
+        const entry=targets[i];
+        const actualIndex=state.files.indexOf(entry);
+        if(actualIndex>=0)state.selectedIndex=actualIndex;
+        renderQueue();renderSelected();
+        await compressEntry(entry,i,targets.length);
         renderQueue();renderSelected();
       }
       updateProgress(100,'Complete','Compression complete','Review Before/After, visual similarity and the Artifact Map before downloading.');
       setTimeout(()=>els.processing.classList.add('hidden'),650);
     }catch(error){console.error('RIVANI compressor:',error);els.processing.classList.add('hidden');alert(error?.message||'Compression could not be completed.');}
-    finally{state.processing=false;els.run.disabled=!state.files.length;}
+    finally{state.processing=false;state.scope='all';renderQueue();els.run.disabled=!state.files.length;}
   }
 
   function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2500);}
@@ -432,19 +438,36 @@
     finally{closeDecoded(decoded);}
   }
 
+  function editSelected(){
+    const entry=state.files[state.selectedIndex];
+    if(!entry)return;
+    state.scope='selected';
+    renderQueue();
+    const controls=document.querySelector('.compressor-control-panel');
+    try{controls?.scrollIntoView({behavior:'smooth',block:'start'});}catch(_){controls?.scrollIntoView();}
+    setTimeout(()=>els.modeButtons.find(b=>b.classList.contains('active'))?.focus?.({preventScroll:true}),350);
+  }
+
+  function startAnotherImage(){
+    clearAll();
+    setTimeout(()=>els.fileInput?.click(),80);
+  }
+
   // UI events
   els.modeButtons.forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.compressorMode)));
   els.easyPresets?.addEventListener('click',e=>{const b=e.target.closest('[data-preset]');if(!b)return;state.preset=b.dataset.preset;els.easyPresets.querySelectorAll('[data-preset]').forEach(x=>x.classList.toggle('active',x===b));});
   els.quickTargets?.addEventListener('click',e=>{const b=e.target.closest('[data-kb]');if(!b)return;els.targetValue.value=b.dataset.kb;els.targetUnit.value='KB';els.quickTargets.querySelectorAll('[data-kb]').forEach(x=>x.classList.toggle('active',x===b));});
   [els.qualityGuard,els.textGuard,els.transparencyGuard,els.formatRace,els.consistency].forEach(el=>el?.addEventListener('click',()=>setToggle(el,!isToggleOn(el))));
   els.quality?.addEventListener('input',()=>els.qualityValue.textContent=`${els.quality.value}%`);els.qualityFloor?.addEventListener('input',()=>els.qualityFloorValue.textContent=els.qualityFloor.value);
-  els.choose?.addEventListener('click',()=>els.fileInput.click());els.addMore?.addEventListener('click',()=>els.fileInput.click());els.fileInput?.addEventListener('change',()=>{addFiles(els.fileInput.files);els.fileInput.value='';});
+  els.choose?.addEventListener('click',()=>els.fileInput.click());els.addMore?.addEventListener('click',()=>{state.scope='all';els.fileInput.click();});els.fileInput?.addEventListener('change',()=>{addFiles(els.fileInput.files);els.fileInput.value='';});
   els.drop?.addEventListener('dragover',e=>{e.preventDefault();els.drop.classList.add('dragging')});els.drop?.addEventListener('dragleave',()=>els.drop.classList.remove('dragging'));els.drop?.addEventListener('drop',e=>{e.preventDefault();els.drop.classList.remove('dragging');addFiles(e.dataTransfer.files)});
   document.addEventListener('paste',e=>{const files=[...e.clipboardData?.files||[]].filter(f=>f.type.startsWith('image/'));if(files.length)addFiles(files)});
   els.clear?.addEventListener('click',clearAll);els.queue?.addEventListener('click',e=>{const b=e.target.closest('[data-index]');if(!b)return;state.selectedIndex=Number(b.dataset.index);state.artifactVisible=false;renderQueue();renderSelected();});
   els.compareRange?.addEventListener('input',()=>els.compare.style.setProperty('--compressor-compare',`${els.compareRange.value}%`));
   els.run?.addEventListener('click',runCompression);
   els.downloadOne?.addEventListener('click',()=>{const e=state.files[state.selectedIndex];if(e?.result)downloadBlob(e.result.blob,outputName(e.file.name,e.result.mime));});
+  els.editOne?.addEventListener('click',editSelected);
+  els.newImage?.addEventListener('click',startAnotherImage);
   els.downloadAll?.addEventListener('click',downloadBatch);
   els.websitePack?.addEventListener('click',websitePack);
   els.toggleArtifact?.addEventListener('click',()=>{const e=state.files[state.selectedIndex];if(!e?.result)return;state.artifactVisible=!state.artifactVisible;els.toggleArtifact.textContent=state.artifactVisible?'Before / After':'Artifact Map';renderSelected();});
