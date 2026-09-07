@@ -3,13 +3,13 @@ const mobileMenuBtn=document.getElementById('mobileMenuBtn');const mainNav=docum
 
 (function ensureGrowthLinks(){
   const nav=document.getElementById('mainNav');
-  if(nav&&!nav.querySelector('a[href="contact.html"]')){
-    const a=document.createElement('a');a.href='contact.html';a.textContent='Contact';nav.appendChild(a);a.addEventListener('click',()=>nav.classList.remove('open'));
+  if(nav&&!nav.querySelector('a[href="/contact"],a[href="contact.html"]')){
+    const a=document.createElement('a');a.href='/contact';a.textContent='Contact';nav.appendChild(a);a.addEventListener('click',()=>nav.classList.remove('open'));
   }
   document.querySelectorAll('.footer-grid>div').forEach(col=>{
     const title=col.querySelector('strong')?.textContent?.trim();
-    if(title==='Company'&&!col.querySelector('a[href="contact.html"]')){
-      const a=document.createElement('a');a.href='contact.html';a.textContent='Contact';col.appendChild(a);
+    if(title==='Company'&&!col.querySelector('a[href="/contact"],a[href="contact.html"]')){
+      const a=document.createElement('a');a.href='/contact';a.textContent='Contact';col.appendChild(a);
     }
     // Calculator is intentionally NOT auto-added during the public Beta.
   });
