@@ -1,15 +1,28 @@
-PATCH-MANIFEST.txt
-README-V37-IMAGE-TO-TEXT.md
-_headers
-about.html
-article-image-to-text.html
-articles.html
-auth-nav.js
-backend/LUKI-KNOWLEDGE-V37.md
-features.html
-image-to-text.css
-image-to-text.html
-image-to-text.js
-index.html
-script.js
-sitemap.xml
+V37.3 SEO URL normalization
+
+Changed/new files:
+- README-V37.3-SEO-URL-NORMALIZATION.md
+- _redirects
+- about.html
+- acceptable-use.html
+- article-audio-repair.html
+- article-background-remover.html
+- article-image-compressor.html
+- article-image-enhancer.html
+- article-image-to-text.html
+- article-pdf-assistant.html
+- article-text-tools.html
+- article-video-subtitles.html
+- articles.html
+- audio-repair.html
+- background-remover.html
+- contact.html
+- cookies.html
+- features.html
+- image-compressor.html
+- image-enhancer.html
+- image-to-text.html
+- index.html
+- privacy.html
+- sitemap.xml
+- terms.html
