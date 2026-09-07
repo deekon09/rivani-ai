@@ -1,10 +1,147 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#030616"/>
-<meta name="robots" content="noindex,nofollow"/><meta name="description" content="The RIVANI Advanced Student Calculator is currently marked Upcoming while the public Beta focuses on three AI media tools."/>
-<title>Advanced Student Calculator — Upcoming | RIVANI AI</title><link rel="stylesheet" href="styles.css?v=31.0-beta-seo"/></head><body>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#030616"/>
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/rivani-ai-favicon.png"/>
+<link rel="shortcut icon" href="/favicon.ico"/>
+<link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
+<meta name="robots" content="noindex,nofollow"/>
+<meta name="description" content="RIVANI Advanced Student Calculator test preview with scientific maths, equations, learning steps, work checking, graphing, matrices, units and finance tools."/>
+<title>Advanced Student Calculator — Test Preview | RIVANI AI</title>
+<link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
+<link rel="stylesheet" href="calculator.css?v=39.0-test"/>
+</head>
+<body class="calculator-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
-<header class="site-header"><div class="container nav-wrap"><a class="brand" href="index.html"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"/></a><button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-expanded="false"><span></span><span></span><span></span></button><nav class="main-nav" id="mainNav"><a href="index.html">Home</a><a href="index.html#tools">Beta Tools</a><a href="features.html">Features</a><a href="articles.html">Articles</a></nav><div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div></div></header>
-<main><section class="page-hero section"><div class="container page-hero-grid"><div class="reveal"><span class="section-kicker">UPCOMING TOOL</span><h1>Advanced Student <span>Calculator.</span></h1><p>The calculator has been moved out of the live suite while RIVANI focuses its public Beta on AI Audio Repair, Image Enhancer and Background Remover.</p><div class="hero-actions"><a class="btn btn-primary" href="index.html#tools">Open Beta tools →</a><a class="btn btn-secondary" href="index.html#upcoming">View roadmap</a></div></div><div class="page-hero-art reveal delay-1" style="display:grid;place-items:center;font-size:8rem;font-weight:800">∑</div></div></section>
-<section class="section"><div class="container feature-detail-grid"><article><b>01</b><h3>Scientific maths</h3><p>Scientific expressions and common operations are part of the planned calculator set.</p></article><article><b>02</b><h3>Equations & statistics</h3><p>Linear/quadratic equations and statistics remain on the roadmap.</p></article><article><b>03</b><h3>Geometry & converters</h3><p>Geometry, unit conversion and readable steps are planned.</p></article><article><b>04</b><h3>Finance helpers</h3><p>EMI and compound-interest utilities are planned for the same calculator.</p></article></div></section></main>
-<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"/><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="index.html#tools">Beta Tools</a><a href="index.html#upcoming">Upcoming</a><a href="features.html">Features</a></div><div><strong>Company</strong><a href="about.html">About</a><a href="contact.html">Contact</a></div><div><strong>Legal</strong><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Upcoming Tool</span></div></footer>
-<script src="script.js?v=31.0-beta-seo"></script><script src="auth-nav.js?v=30.0-secure-launch" type="module"></script></body></html>
+<header class="site-header"><div class="container nav-wrap">
+<a aria-label="RIVANI AI home" class="brand" href="/"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png" decoding="async"/></a>
+<button aria-expanded="false" aria-label="Open menu" class="mobile-menu-btn" id="mobileMenuBtn"><span></span><span></span><span></span></button>
+<nav aria-label="Primary navigation" class="main-nav" id="mainNav"><a href="/">Home</a><a href="/#tools">Tools</a><a href="/features">Features</a><a href="/about">About</a><a href="/articles">Articles</a><a href="/privacy">Policies</a></nav>
+<div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+</div></header>
+
+<main>
+<section class="calc-hero section"><div class="container calc-hero-grid">
+<div class="reveal"><div class="calc-badges"><span class="status-pill">PRIVATE TEST PREVIEW</span><span class="calc-chip">◆ Browser-side maths</span></div><span class="section-kicker">RIVANI STUDENT CALCULATOR</span><h1>Calculate. Learn.<br/><span>Check your steps.</span></h1><p>A student-first calculator built to do more than return an answer. Solve maths, reveal reasoning, check your own working, graph functions and catch unit mistakes.</p><div class="calc-hero-points"><span>✓ Check My Steps</span><span>✓ Learn + Exam Ready</span><span>✓ Hinglish explanations</span><span>✓ No paid AI API</span></div></div>
+<div class="calc-hero-card reveal delay-1"><span class="section-kicker">WHAT MAKES IT DIFFERENT</span><strong>Find the first wrong step,<br/>not just the final answer.</strong><div class="calc-mini-steps"><div><b>2x + 7 = 19</b><span>Original</span></div><div class="ok"><b>2x = 12</b><span>✓ Correct</span></div><div class="bad"><b>x = 5</b><span>✕ First mismatch</span></div></div></div>
+</div></section>
+
+<section class="section calc-workspace-section"><div class="container">
+<div class="calc-toolbar reveal">
+<div class="calc-mode-switch" role="group" aria-label="Explanation style">
+<button type="button" class="active" data-explain-mode="full">Full Steps</button>
+<button type="button" data-explain-mode="exam">Exam Ready</button>
+<button type="button" data-explain-mode="hinglish">Easy Hinglish</button>
+</div>
+<div class="calc-beta-note"><b>Public Beta rules apply</b><span>Sign-in is required when you run a calculation. Inputs can be prepared before sign-in.</span></div>
+</div>
+
+<div class="calc-shell reveal delay-1">
+<aside class="calc-nav" aria-label="Calculator sections">
+<button class="active" type="button" data-calc-tab="quick"><span>✦</span><b>Quick Calculate</b><small>Scientific + fractions</small></button>
+<button type="button" data-calc-tab="solve"><span>∑</span><b>Solve</b><small>Equations + calculus</small></button>
+<button type="button" data-calc-tab="learn"><span>?</span><b>Learn Mode</b><small>Hints before answers</small></button>
+<button type="button" data-calc-tab="check"><span>✓</span><b>Check My Steps</b><small>Find first wrong step</small></button>
+<button type="button" data-calc-tab="graph"><span>⌁</span><b>Graph</b><small>Function + roots</small></button>
+<button type="button" data-calc-tab="engineering"><span>▦</span><b>Engineering</b><small>Units + matrices</small></button>
+<button type="button" data-calc-tab="finance"><span>₹</span><b>Everyday</b><small>Percent + EMI</small></button>
+</aside>
+
+<div class="calc-content">
+<section class="calc-panel active" data-calc-panel="quick">
+<div class="calc-panel-head"><span class="section-kicker">QUICK CALCULATE</span><h2>Scientific calculator</h2><p>Supports + − × ÷, powers, roots, trig, logs, π and e. Trigonometry uses degrees.</p></div>
+<div class="calc-grid two">
+<article class="calc-card calc-scientific-card">
+<label class="calc-label" for="calcExpression">Expression</label>
+<div class="calc-expression-row"><input id="calcExpression" value="sqrt(144) + sin(30) * 8" autocomplete="off" spellcheck="false"/><button class="calc-run" id="calcEvaluate" type="button">Calculate →</button></div>
+<div class="calc-keypad" id="calcKeypad">
+<button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button><button type="button" data-key="/">÷</button><button type="button" data-key="sqrt(">√</button>
+<button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button><button type="button" data-key="*">×</button><button type="button" data-key="^">xʸ</button>
+<button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button><button type="button" data-key="-">−</button><button type="button" data-key="pi">π</button>
+<button type="button" data-key="0">0</button><button type="button" data-key=".">.</button><button type="button" data-key="(">(</button><button type="button" data-key=")">)</button><button type="button" data-key="+">+</button>
+<button type="button" data-key="sin(">sin</button><button type="button" data-key="cos(">cos</button><button type="button" data-key="tan(">tan</button><button type="button" data-key="log(">log</button><button type="button" data-key="ln(">ln</button>
+</div>
+<div class="calc-key-actions"><button id="calcBackspace" type="button">⌫ Backspace</button><button id="calcClear" type="button">Clear</button></div>
+<div class="calc-result"><span>Result</span><strong id="calcScientificResult">—</strong><p id="calcScientificSteps">Run a calculation to see the reasoning.</p></div>
+</article>
+<article class="calc-card"><div class="calc-card-head"><div><span class="section-kicker">FRACTIONS</span><h3>Fraction calculator</h3></div></div>
+<div class="fraction-grid"><input id="fracA" type="number" value="3"/><span>/</span><input id="fracB" type="number" value="4"/><select id="fracOp"><option>+</option><option>-</option><option>*</option><option>/</option></select><input id="fracC" type="number" value="5"/><span>/</span><input id="fracD" type="number" value="6"/></div>
+<button class="calc-run wide" id="fracCalculate" type="button">Simplify result →</button><div class="calc-result compact"><span>Answer</span><strong id="fracResult">—</strong><p id="fracSteps">Common denominator and simplification steps appear here.</p></div>
+<div class="calc-card-head calc-history-head"><div><span class="section-kicker">RECENT</span><h3>History</h3></div><button id="calcClearHistory" type="button">Clear</button></div><div class="calc-history" id="calcHistory"><span>No history yet.</span></div>
+</article>
+</div>
+</section>
+
+<section class="calc-panel" data-calc-panel="solve">
+<div class="calc-panel-head"><span class="section-kicker">SOLVE</span><h2>Equations, calculus & probability</h2><p>Deterministic browser-side solvers for common school and college workflows.</p></div>
+<div class="calc-grid two">
+<article class="calc-card"><span class="section-kicker">LINEAR EQUATION</span><h3>ax + b = c</h3><div class="calc-fields three"><label><span>a</span><input id="linA" type="number" value="2"/></label><label><span>b</span><input id="linB" type="number" value="7"/></label><label><span>c</span><input id="linC" type="number" value="19"/></label></div><button class="calc-run wide" id="linearBtn" type="button">Solve linear equation →</button><div class="calc-result compact"><strong id="linearResult">—</strong><p id="linearSteps">Steps appear here.</p></div></article>
+<article class="calc-card"><span class="section-kicker">QUADRATIC</span><h3>ax² + bx + c = 0</h3><div class="calc-fields three"><label><span>a</span><input id="quadA" type="number" value="1"/></label><label><span>b</span><input id="quadB" type="number" value="-5"/></label><label><span>c</span><input id="quadC" type="number" value="6"/></label></div><button class="calc-run wide" id="quadBtn" type="button">Solve quadratic →</button><div class="calc-result compact"><strong id="quadResult">—</strong><p id="quadSteps">Discriminant and roots appear here.</p></div></article>
+<article class="calc-card"><span class="section-kicker">CALCULUS</span><h3>Derivative + definite integral</h3><label class="calc-field"><span>Function f(x)</span><input id="calcFunction" value="x^3 - 4*x + 2" autocomplete="off"/></label><div class="calc-fields two"><label><span>Derivative at x</span><input id="derivativeX" type="number" value="2"/></label><label><span>Integral a → b</span><div class="inline-pair"><input id="integralA" type="number" value="0"/><input id="integralB" type="number" value="2"/></div></label></div><div class="calc-actions"><button class="calc-run" id="derivativeBtn" type="button">Derivative</button><button class="calc-run" id="integralBtn" type="button">Integrate</button></div><div class="calc-result compact"><strong id="calculusResult">—</strong><p id="calculusSteps">Polynomial symbolic derivative when possible; otherwise numerical derivative/integral.</p></div></article>
+<article class="calc-card"><span class="section-kicker">PROBABILITY</span><h3>nCr & nPr</h3><div class="calc-fields two"><label><span>n</span><input id="probN" type="number" value="10" min="0" step="1"/></label><label><span>r</span><input id="probR" type="number" value="3" min="0" step="1"/></label></div><div class="calc-actions"><button class="calc-run" id="ncrBtn" type="button">nCr</button><button class="calc-run" id="nprBtn" type="button">nPr</button></div><div class="calc-result compact"><strong id="probResult">—</strong><p id="probSteps">Formula appears here.</p></div></article>
+<article class="calc-card wide-card"><span class="section-kicker">STATISTICS</span><h3>Describe a data set</h3><label class="calc-field"><span>Numbers separated by commas or spaces</span><textarea id="statsInput" rows="3">12, 15, 15, 18, 21, 24, 24, 24, 30</textarea></label><button class="calc-run" id="statsBtn" type="button">Analyse data →</button><div class="stats-results" id="statsResults"><div><span>Count</span><strong>—</strong></div><div><span>Mean</span><strong>—</strong></div><div><span>Median</span><strong>—</strong></div><div><span>Mode</span><strong>—</strong></div><div><span>Range</span><strong>—</strong></div><div><span>Std. dev.</span><strong>—</strong></div></div></article>
+</div>
+</section>
+
+<section class="calc-panel" data-calc-panel="learn">
+<div class="calc-panel-head"><span class="section-kicker">LEARN MODE</span><h2>Hints before the answer</h2><p>Reveal one idea at a time instead of immediately exposing the full solution.</p></div>
+<div class="calc-grid two">
+<article class="calc-card"><label class="calc-field"><span>Topic</span><select id="learnTopic"><option value="linear">Linear equation</option><option value="quadratic">Quadratic equation</option><option value="percentage">Percentage</option></select></label><label class="calc-field"><span>Problem</span><input id="learnProblem" value="2x + 7 = 19" autocomplete="off"/></label><button class="calc-run wide" id="learnStart" type="button">Start learning →</button><div class="learn-progress"><span id="learnCounter">0 / 0</span><div><i id="learnProgressBar"></i></div></div><div class="learn-card" id="learnCard"><span>Start a supported problem to reveal hints.</span></div><div class="calc-actions"><button id="learnPrev" type="button" disabled>← Previous</button><button class="calc-run" id="learnNext" type="button" disabled>Next hint →</button></div></article>
+<article class="calc-card calc-learn-principles"><span class="section-kicker">STUDENT-FIRST</span><h3>What Learn Mode does</h3><ul><li><b>Hint first:</b> gives direction without spoiling the answer.</li><li><b>Why:</b> explains the rule behind each transformation.</li><li><b>Common mistake:</b> highlights the trap students often fall into.</li><li><b>Exam Ready:</b> switches to cleaner answer-writing language.</li><li><b>Hinglish:</b> explains supported steps in simpler everyday language.</li></ul></article>
+</div>
+</section>
+
+<section class="calc-panel" data-calc-panel="check">
+<div class="calc-panel-head"><span class="section-kicker">CHECK MY STEPS · CORE FEATURE</span><h2>Find the first step that changes the answer</h2><p>For linear and quadratic equations, RIVANI compares the solution set of each line with the original equation. One equation per line.</p></div>
+<div class="calc-grid two check-grid">
+<article class="calc-card"><label class="calc-field"><span>Original equation</span><input id="checkOriginal" value="2x + 7 = 19" autocomplete="off"/></label><label class="calc-field"><span>Your working</span><textarea id="checkSteps" rows="8">2x = 19 - 7
+2x = 11
+x = 5.5</textarea></label><div class="calc-help">Supported: numeric coefficients, x, + − × ÷, parentheses and powers up to x². Example: <code>3(x+2)=18</code>.</div><button class="calc-run wide" id="checkStepsBtn" type="button">Check my working →</button></article>
+<article class="calc-card"><span class="section-kicker">STEP REPORT</span><h3 id="checkHeadline">Ready to check</h3><div class="step-report" id="checkReport"><div class="step-empty">Your checked steps will appear here.</div></div><div class="calc-result compact"><span>What to do next</span><p id="checkAdvice">Fix the first mismatching step, then re-run the check.</p></div></article>
+</div>
+</section>
+
+<section class="calc-panel" data-calc-panel="graph">
+<div class="calc-panel-head"><span class="section-kicker">GRAPH</span><h2>Plot a function and inspect key points</h2><p>Good-enough student graphing: function plot, approximate roots and value table. Heavy CAS/3D graphing is intentionally out of scope.</p></div>
+<div class="calc-grid graph-grid">
+<article class="calc-card graph-controls"><label class="calc-field"><span>y = f(x)</span><input id="graphExpression" value="x^2 - 4" autocomplete="off"/></label><div class="calc-fields two"><label><span>x minimum</span><input id="graphMin" type="number" value="-6"/></label><label><span>x maximum</span><input id="graphMax" type="number" value="6"/></label></div><button class="calc-run wide" id="graphBtn" type="button">Plot function →</button><div class="calc-result compact"><span>Approximate roots</span><strong id="graphRoots">—</strong><p id="graphSummary">Plot to inspect the function.</p></div></article>
+<article class="calc-card graph-card"><canvas id="graphCanvas" width="900" height="520" aria-label="Function graph"></canvas><div class="graph-table-wrap"><table><thead><tr><th>x</th><th>f(x)</th></tr></thead><tbody id="graphTable"></tbody></table></div></article>
+</div>
+</section>
+
+<section class="calc-panel" data-calc-panel="engineering">
+<div class="calc-panel-head"><span class="section-kicker">ENGINEERING</span><h2>Units, matrices, vectors & significant figures</h2><p>Useful checks for science and engineering students, including incompatible-unit warnings.</p></div>
+<div class="calc-grid two">
+<article class="calc-card"><span class="section-kicker">UNIT & DIMENSION GUARD</span><h3>Check an operation</h3><div class="unit-operation"><div><input id="unitAValue" type="number" value="5"/><select id="unitA"><option value="m">m</option><option value="cm">cm</option><option value="km">km</option><option value="s">s</option><option value="min">min</option><option value="h">h</option><option value="kg">kg</option><option value="g">g</option><option value="N">N</option></select></div><select id="unitOp"><option value="+">+</option><option value="-">−</option><option value="*">×</option><option value="/">÷</option></select><div><input id="unitBValue" type="number" value="3"/><select id="unitB"><option value="s">s</option><option value="min">min</option><option value="h">h</option><option value="m">m</option><option value="cm">cm</option><option value="km">km</option><option value="kg">kg</option><option value="g">g</option><option value="N">N</option></select></div></div><button class="calc-run wide" id="unitGuardBtn" type="button">Check units →</button><div class="calc-result compact"><strong id="unitGuardResult">—</strong><p id="unitGuardSteps">RIVANI will flag invalid additions/subtractions and show SI values where possible.</p></div></article>
+<article class="calc-card"><span class="section-kicker">UNIT CONVERTER</span><h3>Convert values</h3><div class="calc-fields two"><label><span>Category</span><select id="convCategory"><option value="length">Length</option><option value="weight">Weight</option><option value="temperature">Temperature</option><option value="data">Digital data</option></select></label><label><span>Value</span><input id="convValue" type="number" value="100"/></label></div><div class="calc-fields two"><label><span>From</span><select id="convFrom"></select></label><label><span>To</span><select id="convTo"></select></label></div><button class="calc-run wide" id="convBtn" type="button">Convert →</button><div class="calc-result compact"><strong id="convResult">—</strong><p id="convSteps">Conversion appears here.</p></div></article>
+<article class="calc-card"><span class="section-kicker">2×2 MATRIX</span><h3>Determinant & inverse</h3><div class="matrix-grid"><input id="m11" type="number" value="2"/><input id="m12" type="number" value="1"/><input id="m21" type="number" value="5"/><input id="m22" type="number" value="3"/></div><div class="calc-actions"><button class="calc-run" id="matrixDetBtn" type="button">Determinant</button><button class="calc-run" id="matrixInvBtn" type="button">Inverse</button></div><div class="calc-result compact"><strong id="matrixResult">—</strong><p id="matrixSteps">Matrix result appears here.</p></div></article>
+<article class="calc-card"><span class="section-kicker">VECTOR</span><h3>Magnitude & dot product</h3><div class="vector-row"><span>A</span><input id="va1" type="number" value="3"/><input id="va2" type="number" value="4"/><input id="va3" type="number" value="0"/></div><div class="vector-row"><span>B</span><input id="vb1" type="number" value="1"/><input id="vb2" type="number" value="2"/><input id="vb3" type="number" value="3"/></div><button class="calc-run wide" id="vectorBtn" type="button">Calculate vectors →</button><div class="calc-result compact"><strong id="vectorResult">—</strong><p id="vectorSteps">Magnitude and dot product appear here.</p></div></article>
+<article class="calc-card wide-card"><span class="section-kicker">SIGNIFICANT FIGURES</span><h3>Round a measurement correctly</h3><div class="calc-fields two"><label><span>Number</span><input id="sigValue" value="0.00456789"/></label><label><span>Significant figures</span><input id="sigCount" type="number" value="3" min="1" max="12" step="1"/></label></div><button class="calc-run" id="sigBtn" type="button">Round measurement →</button><div class="calc-result compact"><strong id="sigResult">—</strong><p id="sigSteps">Rounded value and scientific notation appear here.</p></div></article>
+</div>
+</section>
+
+<section class="calc-panel" data-calc-panel="finance">
+<div class="calc-panel-head"><span class="section-kicker">EVERYDAY MATHS</span><h2>Percentages, geometry & finance</h2><p>Common student and daily-use helpers in one place.</p></div>
+<div class="calc-grid two">
+<article class="calc-card"><span class="section-kicker">PERCENTAGE</span><h3>Percentage of a value</h3><div class="calc-fields two"><label><span>Percent</span><input id="pctRate" type="number" value="18"/></label><label><span>Base value</span><input id="pctBase" type="number" value="2500"/></label></div><button class="calc-run wide" id="pctOfBtn" type="button">Calculate →</button><div class="calc-result compact"><strong id="pctOfResult">—</strong></div></article>
+<article class="calc-card"><span class="section-kicker">PERCENT CHANGE</span><h3>Increase / decrease</h3><div class="calc-fields two"><label><span>Old</span><input id="pctOld" type="number" value="400"/></label><label><span>New</span><input id="pctNew" type="number" value="460"/></label></div><button class="calc-run wide" id="pctChangeBtn" type="button">Calculate change →</button><div class="calc-result compact"><strong id="pctChangeResult">—</strong></div></article>
+<article class="calc-card"><span class="section-kicker">DISCOUNT</span><h3>Sale price</h3><div class="calc-fields two"><label><span>Original price</span><input id="discountPrice" type="number" value="2999"/></label><label><span>Discount %</span><input id="discountRate" type="number" value="25"/></label></div><button class="calc-run wide" id="discountBtn" type="button">Calculate sale price →</button><div class="calc-result compact"><strong id="discountResult">—</strong></div></article>
+<article class="calc-card"><span class="section-kicker">GEOMETRY</span><h3>Area & perimeter</h3><label class="calc-field"><span>Shape</span><select id="geoShape"><option value="circle">Circle</option><option value="rectangle">Rectangle</option><option value="triangle">Triangle</option></select></label><div class="calc-fields two" id="geoInputs"></div><button class="calc-run wide" id="geoBtn" type="button">Calculate geometry →</button><div class="calc-result compact"><strong id="geoResult">—</strong><p id="geoSteps">Formula appears here.</p></div></article>
+<article class="calc-card"><span class="section-kicker">EMI</span><h3>Loan payment estimate</h3><div class="calc-fields three"><label><span>Principal</span><input id="emiPrincipal" type="number" value="500000"/></label><label><span>Rate % yearly</span><input id="emiRate" type="number" value="9"/></label><label><span>Months</span><input id="emiMonths" type="number" value="60"/></label></div><button class="calc-run wide" id="emiBtn" type="button">Estimate EMI →</button><div class="calc-result compact"><strong id="emiResult">—</strong><p id="emiSteps">Estimate appears here.</p></div></article>
+<article class="calc-card"><span class="section-kicker">COMPOUND INTEREST</span><h3>Growth over time</h3><div class="calc-fields three"><label><span>Principal</span><input id="ciPrincipal" type="number" value="10000"/></label><label><span>Rate %</span><input id="ciRate" type="number" value="8"/></label><label><span>Years</span><input id="ciYears" type="number" value="5"/></label></div><button class="calc-run wide" id="ciBtn" type="button">Calculate growth →</button><div class="calc-result compact"><strong id="ciResult">—</strong><p id="ciSteps">Compound-interest result appears here.</p></div></article>
+</div>
+</section>
+</div>
+</div>
+</div></section>
+
+<section class="section calc-scope-section"><div class="container"><div class="section-heading"><div><span class="section-kicker">TEST SCOPE</span><h2>Built for students, <span>without pretending to be a full CAS.</span></h2></div><p>RIVANI Calculator is designed for common school, competitive-exam and early college workflows. Unsupported symbolic transformations should be shown as unsupported instead of guessed.</p></div><div class="feature-detail-grid"><article><b>01</b><h3>Check My Steps</h3><p>Detects the first equation step that changes the solution set for supported linear/quadratic work.</p></article><article><b>02</b><h3>Learning modes</h3><p>Full Steps, Exam Ready and Easy Hinglish change how supported explanations are written.</p></article><article><b>03</b><h3>Science guardrails</h3><p>Unit compatibility, SI conversion, significant figures, vectors and matrices support STEM workflows.</p></article><article><b>04</b><h3>Browser-first</h3><p>Core maths runs locally in the browser. No paid LLM or GPU backend is required for this test build.</p></article></div></div></section>
+</main>
+
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"/><p>Smarter Tools. Better Results.</p></div><div><strong>Platform</strong><a href="/#tools">Beta Tools</a><a href="/#upcoming">Upcoming</a><a href="/features">Features</a></div><div><strong>Company</strong><a href="/about">About</a><a href="/contact">Contact</a></div><div><strong>Legal</strong><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Calculator · Private Test Preview</span></div></footer>
+<script src="script.js?v=32.0-all-access"></script>
+<script src="calculator.js?v=39.0-test"></script>
+<script src="auth-nav.js?v=37.0" type="module"></script>
+</body></html>
