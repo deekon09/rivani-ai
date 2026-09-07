@@ -1,5 +1,5 @@
 
-// RIVANI AI V38 · Gaming Auto Editor Experimental Lab
+// RIVANI AI V38.1 · Gaming Auto Editor Next-Action + Cut Safety
 (() => {
   'use strict';
 
@@ -27,9 +27,11 @@
     shape: 'rounded',
     position: 'br',
     cuts: [],
+    silenceCandidates: [],
     peaks: [],
     plan: [],
     analyzing: false,
+    previewing: false,
     skipGuard: false
   };
 
@@ -106,6 +108,17 @@
   gameplayVideo.addEventListener('pause', () => {
     facecamVideo.pause(); voiceAudio.pause();
     $('playAllBtn').textContent = '▶ Play synced';
+    if (state.previewing) {
+      $('stopPreviewBtn').disabled = true;
+      $('previewEditBtn').disabled = !state.plan.length;
+    }
+  });
+  gameplayVideo.addEventListener('ended', () => {
+    state.previewing = false;
+    $('stopPreviewBtn').disabled = true;
+    $('previewEditBtn').disabled = !state.plan.length;
+    $('previewEditBtn').textContent = '▶ Preview Auto Edit';
+    $('stageBadge').textContent = 'SYNC MASTER · PREVIEW COMPLETE';
   });
   gameplayVideo.addEventListener('seeked', () => syncFollowers(true));
   gameplayVideo.addEventListener('timeupdate', () => {
@@ -143,6 +156,7 @@
   }
   bindSegment('intensityGroup','intensity','intensity');
   bindSegment('silenceGroup','silence','silenceMode');
+  $('allowGameplayCuts').addEventListener('change', resetAnalysis);
 
   $('shapeGroup').addEventListener('click', e => {
     const b=e.target.closest('[data-shape]'); if(!b)return;
@@ -180,9 +194,13 @@
   applyFilters();
 
   function resetAnalysis() {
-    state.cuts=[]; state.peaks=[]; state.plan=[];
+    state.cuts=[]; state.silenceCandidates=[]; state.peaks=[]; state.plan=[]; state.previewing=false;
     $('statCuts').textContent='0'; $('statRemoved').textContent='0:00'; $('statPeaks').textContent='0';
-    $('planCount').textContent='0 events'; $('downloadPlanBtn').disabled=true;
+    $('planCount').textContent='0 events';
+    $('downloadPlanBtn').disabled=true;
+    $('previewEditBtn').disabled=true;
+    $('stopPreviewBtn').disabled=true;
+    $('editActions').classList.add('hidden');
     renderTimeline();
     $('eventList').innerHTML='<div class="ge-empty-plan">Run analysis to create a linked cut + energy plan.</div>';
   }
@@ -253,6 +271,14 @@
 
   function buildPlan(sourceLabel) {
     const plan=[];
+    if (!state.voiceFile && !$('allowGameplayCuts').checked && state.silenceCandidates.length) {
+      plan.push({
+        time:0,
+        type:'safety_notice',
+        label:'Gameplay-audio silence protected',
+        detail:`${state.silenceCandidates.length} quiet ranges were detected but NOT applied as cuts. Add a separate voice track or explicitly enable the experimental gameplay-audio fallback.`
+      });
+    }
     state.cuts.forEach(c=>plan.push({time:c.start,end:c.end,type:'linked_cut',label:'Linked silence cut',detail:`Remove ${c.duration.toFixed(2)}s from gameplay + facecam + voice`,source:sourceLabel}));
     state.peaks.forEach((p,i)=>{
       const tags=[];
@@ -322,7 +348,10 @@
       const sourceLabel=state.voiceFile?'voice_track':'gameplay_audio_fallback';
       const buffer=await decodeAudioFromFile(sourceFile);
       const result=analyzeBuffer(buffer);
-      state.cuts=result.cuts.filter(c=>c.start<state.duration||!state.duration);
+      const detectedCuts=result.cuts.filter(c=>c.start<state.duration||!state.duration);
+      state.silenceCandidates=detectedCuts;
+      const gameplayFallbackAllowed=Boolean(state.voiceFile || $('allowGameplayCuts').checked);
+      state.cuts=gameplayFallbackAllowed ? detectedCuts : [];
       state.peaks=result.peaks.filter(p=>p.time<state.duration||!state.duration);
       if(!state.duration)state.duration=Math.min(result.duration,gameplayVideo.duration||result.duration);
       const removed=state.cuts.reduce((a,c)=>a+c.duration,0);
@@ -334,8 +363,22 @@
       $('timelineScale').lastElementChild.textContent=formatTime(state.duration);
       renderTimeline();renderEvents();
       $('downloadPlanBtn').disabled=false;
-      $('analysisNote').innerHTML=`Analysis complete using <b>${sourceLabel==='voice_track'?'the separate voice track':'gameplay audio fallback'}</b>. Silence threshold: ${result.thresholdDb} dB. Red blocks are linked cuts on all synced tracks; cyan/violet markers are energy candidates, not semantic AI judgments.`;
-      $('stageBadge').textContent=state.cuts.length?'SYNC MASTER · CUT PREVIEW READY':'SYNC MASTER · NO CUTS FOUND';
+      $('previewEditBtn').disabled=false;
+      $('editActions').classList.remove('hidden');
+
+      if (!state.voiceFile && !$('allowGameplayCuts').checked) {
+        $('analysisNote').innerHTML=`Analysis complete using <b>gameplay audio</b>. ${state.silenceCandidates.length} quiet ranges were detected, but V38.1 protected them from automatic cutting because no separate voice track was loaded. Energy markers can still be reviewed.`;
+        $('editActionNote').textContent=state.silenceCandidates.length
+          ? `${state.silenceCandidates.length} gameplay-audio quiet ranges are protected. Add a voice track for safe linked silence cuts, or explicitly enable the experimental fallback.`
+          : 'No safe linked cuts were created. You can still preview the synced layout and current visual settings.';
+      } else {
+        $('analysisNote').innerHTML=`Analysis complete using <b>${sourceLabel==='voice_track'?'the separate voice track':'the explicitly enabled gameplay-audio fallback'}</b>. Silence threshold: ${result.thresholdDb} dB. Red blocks are linked cuts on all synced tracks; cyan/violet markers are signal-energy candidates.`;
+        $('editActionNote').textContent=state.cuts.length
+          ? `${state.cuts.length} linked cuts will be skipped in the non-destructive preview across gameplay + facecam + voice.`
+          : 'No linked silence cuts were found. Preview will still show the synced facecam layout and visual corrections.';
+      }
+      $('stageBadge').textContent=state.cuts.length?'SYNC MASTER · AUTO EDIT READY':'SYNC MASTER · PLAN READY';
+      setTimeout(()=>$('editActions').scrollIntoView({behavior:'smooth',block:'nearest'}),80);
     }catch(err){
       console.error(err);
       $('analysisNote').textContent=`Could not decode the selected audio in this browser: ${err?.message||'Unknown error'}. Try a separate WAV/MP3/M4A voice track for the silence analyzer.`;
@@ -345,10 +388,40 @@
     }
   });
 
+  $('previewEditBtn').addEventListener('click', async () => {
+    if (!state.gameplayFile || !state.plan.length) return;
+    state.previewing = true;
+    $('liveCutPreview').checked = true;
+    gameplayVideo.pause();
+    gameplayVideo.currentTime = 0;
+    syncFollowers(true);
+    $('previewEditBtn').disabled = true;
+    $('stopPreviewBtn').disabled = false;
+    $('previewEditBtn').textContent = 'Previewing…';
+    $('stageBadge').textContent = state.cuts.length ? 'AUTO EDIT PREVIEW · LINKED CUTS ON' : 'AUTO EDIT PREVIEW · SYNCED LAYOUT';
+    document.querySelector('.ge-preview-panel')?.scrollIntoView({behavior:'smooth',block:'center'});
+    try { await gameplayVideo.play(); }
+    catch (_) {
+      state.previewing = false;
+      $('previewEditBtn').disabled = false;
+      $('stopPreviewBtn').disabled = true;
+      $('previewEditBtn').textContent = '▶ Preview Auto Edit';
+    }
+  });
+
+  $('stopPreviewBtn').addEventListener('click', () => {
+    gameplayVideo.pause();
+    state.previewing = false;
+    $('previewEditBtn').disabled = !state.plan.length;
+    $('stopPreviewBtn').disabled = true;
+    $('previewEditBtn').textContent = '▶ Preview Auto Edit';
+    $('stageBadge').textContent = 'SYNC MASTER · PREVIEW STOPPED';
+  });
+
   $('downloadPlanBtn').addEventListener('click',()=>{
     if(!state.plan.length)return;
     const payload={
-      schema:'rivani.gaming-auto-editor.edit-plan.v38',
+      schema:'rivani.gaming-auto-editor.edit-plan.v38.1',
       createdAt:new Date().toISOString(),
       master:{duration:state.duration,gameplay:state.gameplayFile?.name||null,facecam:state.facecamFile?.name||null,voice:state.voiceFile?.name||null},
       settings:{
@@ -357,12 +430,15 @@
         color:{facecam:{brightness:Number($('faceBright').value),contrast:Number($('faceContrast').value),saturation:Number($('faceSat').value)},gameplay:{brightness:Number($('gameBright').value),contrast:Number($('gameContrast').value),saturation:Number($('gameSat').value)}},
         soundDirector:$('soundDirector').checked,sfx:selectedSfx(),captionsRequested:$('captions').checked
       },
-      cuts:state.cuts,energyCandidates:state.peaks,events:state.plan,
-      note:'This is a V38 lab edit plan. Semantic scene understanding and final rendering are not included yet.'
+      cuts:state.cuts,
+      protectedSilenceCandidates:(!state.voiceFile && !$('allowGameplayCuts').checked) ? state.silenceCandidates : [],
+      gameplayFallbackCutsApplied:(!state.voiceFile && $('allowGameplayCuts').checked),
+      energyCandidates:state.peaks,events:state.plan,
+      note:'This is a V38.1 lab edit plan. Gameplay-audio silence is protected by default when no separate voice track is loaded. Semantic scene understanding and final rendering are not included yet.'
     };
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);const a=document.createElement('a');
-    a.href=url;a.download='rivani-gaming-edit-plan-v38.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
+    a.href=url;a.download='rivani-gaming-edit-plan-v38-1.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
   });
 
   window.addEventListener('beforeunload',()=>Object.keys(state.urls).forEach(revoke));

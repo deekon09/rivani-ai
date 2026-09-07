@@ -10,7 +10,7 @@
 <meta name="description" content="RIVANI Gaming Auto Editor experimental lab for synced gameplay, facecam and voice editing workflows."/>
 <title>RIVANI Gaming Auto Editor — Experimental Lab</title>
 <link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
-<link rel="stylesheet" href="gaming-auto-editor.css?v=38.0-lab"/>
+<link rel="stylesheet" href="gaming-auto-editor.css?v=38.1-actions"/>
 </head>
 <body class="gaming-editor-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -26,7 +26,7 @@
 <section class="ge-hero section">
   <div class="container ge-hero-grid">
     <div>
-      <div class="ge-badges"><span class="ge-pill">EXPERIMENTAL LAB</span><span class="ge-pill alt">GAMING ONLY · V38</span></div>
+      <div class="ge-badges"><span class="ge-pill">EXPERIMENTAL LAB</span><span class="ge-pill alt">GAMING ONLY · V38.1</span></div>
       <span class="section-kicker">RIVANI GAMING AUTO EDITOR</span>
       <h1>Gameplay in.<br/><span>Creator-style edit plan out.</span></h1>
       <p>Load gameplay, facecam and an optional clean voice track. This lab keeps them on one synced master timeline, finds voice-silence cuts locally, previews linked cuts, and lets you design the facecam + editing direction before the full AI director/render backend is connected.</p>
@@ -64,7 +64,8 @@
       <span class="ge-upload-icon">≋</span><b>Voice Track</b><small id="voiceMeta">Recommended for safe silence cuts</small><em>Choose voice/audio</em>
     </label>
   </div>
-  <div class="ge-source-note"><b>Why separate voice helps:</b> silence cutting should follow the creator voice, not quiet gameplay audio. If no voice track is loaded, the lab can try gameplay audio as a fallback when the browser can decode it.</div>
+  <div class="ge-source-note"><b>Why separate voice helps:</b> silence cutting should follow the creator voice, not quiet gameplay audio. Gameplay-only silence can be a loading screen, stealth scene or quiet game moment — so V38.1 will not automatically cut gameplay-audio silence unless you explicitly allow it.</div>
+  <label class="ge-fallback-cut-toggle"><span><b>Use gameplay audio for silence cuts</b><small>Experimental fallback · keep OFF unless your mic/voice is clearly mixed into the gameplay recording.</small></span><input id="allowGameplayCuts" type="checkbox"/></label>
 </section>
 
 <div class="ge-editor-grid">
@@ -196,6 +197,16 @@
     <div class="ge-track"><b>FX PLAN</b><div class="ge-track-bar fx" data-track="fx"></div></div>
   </div>
 
+  <div class="ge-next-actions hidden" id="editActions">
+    <div class="ge-next-copy"><span class="section-kicker">EDIT PLAN READY</span><b>Next: preview the linked auto edit</b><small id="editActionNote">The preview applies synced silence cuts non-destructively. Your original files are never changed.</small></div>
+    <div class="ge-next-buttons">
+      <button class="btn ge-primary" id="previewEditBtn" type="button" disabled>▶ Preview Auto Edit</button>
+      <button class="ge-action-btn" id="stopPreviewBtn" type="button" disabled>■ Stop Preview</button>
+      <button class="ge-action-btn" id="downloadPlanBtn" type="button" disabled>↓ Edit Plan JSON</button>
+      <button class="ge-action-btn ge-render-pending" id="renderFinalBtn" type="button" disabled>Render Final Video · backend next</button>
+    </div>
+  </div>
+
   <div class="ge-plan-grid">
     <div><div class="ge-plan-head"><b>Generated edit plan</b><span id="planCount">0 events</span></div><div class="ge-event-list" id="eventList"><div class="ge-empty-plan">Run analysis to create a linked cut + energy plan.</div></div></div>
     <aside class="ge-plan-summary">
@@ -209,7 +220,7 @@
         <li>Background removal + face tracking</li>
         <li>FFmpeg/cloud final render</li>
       </ul>
-      <button id="downloadPlanBtn" class="ge-outline-btn" type="button" disabled>↓ Download Edit Plan JSON</button>
+      <div class="ge-render-note"><b>Final MP4 render is not active yet.</b><span>V38.1 now gives you an actual edited-preview action after analysis. The next backend stage will render the approved timeline.</span></div>
     </aside>
   </div>
 </section>
@@ -227,6 +238,6 @@
 <footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img src="assets/rivani-ai-logo.png" alt="RIVANI AI"/><p>Smarter tools. Better results.</p></div><div><strong>Platform</strong><a href="/#tools">Beta Tools</a><a href="/articles">Tool Guides</a><a href="/features">Features</a></div><div><strong>Company</strong><a href="/about">About</a><a href="/contact">Contact</a><a href="auth.html">Account</a></div><div><strong>Legal</strong><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable Use</a><a href="/cookies">Cookies</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>Gaming Auto Editor · Experimental Lab</span></div></footer>
 
 <script src="script.js?v=37.4.1" defer></script>
-<script src="gaming-auto-editor.js?v=38.0-lab" defer></script>
+<script src="gaming-auto-editor.js?v=38.1-actions" defer></script>
 <script src="auth-nav.js?v=37.2-world-languages" type="module"></script>
 </body></html>
