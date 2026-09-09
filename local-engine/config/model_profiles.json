@@ -1,0 +1,82 @@
+{
+  "profiles": [
+    {
+      "id": "lite",
+      "label": "Lite / Compatibility",
+      "min_vram": 0,
+      "model": "acestep-v15-turbo",
+      "lm": "",
+      "thinking": false,
+      "steps": 8,
+      "max_duration": 60,
+      "batch": 1,
+      "notes": "CPU or very low VRAM. DiT-only; full-song generation can be slow."
+    },
+    {
+      "id": "fast",
+      "label": "Fast",
+      "min_vram": 4,
+      "model": "acestep-v15-turbo",
+      "lm": "",
+      "thinking": false,
+      "steps": 8,
+      "max_duration": 180,
+      "batch": 2,
+      "notes": "Turbo 8-step generation with CPU offload when needed."
+    },
+    {
+      "id": "balanced",
+      "label": "Balanced",
+      "min_vram": 6,
+      "model": "acestep-v15-turbo",
+      "lm": "acestep-5Hz-lm-0.6B",
+      "thinking": true,
+      "steps": 8,
+      "max_duration": 240,
+      "batch": 1,
+      "notes": "Turbo plus lightweight local LM planning."
+    },
+    {
+      "id": "studio",
+      "label": "Studio Quality",
+      "min_vram": 12,
+      "model": "acestep-v15-sft",
+      "lm": "acestep-5Hz-lm-1.7B",
+      "thinking": true,
+      "steps": 50,
+      "max_duration": 360,
+      "batch": 1,
+      "notes": "Higher-step SFT generation; slower than Turbo."
+    },
+    {
+      "id": "xl_fast",
+      "label": "XL Fast",
+      "min_vram": 16,
+      "model": "acestep-v15-xl-turbo",
+      "lm": "acestep-5Hz-lm-1.7B",
+      "thinking": true,
+      "steps": 8,
+      "max_duration": 480,
+      "batch": 2,
+      "notes": "Larger XL DiT with Turbo steps."
+    },
+    {
+      "id": "ultra",
+      "label": "Ultra XL",
+      "min_vram": 24,
+      "model": "acestep-v15-xl-sft",
+      "lm": "acestep-5Hz-lm-4B",
+      "thinking": true,
+      "steps": 50,
+      "max_duration": 600,
+      "batch": 4,
+      "notes": "Maximum local profile; requires strong hardware and more storage."
+    }
+  ],
+  "source": {
+    "project": "ACE-Step 1.5",
+    "repo": "https://github.com/ace-step/ACE-Step-1.5",
+    "model_card": "https://huggingface.co/ACE-Step/Ace-Step1.5",
+    "license": "MIT"
+  }
+}
