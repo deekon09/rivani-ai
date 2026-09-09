@@ -21,8 +21,6 @@
   X-Robots-Tag: noindex, nofollow
 /pro.html
   X-Robots-Tag: noindex, nofollow
-/calculator.html
-  X-Robots-Tag: noindex, nofollow
 
 # Keep the legacy workers.dev hostname accessible for old links,
 # but prevent search engines from indexing that duplicate host.
@@ -78,4 +76,14 @@ https://rivani-ai.rivani.workers.dev/*
 /image-to-text.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /image-to-text.css
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+# Student Calculator is live in Public Beta. Keep deploys fresh while it stabilizes.
+/calculator
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/calculator.html
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/calculator.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+/calculator.css
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0

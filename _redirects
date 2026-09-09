@@ -1,4 +1,4 @@
-# RIVANI AI — public canonical URL aliases (V37.3)
+# RIVANI AI — public canonical URL aliases (V40)
 /index.html / 301
 /about.html /about 301
 /articles.html /articles 301
@@ -13,6 +13,7 @@
 /background-remover.html /background-remover 301
 /image-compressor.html /image-compressor 301
 /image-to-text.html /image-to-text 301
+/calculator.html /calculator 301
 /article-audio-repair.html /article-audio-repair 301
 /article-image-enhancer.html /article-image-enhancer 301
 /article-background-remover.html /article-background-remover 301
