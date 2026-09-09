@@ -8,10 +8,10 @@
 <link rel="shortcut icon" href="/favicon.ico"/>
 <link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
 <meta name="robots" content="noindex,nofollow"/>
-<meta name="description" content="RIVANI Music Browser Lab: experimental browser-only AI music generation using WebGPU on the user's own desktop GPU. No local-engine install or RIVANI cloud GPU queue."/>
-<title>RIVANI Music — Browser AI Music Lab</title>
+<meta name="description" content="RIVANI Music Lab: instant cloud AI music generation with no multi-gigabyte model download, plus an optional private browser WebGPU mode."/>
+<title>RIVANI Music — Instant Cloud + Private Browser Lab</title>
 <link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
-<link rel="stylesheet" href="music.css?v=42.0-browser"/>
+<link rel="stylesheet" href="music.css?v=43.0-cloud"/>
 </head>
 <body class="music-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -25,36 +25,44 @@
 <main class="music-main">
 <section class="music-hero section"><div class="container music-hero-grid">
 <div class="music-hero-copy reveal">
-<div class="music-badges"><span class="status-pill">BROWSER LAB · NOT PUBLIC YET</span><span class="music-chip">◆ No installer</span><span class="music-chip">◆ No RIVANI cloud GPU</span></div>
+<div class="music-badges"><span class="status-pill">CLOUD LAB · NOT PUBLIC YET</span><span class="music-chip">◆ 0 GB model download in Cloud</span><span class="music-chip">◆ Private browser fallback</span></div>
 <span class="section-kicker">RIVANI MUSIC</span>
-<h1>Describe the sound.<br/><span>Create it in your browser.</span></h1>
-<p>Experimental desktop WebGPU music generation. The AI model runs on the user's own browser/GPU and stores model files in browser storage. No Git, Python, PowerShell or localhost engine is required.</p>
-<div class="music-hero-points"><span>✓ Instrumental + supplied lyrics</span><span>✓ Optional local AI lyric writer</span><span>✓ 10–120 second generation</span><span>✓ 48 kHz stereo WAV</span></div>
-<div class="music-warning"><strong>First-use download is large.</strong><span>Standard audio profile is about 5.63 GB. Nothing starts downloading until you press Generate and accept the storage notice below.</span></div>
+<h1>Describe the sound.<br/><span>Generate without the giant download.</span></h1>
+<p>Instant Cloud sends the generation job to a shared ACE-Step GPU service, so the user downloads only the finished audio—not multi-gigabyte model weights. Private Browser remains available for users who prefer on-device WebGPU generation.</p>
+<div class="music-hero-points"><span>✓ ACE-Step 1.5 XL Turbo target</span><span>✓ Instrumental + supplied lyrics</span><span>✓ Seed + duration controls</span><span>✓ Browser fallback stays available</span></div>
+<div class="music-warning cloud-warning"><strong>Cloud privacy + quota notice.</strong><span>In Instant Cloud mode, prompt/lyrics leave the device and are processed by the external shared GPU provider. Queue and ZeroGPU usage limits can apply. Private Browser keeps generation on-device but needs the model download.</span></div>
 </div>
 <div class="music-device-card reveal delay-1">
-<div class="music-device-head"><div><small>DEVICE CHECK</small><strong id="deviceHeadline">Checking browser…</strong></div><span id="deviceDot" class="device-dot"></span></div>
+<div class="music-device-head"><div><small>GENERATION ROUTE</small><strong id="deviceHeadline">Instant Cloud ready on demand</strong></div><span id="deviceDot" class="device-dot good"></span></div>
 <div class="device-list">
-<div><span>Browser</span><b id="browserState">Checking</b></div>
-<div><span>WebGPU</span><b id="webgpuState">Checking</b></div>
+<div><span>Instant Cloud</span><b id="cloudState">No model download</b></div>
+<div><span>Cloud model target</span><b id="cloudModelState">ACE-Step 1.5 XL Turbo</b></div>
+<div><span>Private WebGPU</span><b id="webgpuState">Checking</b></div>
 <div><span>Browser storage</span><b id="storageState">Checking</b></div>
-<div><span>Recommended mode</span><b id="recommendedMode">Balanced</b></div>
 </div>
-<div class="device-note" id="deviceNote">Current browser generation target is desktop Chrome/Edge with WebGPU and hardware acceleration.</div>
+<div class="device-note" id="deviceNote">Cloud connects only after you press Generate. Private Browser can be selected below.</div>
 </div>
 </div></section>
 
 <section class="section music-workspace-section"><div class="container music-workspace">
 <div class="music-panel create-panel">
-<div class="panel-title"><div><span class="section-kicker">CREATE</span><h2>Build a track</h2></div><span class="lab-tag">ACE-Step Browser · Experimental</span></div>
+<div class="panel-title"><div><span class="section-kicker">CREATE</span><h2>Build a track</h2></div><span class="lab-tag" id="engineTag">Instant Cloud · XL Turbo</span></div>
 
-<div class="music-presets" role="group" aria-label="Performance preset">
+<div class="route-switch" role="group" aria-label="Generation route">
+<label class="route-card active" data-route-card="cloud"><input type="radio" name="generationRoute" value="cloud" checked/><span class="route-icon">⚡</span><span><b>Instant Cloud</b><small>Recommended · no model download</small></span><em>0 GB</em></label>
+<label class="route-card" data-route-card="browser"><input type="radio" name="generationRoute" value="browser"/><span class="route-icon">◆</span><span><b>Private Browser</b><small>Runs on your device · one-time model cache</small></span><em>~5.63 GB+</em></label>
+</div>
+<div class="route-detail cloud-route-detail" id="cloudRouteDetail"><strong>Same model family, different compute location.</strong><span>Cloud targets ACE-Step 1.5 XL Turbo with Turbo-quality generation settings. Exact waveforms are not guaranteed to match browser inference bit-for-bit, but the quality class is kept on the same XL Turbo path.</span></div>
+
+<div id="browserTuning" hidden>
+<div class="music-presets" role="group" aria-label="Private browser performance preset">
 <button type="button" class="preset-btn" data-preset="eco"><b>Eco</b><small>Lower demand</small></button>
 <button type="button" class="preset-btn active" data-preset="balanced"><b>Balanced</b><small>Recommended</small></button>
 <button type="button" class="preset-btn" data-preset="performance"><b>Performance</b><small>Higher precision</small></button>
 <button type="button" class="preset-btn" data-preset="studio"><b>Studio</b><small>Large planner</small></button>
 </div>
-<p class="load-note">Balanced is designed as the safer default with one generation at a time. Browser AI cannot hard-lock every PC to exactly 70% GPU / 50% CPU; the preset limits workload through model precision, duration and concurrency.</p>
+<p class="load-note">Private Browser runs one generation at a time. Browser AI cannot hard-lock every PC to exactly 70% GPU / 50% CPU; presets limit workload through model precision, duration and concurrency.</p>
+</div>
 
 <div class="field-grid single">
 <label class="music-field"><span>Describe your song</span><textarea id="musicPrompt" rows="4" maxlength="1000" placeholder="Example: emotional Hindi pop, warm acoustic guitar, soft drums, cinematic strings, memorable chorus, polished modern mix"></textarea><small id="promptCount">0 / 1000</small></label>
@@ -62,7 +70,7 @@
 
 <div class="mode-row">
 <label class="mode-card active"><input type="radio" name="songMode" value="instrumental" checked/><span><b>Instrumental</b><small>Music only</small></span></label>
-<label class="mode-card"><input type="radio" name="songMode" value="vocal"/><span><b>Vocals</b><small>Use supplied or AI-written lyrics</small></span></label>
+<label class="mode-card"><input type="radio" name="songMode" value="vocal"/><span><b>Vocals</b><small>Use your lyrics</small></span></label>
 </div>
 
 <div id="vocalFields" class="vocal-fields" hidden>
@@ -70,59 +78,75 @@
 <label class="music-field"><span>Voice character</span><select id="voicePersona"><option value="warm female lead, natural expressive vocal">Warm Female</option><option value="airy female lead, intimate soft vocal">Airy Female</option><option value="powerful female lead, strong clear vocal">Power Female</option><option value="deep male lead, warm resonant vocal">Deep Male</option><option value="soft male lead, intimate natural vocal">Soft Male</option><option value="energetic male lead, modern pop vocal">Pop Male</option><option value="soulful lead vocal, emotional phrasing">Soul</option><option value="mixed choir, wide cinematic harmony">Choir</option></select></label>
 <label class="music-field"><span>Vocal language</span><select id="vocalLanguage"><option value="en">English</option><option value="hi">Hindi</option><option value="bn">Bengali</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="mr">Marathi</option><option value="pa">Punjabi</option><option value="ur">Urdu</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option></select></label>
 </div>
-<label class="toggle-row"><input type="checkbox" id="aiLyrics"/><span><b>Write lyrics with browser AI</b><small>Adds roughly 0.49 GB for the compact lyric writer.</small></span></label>
-<label class="music-field" id="lyricsWrap"><span>Lyrics</span><textarea id="musicLyrics" rows="10" maxlength="6000" placeholder="[Verse]\nWrite your lyrics here…\n\n[Chorus]\nYour hook here…"></textarea><small>Use bracketed sections such as [Verse], [Chorus], [Bridge].</small></label>
+<label class="toggle-row"><input type="checkbox" id="aiLyrics"/><span><b>Write lyrics with AI</b><small id="aiLyricsNote">Cloud auto-lyrics is not enabled in V43 yet; paste lyrics below. Private Browser can use its local lyric writer.</small></span></label>
+<label class="music-field" id="lyricsWrap"><span>Lyrics</span><textarea id="musicLyrics" rows="10" maxlength="6000" placeholder="[Verse]
+Write your lyrics here…
+
+[Chorus]
+Your hook here…"></textarea><small>Use bracketed sections such as [Verse], [Chorus], [Bridge].</small></label>
 </div>
 
+<div class="field-grid three cloud-main-controls">
+<label class="music-field"><span>Duration</span><select id="durationSeconds"><option value="10">10 sec · first test</option><option value="20">20 sec</option><option value="30">30 sec</option><option value="60">60 sec</option><option value="90">90 sec</option><option value="120">120 sec</option></select></label>
+<label class="music-field"><span>Seed</span><input id="seed" type="number" min="0" max="2147483647" value="42"/></label>
+<label class="music-field"><span>Variants</span><select id="variants"><option value="1">1 variant · recommended</option><option value="2">2 variants · sequential</option><option value="3">3 variants · sequential</option><option value="4">4 variants · sequential</option></select></label>
+</div>
+
+<div class="cloud-quality-card" id="cloudQualityCard">
+<div><small>CLOUD QUALITY PROFILE</small><strong>ACE-Step 1.5 XL Turbo · 8-step target</strong></div>
+<span>Native remote GPU inference · no browser model quantization/download required</span>
+</div>
+
+<div id="browserAdvanced" hidden>
 <div class="field-grid three">
-<label class="music-field"><span>Duration</span><select id="durationSeconds"><option value="10">10 sec · first test</option><option value="20">20 sec</option><option value="30">30 sec</option><option value="60">60 sec</option><option value="90">90 sec</option><option value="120">120 sec · max</option></select></label>
 <label class="music-field"><span>Audio model</span><select id="audioQuality"><option value="standard">Standard · INT4</option><option value="high">High precision · INT8</option></select></label>
 <label class="music-field"><span>Planner</span><select id="plannerQuality"><option value="turbo">Turbo · recommended</option><option value="high-quality">High quality · +4.63 GB</option></select></label>
-</div>
-<div class="field-grid three">
 <label class="music-field"><span>Sampler</span><select id="sampler"><option value="euler">Euler</option><option value="heun">Heun</option><option value="euler-sde">Euler SDE · instrumental only</option></select></label>
-<label class="music-field"><span>Seed</span><input id="seed" type="number" min="0" max="2147483647" value="42"/></label>
-<label class="music-field"><span>Variants</span><select id="variants"><option value="1">1 variant</option><option value="2">2 variants · sequential</option><option value="3">3 variants · sequential</option><option value="4">4 variants · sequential</option></select></label>
+</div>
+<div class="download-card" id="browserDownloadCard"><div><small>ESTIMATED COLD DOWNLOAD</small><strong id="downloadEstimate">~5.63 GB</strong></div><p id="downloadDetail">Standard XL Turbo audio. Cached model files can be removed later from Model Storage.</p></div>
+<label class="consent-row" id="browserConsentRow"><input id="downloadConsent" type="checkbox"/><span>I understand that Private Browser first generation may download several GB into this browser's storage and use my device GPU.</span></label>
 </div>
 
-<div class="download-card">
-<div><small>ESTIMATED COLD DOWNLOAD</small><strong id="downloadEstimate">~5.63 GB</strong></div>
-<p id="downloadDetail">Standard XL Turbo audio. Cached model files can be removed later from Model Storage.</p>
-</div>
-<label class="consent-row"><input id="downloadConsent" type="checkbox"/><span>I understand that first generation may download several GB into this browser's storage and use my device GPU.</span></label>
+<div class="cloud-disclosure" id="cloudDisclosure"><b>Instant Cloud · 0 GB AI model download</b><span>The finished audio still downloads/streams normally. External provider queue/quota can apply; prompts and lyrics are processed remotely.</span></div>
 
 <div class="generate-actions">
-<button class="music-btn music-btn-primary" id="generateMusic" type="button">Generate in Browser →</button>
+<button class="music-btn music-btn-primary" id="generateMusic" type="button">Generate · No Model Download →</button>
 <button class="music-btn music-btn-secondary" id="cancelMusic" type="button" disabled>Cancel</button>
 </div>
-<div class="music-progress" id="progressWrap" hidden><div class="progress-head"><strong id="progressStage">Preparing…</strong><span id="progressPercent">0%</span></div><div class="progress-track"><i id="progressBar"></i></div><small id="progressDetail">Waiting for browser engine.</small></div>
+<div class="music-progress" id="progressWrap" hidden><div class="progress-head"><strong id="progressStage">Preparing…</strong><span id="progressPercent">0%</span></div><div class="progress-track"><i id="progressBar"></i></div><small id="progressDetail">Waiting.</small></div>
 <div class="music-error" id="musicError" hidden></div>
 </div>
 
 <aside class="music-panel side-panel">
-<div class="panel-title compact"><div><span class="section-kicker">MODEL STORAGE</span><h2>Your browser</h2></div></div>
-<div class="storage-meter"><div><span>Origin usage</span><b id="originUsage">—</b></div><div><span>Quota</span><b id="originQuota">—</b></div><div><span>Available</span><b id="originAvailable">—</b></div></div>
-<div class="storage-actions"><button type="button" class="music-btn music-btn-secondary" id="refreshStorage">Refresh storage</button><button type="button" class="music-btn music-btn-danger" id="clearMusicCache">Clear RIVANI Music model cache</button></div>
-<p class="storage-small">Clearing the model cache removes downloaded AI model files for this browser origin. It does not uninstall software because this build installs nothing.</p>
+<div class="panel-title compact"><div><span class="section-kicker">INSTANT CLOUD</span><h2>Remote GPU</h2></div></div>
+<div class="storage-meter cloud-meter"><div><span>Model download</span><b>0 GB to user</b></div><div><span>Model target</span><b>XL Turbo</b></div><div><span>Provider</span><b>ACE-Step HF Space</b></div><div><span>Status</span><b id="cloudAsideState">Connects on Generate</b></div></div>
+<p class="storage-small">Cloud mode uses a public/shared external GPU service. Availability, queue position and usage quota are controlled by that provider.</p>
 <hr/>
-<div class="panel-title compact"><div><span class="section-kicker">CURRENT SUPPORT</span><h2>Browser V1</h2></div></div>
-<ul class="support-list"><li><span>Desktop Chrome / Edge</span><b>Target</b></li><li><span>WebGPU</span><b>Required</b></li><li><span>Mobile / Safari / Firefox</span><b>Not yet</b></li><li><span>Reference audio / cover / repaint</span><b>Roadmap</b></li><li><span>Stems / full DAW editor</span><b>Roadmap</b></li></ul>
+<div class="browser-storage-panel" id="browserStoragePanel" hidden>
+<div class="panel-title compact"><div><span class="section-kicker">PRIVATE BROWSER</span><h2>Model storage</h2></div></div>
+<div class="storage-meter"><div><span>Origin usage</span><b id="originUsage">—</b></div><div><span>Quota</span><b id="originQuota">—</b></div><div><span>Available</span><b id="originAvailable">—</b></div></div>
+<div class="storage-actions"><button type="button" class="music-btn music-btn-secondary" id="refreshStorage">Refresh storage</button><button type="button" class="music-btn music-btn-danger" id="clearMusicCache">Clear Music model cache</button></div>
+<p class="storage-small">Clearing the cache removes browser-downloaded AI model files only. It does not uninstall software.</p>
+<hr/>
+</div>
+<div class="panel-title compact"><div><span class="section-kicker">CURRENT SUPPORT</span><h2>V43</h2></div></div>
+<ul class="support-list"><li><span>Instant Cloud</span><b>Default</b></li><li><span>Cloud model download</span><b>None</b></li><li><span>Private Chrome / Edge WebGPU</span><b>Fallback</b></li><li><span>AI auto-lyrics in Cloud</span><b>Next</b></li><li><span>Reference / remix / stems</span><b>Roadmap</b></li></ul>
 </aside>
 </div></section>
 
 <section class="section results-section"><div class="container">
-<div class="section-heading"><div><span class="section-kicker">RESULTS</span><h2>Your current-session <span>generations.</span></h2></div><p>Generated WAV files stay local to the current browser session unless you download them.</p></div>
-<div id="musicResults" class="music-results"><div class="empty-result"><img src="assets/music.svg" alt=""/><strong>No track yet</strong><span>Start with a 10-second Standard / Turbo test.</span></div></div>
+<div class="section-heading"><div><span class="section-kicker">RESULTS</span><h2>Your current-session <span>generations.</span></h2></div><p>Cloud mode streams the generated audio back from the provider. Private Browser creates audio on-device.</p></div>
+<div id="musicResults" class="music-results"><div class="empty-result"><img src="assets/music.svg" alt=""/><strong>No track yet</strong><span>Instant Cloud is selected. Start with a 10-second test.</span></div></div>
 </div></section>
 
 <section class="section roadmap-section"><div class="container">
-<div class="section-heading"><div><span class="section-kicker">PRO-CLASS ROADMAP</span><h2>Build toward a complete <span>music studio.</span></h2></div><p>These are roadmap targets, not claims that Browser V1 already supports them.</p></div>
-<div class="roadmap-cards"><article><span>01</span><h3>Long-form songs</h3><p>Move beyond the current 120-second browser limit with chunked/tiled generation and continuity control.</p></article><article><span>02</span><h3>Reference + remix</h3><p>Reference audio, cover, repaint, extend and continuation when a browser-qualified runtime supports them reliably.</p></article><article><span>03</span><h3>Stems + Studio</h3><p>Vocals, drums, bass and instrument stems with timeline editing, mixer controls and browser-side mastering.</p></article><article><span>04</span><h3>Personal sound</h3><p>Consented voice/reference workflows and user-controlled style profiles without celebrity impersonation presets.</p></article></div>
+<div class="section-heading"><div><span class="section-kicker">PRO-CLASS ROADMAP</span><h2>Build toward a complete <span>music studio.</span></h2></div><p>Roadmap targets are not claims that V43 already supports every Suno-style workflow.</p></div>
+<div class="roadmap-cards"><article><span>01</span><h3>Cloud auto lyrics</h3><p>Use ACE-Step Simple Mode / planner to turn a song idea into structured lyrics and metadata without a browser model download.</p></article><article><span>02</span><h3>Reference + remix</h3><p>Reference audio, cover, repaint, extend and continuation with rights-aware upload controls.</p></article><article><span>03</span><h3>Stems + Studio</h3><p>Vocals, drums, bass and instrument stems with timeline editing, mixer controls and mastering.</p></article><article><span>04</span><h3>Personal sound</h3><p>Consented voice/reference workflows and user-controlled style profiles without celebrity impersonation presets.</p></article></div>
 </div></section>
 </main>
 
-<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div><div><strong>RIVANI Music</strong><a href="#">Browser Lab</a><a href="/privacy">Privacy</a></div><div><strong>Platform</strong><a href="/#tools">Beta Tools</a><a href="/features">Features</a></div><div><strong>Legal</strong><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>RIVANI Music · Browser Lab · Experimental third-party model runtime</span></div></footer>
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div><div><strong>RIVANI Music</strong><a href="#">Cloud Lab</a><a href="/privacy">Privacy</a></div><div><strong>Platform</strong><a href="/#tools">Beta Tools</a><a href="/features">Features</a></div><div><strong>Legal</strong><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>RIVANI Music · Cloud + Private Browser Lab · Experimental external model runtime</span></div></footer>
 <script src="script.js?v=37.0-ocr" defer></script>
 <script type="module" src="auth-nav.js?v=40.0-calculator"></script>
-<script type="module" src="music.js?v=42.0-browser"></script>
+<script type="module" src="music.js?v=43.0-cloud"></script>
 </body></html>

@@ -1,21 +1,13 @@
-DELETE THESE OLD LOCAL-ENGINE FILES FROM GITHUB
-===============================================
+OLD LOCAL-ENGINE CLEANUP (if still present in GitHub)
 
-downloads/RIVANI-MUSIC-LOCAL-ENGINE.zip
-README-MUSIC-WEBSITE.txt
+Delete only these legacy items:
+- local-engine/ (entire folder)
+- downloads/RIVANI-MUSIC-LOCAL-ENGINE.zip
+- README-MUSIC-WEBSITE.txt
 
-local-engine/README.md
-local-engine/THIRD-PARTY-MODEL.md
-local-engine/install_linux_macos.sh
-local-engine/install_windows.ps1
-local-engine/pyproject.toml
-local-engine/rivani_music_engine.py
-local-engine/start_rivani_music.bat
-local-engine/start_rivani_music.sh
-local-engine/config/model_profiles.json
-local-engine/config/voice_presets.json
-local-engine/studio/index.html
-local-engine/studio/studio.css
-local-engine/studio/studio.js
-
-After the last files are deleted, GitHub will automatically stop showing the empty local-engine/ and downloads/ folders.
+Keep:
+- music.html
+- music.css
+- music.js
+- assets/music.svg
+- _headers

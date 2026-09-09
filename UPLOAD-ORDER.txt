@@ -1,13 +1,15 @@
-RIVANI MUSIC BROWSER V42 — UPLOAD ORDER
+RIVANI MUSIC CLOUD V43 — UPLOAD ORDER
 
-1. Replace music.html
-2. Replace music.css
-3. Replace music.js
-4. Replace _headers
-5. Delete every path listed in DELETE-OLD-MUSIC-FILES.txt
-6. Do NOT edit index.html, sitemap.xml or LUKI for Music yet
-7. Open https://rivaniai.online/music on desktop Chrome/Edge
-8. Confirm page says BROWSER LAB and contains NO Local Engine / localhost / download installer button
-9. Before generation, expect the page to warn about ~5.63 GB first-run model cache
+Replace these files in GitHub main:
+1. music.html
+2. music.css
+3. music.js
+4. _headers
 
-This package does not include model weights or executable installers.
+Do NOT add /music to sitemap or homepage yet. Keep noindex until real Cloud generation succeeds.
+
+After upload:
+- Open https://rivaniai.online/music
+- Confirm Instant Cloud is selected
+- Test Instrumental, 10 sec, seed 42, variants 1
+- Do NOT select Private Browser unless you intentionally want the ~5.63 GB model cache
