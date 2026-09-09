@@ -119,6 +119,11 @@ function cloudKey(param){return param?.parameter_name||param?.name||param?.label
 function cloudValueFor(param,prompt,seed){
   const key=cloudKey(param);const n=norm(`${key} ${param?.label||''}`);const vocal=selectedMode()==='vocal';
   if(!key)return {set:false};
+  // ACE-Step ZeroGPU generation_wrapper requires these four leading inputs.
+  if(n==='dit model selector'||n==='selected model'||n==='model selector')return {set:true,value:CLOUD_MODEL};
+  if(n==='generation mode'||n==='mode')return {set:true,value:'custom'};
+  if(n==='simple query input'||n==='simple query'||n.includes('simple query'))return {set:true,value:buildPrompt(prompt)};
+  if(n==='simple vocal language'||n.includes('simple vocal language'))return {set:true,value:vocal?els.language.value:'unknown'};
   if((n.includes('caption')||n==='prompt'||n.includes('music prompt')||n.includes('tags'))&&!n.includes('source'))return {set:true,value:buildPrompt(prompt)};
   if(n.includes('lyrics')&&!n.includes('source'))return {set:true,value:vocal?els.lyrics.value.trim():'[Instrumental]'};
   if(n.includes('vocal language')||n==='language')return {set:true,value:vocal?els.language.value:'unknown'};
@@ -150,7 +155,21 @@ function cloudValueFor(param,prompt,seed){
   if(n.includes('model')&&n.includes('config'))return {set:true,value:CLOUD_MODEL};
   return {set:false};
 }
-function buildCloudPayload(spec,prompt,seed){const payload={};for(const p of spec?.parameters||[]){const mapped=cloudValueFor(p,prompt,seed);if(mapped.set)payload[cloudKey(p)]=mapped.value;}return payload;}
+function buildCloudPayload(spec,prompt,seed){
+  const payload={};
+  for(const p of spec?.parameters||[]){
+    const mapped=cloudValueFor(p,prompt,seed);
+    if(mapped.set)payload[cloudKey(p)]=mapped.value;
+  }
+  // Defensive aliases for the current official ACE-Step ZeroGPU wrapper.
+  const keys=new Set((spec?.parameters||[]).map(p=>cloudKey(p)).filter(Boolean));
+  if(keys.has('simple_query_input')&&!Object.prototype.hasOwnProperty.call(payload,'simple_query_input'))payload.simple_query_input=buildPrompt(prompt);
+  if(keys.has('simple_vocal_language')&&!Object.prototype.hasOwnProperty.call(payload,'simple_vocal_language'))payload.simple_vocal_language=selectedMode()==='vocal'?els.language.value:'unknown';
+  if(keys.has('generation_mode')&&!Object.prototype.hasOwnProperty.call(payload,'generation_mode'))payload.generation_mode='custom';
+  if(keys.has('dit_model_selector')&&!Object.prototype.hasOwnProperty.call(payload,'dit_model_selector'))payload.dit_model_selector=CLOUD_MODEL;
+  if(keys.has('selected_model')&&!Object.prototype.hasOwnProperty.call(payload,'selected_model'))payload.selected_model=CLOUD_MODEL;
+  return payload;
+}
 
 async function ensureCloudClient(){
   if(cloudClient&&cloudEndpoint)return {client:cloudClient,endpoint:cloudEndpoint};

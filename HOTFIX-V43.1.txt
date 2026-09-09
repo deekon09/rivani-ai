@@ -1,0 +1,9 @@
+RIVANI Music Cloud V43.1 hotfix
+
+Fixes Gradio error: No value provided for required parameter: simple_query_input
+
+Replace only:
+1. music.js
+2. music.html
+
+No _headers or CSS change is required if V43 was already uploaded.
