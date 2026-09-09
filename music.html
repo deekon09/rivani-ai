@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="theme-color" content="#030616"/>
+<meta name="theme-color" content="#050816"/>
 <link rel="icon" type="image/png" sizes="512x512" href="/assets/rivani-ai-favicon.png"/>
 <link rel="shortcut icon" href="/favicon.ico"/>
 <link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
 <meta name="robots" content="noindex,nofollow"/>
-<meta name="description" content="RIVANI Music local-device preview: generate songs with lyrics, vocals, instruments, editing, stems and mastering on your own GPU or CPU."/>
-<title>RIVANI Music — Local AI Song Studio Preview</title>
+<meta name="description" content="RIVANI Music Browser Lab: experimental browser-only AI music generation using WebGPU on the user's own desktop GPU. No local-engine install or RIVANI cloud GPU queue."/>
+<title>RIVANI Music — Browser AI Music Lab</title>
 <link rel="stylesheet" href="styles.css?v=32.0-all-access"/>
-<link rel="stylesheet" href="music.css?v=1.0-local"/>
+<link rel="stylesheet" href="music.css?v=42.0-browser"/>
 </head>
 <body class="music-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -21,15 +21,108 @@
 <nav aria-label="Primary navigation" class="main-nav" id="mainNav"><a href="/">Home</a><a href="/#tools">Tools</a><a href="/features">Features</a><a href="/about">About</a><a href="/articles">Articles</a><a href="/privacy">Policies</a></nav>
 <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
 </div></header>
-<main>
+
+<main class="music-main">
 <section class="music-hero section"><div class="container music-hero-grid">
-<div class="reveal"><div class="music-badges"><span class="status-pill">LOCAL ENGINE · PREVIEW</span><span class="music-chip">◆ Your device does the generation</span></div><span class="section-kicker">RIVANI MUSIC</span><h1>Describe it.<br/><span>Build the whole song.</span></h1><p>Generate lyric songs, instrumentals and editable music locally with device-adaptive AI. No RIVANI generation credits or cloud-GPU queue; your device speed, storage and thermal limits still apply.</p><div class="music-hero-points"><span>✓ Lyrics + vocals</span><span>✓ Fast / Balanced / Studio / Ultra</span><span>✓ Repaint + cover + stems</span><span>✓ Voice & seed lock</span></div><div class="music-actions"><a class="btn btn-primary" data-music-launch href="http://127.0.0.1:43817/" target="_blank" rel="noopener">Open Local Studio →</a><a class="btn btn-secondary" href="/downloads/RIVANI-MUSIC-LOCAL-ENGINE.zip">Download Local Engine</a></div><small class="music-launch-note">First install downloads the engine code; AI model checkpoints are downloaded from the model provider and cached on the user's device.</small></div>
-<div class="music-console reveal delay-1"><div class="music-console-head"><span>RIVANI DEVICE ROUTER</span><b id="musicWebStatus">Local engine not checked</b></div><div class="device-meter"><div><span>Weak / CPU</span><i style="--w:28%"></i><b>Lite</b></div><div><span>4–8 GB VRAM</span><i style="--w:52%"></i><b>Fast</b></div><div><span>8–16 GB VRAM</span><i style="--w:72%"></i><b>Balanced</b></div><div><span>16–24+ GB</span><i style="--w:94%"></i><b>XL / Ultra</b></div></div><div class="music-flow"><span>Prompt</span><i>→</i><span>Song plan</span><i>→</i><span>Vocals + music</span><i>→</i><span>Edit / stems</span><i>→</i><span>Master</span></div></div>
+<div class="music-hero-copy reveal">
+<div class="music-badges"><span class="status-pill">BROWSER LAB · NOT PUBLIC YET</span><span class="music-chip">◆ No installer</span><span class="music-chip">◆ No RIVANI cloud GPU</span></div>
+<span class="section-kicker">RIVANI MUSIC</span>
+<h1>Describe the sound.<br/><span>Create it in your browser.</span></h1>
+<p>Experimental desktop WebGPU music generation. The AI model runs on the user's own browser/GPU and stores model files in browser storage. No Git, Python, PowerShell or localhost engine is required.</p>
+<div class="music-hero-points"><span>✓ Instrumental + supplied lyrics</span><span>✓ Optional local AI lyric writer</span><span>✓ 10–120 second generation</span><span>✓ 48 kHz stereo WAV</span></div>
+<div class="music-warning"><strong>First-use download is large.</strong><span>Standard audio profile is about 5.63 GB. Nothing starts downloading until you press Generate and accept the storage notice below.</span></div>
+</div>
+<div class="music-device-card reveal delay-1">
+<div class="music-device-head"><div><small>DEVICE CHECK</small><strong id="deviceHeadline">Checking browser…</strong></div><span id="deviceDot" class="device-dot"></span></div>
+<div class="device-list">
+<div><span>Browser</span><b id="browserState">Checking</b></div>
+<div><span>WebGPU</span><b id="webgpuState">Checking</b></div>
+<div><span>Browser storage</span><b id="storageState">Checking</b></div>
+<div><span>Recommended mode</span><b id="recommendedMode">Balanced</b></div>
+</div>
+<div class="device-note" id="deviceNote">Current browser generation target is desktop Chrome/Edge with WebGPU and hardware acceleration.</div>
+</div>
 </div></section>
-<section class="section"><div class="container"><div class="section-heading"><div><span class="section-kicker">FULL CREATION FLOW</span><h2>Not a one-button black box. <span>A controllable music studio.</span></h2></div><p>Use a simple prompt or lock exact musical decisions such as duration, BPM, key, time signature, singer persona, language, structure, instruments and seed.</p></div><div class="music-feature-grid"><article><b>01</b><h3>Quick Create</h3><p>Describe mood, genre and story. Local planning builds the song request and ACE-Step handles stereo music generation with optional lyrics and vocals.</p></article><article><b>02</b><h3>24 singer personas</h3><p>Generic RIVANI vocal characters use descriptive vocal prompts plus fixed persona seeds. A reference-audio slot can guide voice/style when the user has rights and consent.</p></article><article><b>03</b><h3>Regenerate without destroying</h3><p>Lock singer, seed, prompt, lyrics, BPM, key or structure before creating a variation. Repaint a selected time range instead of replacing the full song.</p></article><article><b>04</b><h3>Production tools</h3><p>Cover/remix, selective repaint, track extraction, instrument-track generation, continuation, WAV/MP3/FLAC output, project history and local files.</p></article><article><b>05</b><h3>Device-adaptive models</h3><p>Turbo is default. Stronger GPUs can use larger XL profiles; lower-memory devices use CPU offload, quantization or DiT-only mode depending on the detected hardware.</p></article><article><b>06</b><h3>Local-first privacy</h3><p>The local engine binds to 127.0.0.1. Generated songs and uploaded references stay in the user's local workspace unless the user exports or shares them.</p></article></div></div></section>
-<section class="section"><div class="container"><div class="section-heading"><div><span class="section-kicker">VOCALS</span><h2>Original voice characters, <span>not celebrity clones.</span></h2></div><p>RIVANI voice presets are generic creative descriptors. Reference voice usage should only use the user's own voice or material they have permission to use.</p></div><div class="voice-showcase"><span>Warm Female</span><span>Airy Female</span><span>Power Female</span><span>Soul Female</span><span>Indie Female</span><span>Cinematic Female</span><span>Warm Male</span><span>Deep Male</span><span>Soft Male</span><span>Rock Male</span><span>Soul Male</span><span>Indie Male</span><span>Rap Male</span><span>Cinematic Male</span><span>Mixed Choir</span><span>Ethereal Choir</span></div></div></section>
-<section class="section"><div class="container music-safety"><div><span class="section-kicker">DEVICE REQUIREMENTS</span><h2>First run is heavier than a normal website.</h2><p>The main Turbo checkpoint alone is several gigabytes on disk. Low-VRAM operation may use CPU/RAM offload, so generation can be slower. CPU-only mode is available as a compatibility fallback, not a promise of fast full-song generation.</p></div><div><b>Important</b><p>AI music can contain artifacts, unexpected lyric pronunciation or similarity to patterns learned by the model. Review outputs before commercial publishing. Do not use voice references you do not have permission to use.</p></div></div></section>
+
+<section class="section music-workspace-section"><div class="container music-workspace">
+<div class="music-panel create-panel">
+<div class="panel-title"><div><span class="section-kicker">CREATE</span><h2>Build a track</h2></div><span class="lab-tag">ACE-Step Browser · Experimental</span></div>
+
+<div class="music-presets" role="group" aria-label="Performance preset">
+<button type="button" class="preset-btn" data-preset="eco"><b>Eco</b><small>Lower demand</small></button>
+<button type="button" class="preset-btn active" data-preset="balanced"><b>Balanced</b><small>Recommended</small></button>
+<button type="button" class="preset-btn" data-preset="performance"><b>Performance</b><small>Higher precision</small></button>
+<button type="button" class="preset-btn" data-preset="studio"><b>Studio</b><small>Large planner</small></button>
+</div>
+<p class="load-note">Balanced is designed as the safer default with one generation at a time. Browser AI cannot hard-lock every PC to exactly 70% GPU / 50% CPU; the preset limits workload through model precision, duration and concurrency.</p>
+
+<div class="field-grid single">
+<label class="music-field"><span>Describe your song</span><textarea id="musicPrompt" rows="4" maxlength="1000" placeholder="Example: emotional Hindi pop, warm acoustic guitar, soft drums, cinematic strings, memorable chorus, polished modern mix"></textarea><small id="promptCount">0 / 1000</small></label>
+</div>
+
+<div class="mode-row">
+<label class="mode-card active"><input type="radio" name="songMode" value="instrumental" checked/><span><b>Instrumental</b><small>Music only</small></span></label>
+<label class="mode-card"><input type="radio" name="songMode" value="vocal"/><span><b>Vocals</b><small>Use supplied or AI-written lyrics</small></span></label>
+</div>
+
+<div id="vocalFields" class="vocal-fields" hidden>
+<div class="field-grid two">
+<label class="music-field"><span>Voice character</span><select id="voicePersona"><option value="warm female lead, natural expressive vocal">Warm Female</option><option value="airy female lead, intimate soft vocal">Airy Female</option><option value="powerful female lead, strong clear vocal">Power Female</option><option value="deep male lead, warm resonant vocal">Deep Male</option><option value="soft male lead, intimate natural vocal">Soft Male</option><option value="energetic male lead, modern pop vocal">Pop Male</option><option value="soulful lead vocal, emotional phrasing">Soul</option><option value="mixed choir, wide cinematic harmony">Choir</option></select></label>
+<label class="music-field"><span>Vocal language</span><select id="vocalLanguage"><option value="en">English</option><option value="hi">Hindi</option><option value="bn">Bengali</option><option value="ta">Tamil</option><option value="te">Telugu</option><option value="mr">Marathi</option><option value="pa">Punjabi</option><option value="ur">Urdu</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option></select></label>
+</div>
+<label class="toggle-row"><input type="checkbox" id="aiLyrics"/><span><b>Write lyrics with browser AI</b><small>Adds roughly 0.49 GB for the compact lyric writer.</small></span></label>
+<label class="music-field" id="lyricsWrap"><span>Lyrics</span><textarea id="musicLyrics" rows="10" maxlength="6000" placeholder="[Verse]\nWrite your lyrics here…\n\n[Chorus]\nYour hook here…"></textarea><small>Use bracketed sections such as [Verse], [Chorus], [Bridge].</small></label>
+</div>
+
+<div class="field-grid three">
+<label class="music-field"><span>Duration</span><select id="durationSeconds"><option value="10">10 sec · first test</option><option value="20">20 sec</option><option value="30">30 sec</option><option value="60">60 sec</option><option value="90">90 sec</option><option value="120">120 sec · max</option></select></label>
+<label class="music-field"><span>Audio model</span><select id="audioQuality"><option value="standard">Standard · INT4</option><option value="high">High precision · INT8</option></select></label>
+<label class="music-field"><span>Planner</span><select id="plannerQuality"><option value="turbo">Turbo · recommended</option><option value="high-quality">High quality · +4.63 GB</option></select></label>
+</div>
+<div class="field-grid three">
+<label class="music-field"><span>Sampler</span><select id="sampler"><option value="euler">Euler</option><option value="heun">Heun</option><option value="euler-sde">Euler SDE · instrumental only</option></select></label>
+<label class="music-field"><span>Seed</span><input id="seed" type="number" min="0" max="2147483647" value="42"/></label>
+<label class="music-field"><span>Variants</span><select id="variants"><option value="1">1 variant</option><option value="2">2 variants · sequential</option><option value="3">3 variants · sequential</option><option value="4">4 variants · sequential</option></select></label>
+</div>
+
+<div class="download-card">
+<div><small>ESTIMATED COLD DOWNLOAD</small><strong id="downloadEstimate">~5.63 GB</strong></div>
+<p id="downloadDetail">Standard XL Turbo audio. Cached model files can be removed later from Model Storage.</p>
+</div>
+<label class="consent-row"><input id="downloadConsent" type="checkbox"/><span>I understand that first generation may download several GB into this browser's storage and use my device GPU.</span></label>
+
+<div class="generate-actions">
+<button class="music-btn music-btn-primary" id="generateMusic" type="button">Generate in Browser →</button>
+<button class="music-btn music-btn-secondary" id="cancelMusic" type="button" disabled>Cancel</button>
+</div>
+<div class="music-progress" id="progressWrap" hidden><div class="progress-head"><strong id="progressStage">Preparing…</strong><span id="progressPercent">0%</span></div><div class="progress-track"><i id="progressBar"></i></div><small id="progressDetail">Waiting for browser engine.</small></div>
+<div class="music-error" id="musicError" hidden></div>
+</div>
+
+<aside class="music-panel side-panel">
+<div class="panel-title compact"><div><span class="section-kicker">MODEL STORAGE</span><h2>Your browser</h2></div></div>
+<div class="storage-meter"><div><span>Origin usage</span><b id="originUsage">—</b></div><div><span>Quota</span><b id="originQuota">—</b></div><div><span>Available</span><b id="originAvailable">—</b></div></div>
+<div class="storage-actions"><button type="button" class="music-btn music-btn-secondary" id="refreshStorage">Refresh storage</button><button type="button" class="music-btn music-btn-danger" id="clearMusicCache">Clear RIVANI Music model cache</button></div>
+<p class="storage-small">Clearing the model cache removes downloaded AI model files for this browser origin. It does not uninstall software because this build installs nothing.</p>
+<hr/>
+<div class="panel-title compact"><div><span class="section-kicker">CURRENT SUPPORT</span><h2>Browser V1</h2></div></div>
+<ul class="support-list"><li><span>Desktop Chrome / Edge</span><b>Target</b></li><li><span>WebGPU</span><b>Required</b></li><li><span>Mobile / Safari / Firefox</span><b>Not yet</b></li><li><span>Reference audio / cover / repaint</span><b>Roadmap</b></li><li><span>Stems / full DAW editor</span><b>Roadmap</b></li></ul>
+</aside>
+</div></section>
+
+<section class="section results-section"><div class="container">
+<div class="section-heading"><div><span class="section-kicker">RESULTS</span><h2>Your current-session <span>generations.</span></h2></div><p>Generated WAV files stay local to the current browser session unless you download them.</p></div>
+<div id="musicResults" class="music-results"><div class="empty-result"><img src="assets/music.svg" alt=""/><strong>No track yet</strong><span>Start with a 10-second Standard / Turbo test.</span></div></div>
+</div></section>
+
+<section class="section roadmap-section"><div class="container">
+<div class="section-heading"><div><span class="section-kicker">PRO-CLASS ROADMAP</span><h2>Build toward a complete <span>music studio.</span></h2></div><p>These are roadmap targets, not claims that Browser V1 already supports them.</p></div>
+<div class="roadmap-cards"><article><span>01</span><h3>Long-form songs</h3><p>Move beyond the current 120-second browser limit with chunked/tiled generation and continuity control.</p></article><article><span>02</span><h3>Reference + remix</h3><p>Reference audio, cover, repaint, extend and continuation when a browser-qualified runtime supports them reliably.</p></article><article><span>03</span><h3>Stems + Studio</h3><p>Vocals, drums, bass and instrument stems with timeline editing, mixer controls and browser-side mastering.</p></article><article><span>04</span><h3>Personal sound</h3><p>Consented voice/reference workflows and user-controlled style profiles without celebrity impersonation presets.</p></article></div>
+</div></section>
 </main>
-<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div><div><strong>RIVANI Music</strong><a href="http://127.0.0.1:43817/">Local Studio</a><a href="/downloads/RIVANI-MUSIC-LOCAL-ENGINE.zip">Local Engine</a></div><div><strong>Platform</strong><a href="/#tools">Beta Tools</a><a href="/features">Features</a></div><div><strong>Legal</strong><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>RIVANI Music · Local Engine Preview</span></div></footer>
-<script src="script.js?v=37.0-ocr" defer></script><script src="music.js?v=1.0-local" defer></script><script type="module" src="auth-nav.js?v=40.0-calculator"></script>
+
+<footer class="site-footer"><div class="container footer-grid"><div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div><div><strong>RIVANI Music</strong><a href="#">Browser Lab</a><a href="/privacy">Privacy</a></div><div><strong>Platform</strong><a href="/#tools">Beta Tools</a><a href="/features">Features</a></div><div><strong>Legal</strong><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable Use</a></div></div><div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI.</span><span>RIVANI Music · Browser Lab · Experimental third-party model runtime</span></div></footer>
+<script src="script.js?v=37.0-ocr" defer></script>
+<script type="module" src="auth-nav.js?v=40.0-calculator"></script>
+<script type="module" src="music.js?v=42.0-browser"></script>
 </body></html>

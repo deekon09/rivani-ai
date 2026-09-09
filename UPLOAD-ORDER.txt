@@ -1,0 +1,13 @@
+RIVANI MUSIC BROWSER V42 — UPLOAD ORDER
+
+1. Replace music.html
+2. Replace music.css
+3. Replace music.js
+4. Replace _headers
+5. Delete every path listed in DELETE-OLD-MUSIC-FILES.txt
+6. Do NOT edit index.html, sitemap.xml or LUKI for Music yet
+7. Open https://rivaniai.online/music on desktop Chrome/Edge
+8. Confirm page says BROWSER LAB and contains NO Local Engine / localhost / download installer button
+9. Before generation, expect the page to warn about ~5.63 GB first-run model cache
+
+This package does not include model weights or executable installers.
