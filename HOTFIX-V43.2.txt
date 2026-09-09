@@ -1,0 +1,16 @@
+RIVANI MUSIC CLOUD V43.2 HOTFIX
+
+Fixes Gradio ZeroGPU errors such as:
+- No value provided for required parameter: simple_query_input
+- No value provided for required parameter: param_4
+
+Root cause: ACE-Step generation_wrapper uses four named arguments followed by *args. Gradio exposes the *args as param_4, param_5, etc. V43.1 sent a named object; V43.2 sends the full ordered positional array and fills every required slot.
+
+Replace only:
+- music.js
+- music.html
+
+Keep music.css and _headers from V43.
+
+Test:
+Instant Cloud > Instrumental > 10 sec > Seed 42 > 1 variant.
