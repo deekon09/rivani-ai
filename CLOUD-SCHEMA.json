@@ -1,0 +1,14 @@
+{
+  "version": "43.3",
+  "cloud_space": "ACE-Step/Ace-Step-v1.5",
+  "cloud_model": "acestep-v15-xl-turbo",
+  "expected_inputs": 54,
+  "critical_slots": {
+    "23": "text2music",
+    "28": "ode",
+    "30": "flac",
+    "47": null,
+    "52": {},
+    "53": {}
+  }
+}

@@ -1,0 +1,6 @@
+UPLOAD / REPLACE ONLY THESE 2 FILES IN GITHUB ROOT:
+1. music.js
+2. music.html
+
+Do not replace music.css or _headers for this hotfix.
+After upload, hard-refresh /music and test Instant Cloud -> Instrumental -> 10 sec -> Seed 42 -> 1 variant.

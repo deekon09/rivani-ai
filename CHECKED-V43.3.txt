@@ -1,0 +1,36 @@
+RIVANI MUSIC CLOUD V43.3 — FULL SCHEMA AUDIT
+
+Fixed together (not one-by-one):
+- Removed generic name-first Cloud mapping that could shift/override positional slots.
+- Locked the deployed ACE-Step ZeroGPU generation wrapper to exactly 54 inputs.
+- audio_format = flac (deployed UI choices are mp3/flac; wav is not accepted there).
+- bpm = 0.
+- repainting_end = -1.
+- track_name = null (Dropdown blank value is None).
+- allow_lm_batch = true (deployed hidden UI default).
+- score_scale = 0.5 (deployed hidden UI default).
+- batch_queue = {}.
+- generation_params_state = {}.
+- Added schema-length guard before submit.
+- Added local payload contract tests before submit.
+- Added choice guards when Gradio exposes Dropdown choices.
+- Kept ACE-Step 1.5 XL Turbo explicit; no silent downgrade.
+- Cloud provider validation errors are converted to a clean RIVANI message.
+- Private Browser fallback code is unchanged.
+
+STATIC TESTS PERFORMED:
+- JavaScript syntax: PASS
+- Payload length: 54/54 PASS
+- audio_format slot 30: flac PASS
+- infer_method slot 28: ode PASS
+- task_type slot 23: text2music PASS
+- track_name slot 47: null PASS
+- batch_queue slot 52: object PASS
+- generation_params_state slot 53: object PASS
+
+Note: This is a schema/static integration audit. An actual ZeroGPU generation still depends on the external provider being available and cannot be guaranteed by static testing.
+- HTML parse / JS DOM-ID cross-check: PASS
+- Duplicate HTML IDs: none
+- music.js cache-buster updated to v=43.3-cloud-fullfix
+- Current production _headers reviewed separately: hf.space is already allowed in connect-src and media-src; no _headers replacement required for V43.3.
+- Current music.css reviewed: no Cloud API schema change required; no CSS replacement required.

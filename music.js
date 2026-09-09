@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 
-/* RIVANI Music V43.2
+/* RIVANI Music V43.3 FULL CLOUD SCHEMA FIX
    Default: remote ACE-Step official Hugging Face Space via Gradio JS client.
    Fallback: V42 browser-only ACE-Step XL Turbo WebGPU runtime.
 */
@@ -83,7 +83,7 @@ function updateRouteUI(){
   els.engineTag.textContent=cloud?'Instant Cloud · XL Turbo':'Private Browser · XL Turbo';
   els.generate.textContent=cloud?'Generate · No Model Download →':'Generate Privately →';
   els.aiLyrics.disabled=cloud;
-  els.aiLyricsNote.textContent=cloud?'Cloud auto-lyrics is not enabled in V43 yet; paste lyrics below. Private Browser can use its local lyric writer.':'Private Browser AI lyrics adds roughly 0.49 GB for the compact local lyric writer.';
+  els.aiLyricsNote.textContent=cloud?'Cloud auto-lyrics is not enabled in V43.3 yet; paste lyrics below. Private Browser can use its local lyric writer.':'Private Browser AI lyrics adds roughly 0.49 GB for the compact local lyric writer.';
   if(cloud&&els.aiLyrics.checked)els.aiLyrics.checked=false;
   updateModeUI();updateDeviceInfo();
 }
@@ -93,7 +93,7 @@ function validateInputs(){
   const prompt=els.prompt.value.trim();if(!prompt)throw new Error('Describe the song first.');
   const vocal=selectedMode()==='vocal';
   if(selectedRoute()==='cloud'){
-    if(vocal&&!els.lyrics.value.trim())throw new Error('Cloud V43 needs supplied lyrics for vocal mode. Paste lyrics or use Instrumental.');
+    if(vocal&&!els.lyrics.value.trim())throw new Error('Cloud V43.3 needs supplied lyrics for vocal mode. Paste lyrics or use Instrumental.');
   }else{
     if(!els.consent.checked)throw new Error('Please accept the Private Browser model-download/device-use notice.');
     if(vocal&&!els.aiLyrics.checked&&!els.lyrics.value.trim())throw new Error('Add lyrics or enable Private Browser AI lyric writing.');
@@ -118,135 +118,163 @@ function resolveCloudEndpoint(apiInfo){
   return ranked[0];
 }
 function cloudKey(param){return param?.parameter_name||param?.name||param?.label||'';}
-function cloudValueFor(param,prompt,seed){
-  const key=cloudKey(param);const n=norm(`${key} ${param?.label||''}`);const vocal=selectedMode()==='vocal';
-  if(!key)return {set:false};
-  // ACE-Step ZeroGPU generation_wrapper requires these four leading inputs.
-  if(n==='dit model selector'||n==='selected model'||n==='model selector')return {set:true,value:CLOUD_MODEL};
-  if(n==='generation mode'||n==='mode')return {set:true,value:'custom'};
-  if(n==='simple query input'||n==='simple query'||n.includes('simple query'))return {set:true,value:buildPrompt(prompt)};
-  if(n==='simple vocal language'||n.includes('simple vocal language'))return {set:true,value:vocal?els.language.value:'unknown'};
-  if((n.includes('caption')||n==='prompt'||n.includes('music prompt')||n.includes('tags'))&&!n.includes('source'))return {set:true,value:buildPrompt(prompt)};
-  if(n.includes('lyrics')&&!n.includes('source'))return {set:true,value:vocal?els.lyrics.value.trim():'[Instrumental]'};
-  if(n.includes('vocal language')||n==='language')return {set:true,value:vocal?els.language.value:'unknown'};
-  if(n.includes('audio duration')||n==='duration'||n.includes('duration label'))return {set:true,value:Number(els.duration.value)};
-  if(n.includes('batch size'))return {set:true,value:1};
-  if(n.includes('inference step')||n.includes('infer step'))return {set:true,value:8};
-  if(n.includes('guidance scale'))return {set:true,value:1};
-  if(n.includes('random seed'))return {set:true,value:false};
-  if(n==='seed'||(n.includes(' seed')&&!n.includes('retake')))return {set:true,value:seed};
-  if(n.includes('task type'))return {set:true,value:'text2music'};
-  if(n==='shift'||n.includes('timestep shift'))return {set:true,value:3};
-  if(n.includes('infer method'))return {set:true,value:'ode'};
-  if(n.includes('sampler mode'))return {set:true,value:'euler'};
-  if(n.includes('audio format'))return {set:true,value:'wav'};
-  if(n.includes('think')&&!n.includes('simple'))return {set:true,value:true};
-  if(n.includes('lm temperature'))return {set:true,value:.85};
-  if(n.includes('lm cfg'))return {set:true,value:2};
-  if(n.includes('lm top k'))return {set:true,value:0};
-  if(n.includes('lm top p'))return {set:true,value:.9};
-  if(n.includes('lm negative'))return {set:true,value:'NO USER INPUT'};
-  if(n.includes('use cot metas')||n.includes('use cot caption')||n.includes('use cot language'))return {set:true,value:true};
-  if(n.includes('constrained decoding debug')||n.includes('allow lm batch')||n.includes('auto score')||n.includes('auto lrc')||n.includes('autogen'))return {set:true,value:false};
-  if(n.includes('no fsq')||n==='use adg'||n.includes('dcw enabled'))return {set:true,value:false};
-  if(n.includes('is format caption'))return {set:true,value:false};
-  if(n.includes('current batch index'))return {set:true,value:0};
-  if(n.includes('total batches'))return {set:true,value:1};
-  if(n.includes('batch queue'))return {set:true,value:[]};
-  if(n.includes('generation params state'))return {set:true,value:{}};
-  if(n.includes('model')&&n.includes('config'))return {set:true,value:CLOUD_MODEL};
-  return {set:false};
-}
-function cloudPositionalFallback(index,prompt,seed){
-  const vocal=selectedMode()==='vocal';
-  const lyrics=vocal?els.lyrics.value.trim():'[Instrumental]';
-  // Official ACE-Step ZeroGPU generation_wrapper order. Gradio exposes the
-  // *args entries as param_4, param_5, ... so an ordered array is required.
-  const values=[
-    CLOUD_MODEL,                         // 0 selected_model
-    'custom',                            // 1 generation_mode
-    buildPrompt(prompt),                 // 2 simple_query_input (unused in custom)
-    vocal?els.language.value:'unknown',  // 3 simple_vocal_language
-    buildPrompt(prompt),                 // 4 captions
-    lyrics,                              // 5 lyrics
-    null,                                // 6 bpm (auto)
-    '',                                  // 7 key_scale
-    '',                                  // 8 time_signature
-    vocal?els.language.value:'unknown',  // 9 vocal_language
-    8,                                   // 10 inference_steps
-    7.0,                                 // 11 guidance_scale
-    false,                               // 12 random_seed_checkbox
-    String(seed),                        // 13 seed (Space UI uses textbox)
-    null,                                // 14 reference_audio
-    Number(els.duration.value),          // 15 audio_duration
-    1,                                   // 16 batch_size_input
-    null,                                // 17 src_audio
-    '',                                  // 18 text2music_audio_code_string
-    0,                                   // 19 repainting_start
-    0,                                   // 20 repainting_end
-    'Fill the audio semantic mask based on the given conditions:', // 21 instruction_display_gen
-    1.0,                                 // 22 audio_cover_strength
-    'text2music',                        // 23 task_type
-    false,                               // 24 use_adg
-    0.0,                                 // 25 cfg_interval_start
-    1.0,                                 // 26 cfg_interval_end
-    3.0,                                 // 27 shift (turbo recommended)
-    'ode',                               // 28 infer_method
-    '',                                  // 29 custom_timesteps
-    'flac',                              // 30 audio_format (lossless cloud result)
-    0.85,                                // 31 lm_temperature
-    true,                                // 32 think_checkbox
-    2.0,                                 // 33 lm_cfg_scale
-    0,                                   // 34 lm_top_k
-    0.9,                                 // 35 lm_top_p
-    'NO USER INPUT',                     // 36 lm_negative_prompt
-    true,                                // 37 use_cot_metas
-    true,                                // 38 use_cot_caption
-    true,                                // 39 use_cot_language
-    false,                               // 40 is_format_caption_state
-    false,                               // 41 constrained_decoding_debug
-    false,                               // 42 allow_lm_batch
-    false,                               // 43 auto_score
-    false,                               // 44 auto_lrc
-    1.0,                                 // 45 score_scale
-    8,                                   // 46 lm_batch_chunk_size
-    '',                                  // 47 track_name
-    [],                                  // 48 complete_track_classes
-    false,                               // 49 autogen_checkbox
-    0,                                   // 50 current_batch_index
-    1,                                   // 51 total_batches
-    [],                                  // 52 batch_queue
-    {}                                   // 53 generation_params_state
-  ];
-  return index<values.length?{set:true,value:values[index]}:{set:false};
+
+/*
+  ACE-Step official ZeroGPU Space compatibility contract (deployed Gradio UI).
+  IMPORTANT: generation_wrapper(selected_model, generation_mode,
+  simple_query_input, simple_vocal_language, *args) exposes exactly 54 inputs.
+  Do not mix this order with the newer GitHub refactor's generation schema.
+*/
+const CLOUD_SCHEMA_INPUTS=54;
+const CLOUD_DEFAULT_INSTRUCTION='Fill the audio semantic mask based on the given conditions:';
+
+function cloudParamIdentity(param){
+  return norm(`${param?.parameter_name||''} ${param?.name||''} ${param?.label||''}`);
 }
 
-function cloudDefaultValue(param){
-  for(const key of ['parameter_default','default','value','example']){
-    if(Object.prototype.hasOwnProperty.call(param||{},key)&&param[key]!==undefined)return {set:true,value:param[key]};
+function cloudChoices(param){
+  const candidates=[
+    param?.choices,
+    param?.component?.choices,
+    param?.component?.props?.choices,
+    param?.component_props?.choices,
+    param?.metadata?.choices
+  ];
+  for(const list of candidates){
+    if(Array.isArray(list))return list.map(x=>Array.isArray(x)?x[1]:x).filter(x=>x!==undefined&&x!==null);
   }
-  const t=norm(`${param?.type?.type||param?.type||''} ${param?.python_type?.type||param?.python_type||''}`);
-  if(t.includes('bool'))return {set:true,value:false};
-  if(t.includes('int')||t.includes('float')||t.includes('number'))return {set:true,value:0};
-  if(t.includes('list')||t.includes('array'))return {set:true,value:[]};
-  if(t.includes('dict')||t.includes('object'))return {set:true,value:{}};
-  if(t.includes('str')||t.includes('string'))return {set:true,value:''};
-  return {set:true,value:null};
+  return [];
+}
+
+function assertChoice(params,index,value,label){
+  const choices=cloudChoices(params[index]);
+  if(choices.length&&!choices.map(String).includes(String(value))){
+    throw new Error(`Instant Cloud compatibility check failed: ${label} is no longer accepted by the provider. No generation request was sent.`);
+  }
+}
+
+function validateCloudSchema(spec){
+  const params=spec?.parameters||[];
+  if(params.length!==CLOUD_SCHEMA_INPUTS){
+    throw new Error(`Instant Cloud provider API changed (${params.length} inputs found; ${CLOUD_SCHEMA_INPUTS} expected). RIVANI stopped the request before submitting invalid settings. Private Browser is still available.`);
+  }
+
+  // The first four inputs are named by the deployed generation_wrapper.
+  // Labels can vary by Gradio version, so only reject when a clearly named
+  // field contradicts the expected role.
+  const expected=[
+    ['selected model','model selector','dit model'],
+    ['generation mode'],
+    ['simple query'],
+    ['simple vocal language']
+  ];
+  for(let i=0;i<4;i++){
+    const id=cloudParamIdentity(params[i]);
+    if(!id)continue;
+    const generic=/^param\s*\d+$/.test(id);
+    if(generic)continue;
+    if(!expected[i].some(token=>id.includes(token))){
+      throw new Error(`Instant Cloud provider API changed near input ${i+1}. RIVANI stopped the request before submission. Private Browser is still available.`);
+    }
+  }
+
+  // Guard the deployed dropdown slots when Gradio exposes their choices.
+  assertChoice(params,1,'custom','generation mode');
+  assertChoice(params,28,'ode','inference method');
+  assertChoice(params,30,'flac','audio format');
+  return params;
 }
 
 function buildCloudPayload(spec,prompt,seed){
-  const params=spec?.parameters||[];
-  if(!params.length)throw new Error('ACE-Step Cloud API returned no generation parameters. Retry later or use Private Browser.');
-  // IMPORTANT: send a positional array. The official wrapper is
-  // generation_wrapper(selected_model, generation_mode, simple_query_input,
-  // simple_vocal_language, *args), and Gradio names *args as param_4+.
-  return params.map((p,index)=>{
-    const mapped=cloudValueFor(p,prompt,seed);
-    if(mapped.set)return mapped.value;
-    const positional=cloudPositionalFallback(index,prompt,seed);
-    if(positional.set)return positional.value;
-    return cloudDefaultValue(p).value;
-  });
+  const params=validateCloudSchema(spec);
+  const vocal=selectedMode()==='vocal';
+  const caption=buildPrompt(prompt);
+  const lyrics=vocal?els.lyrics.value.trim():'[Instrumental]';
+  const language=vocal?els.language.value:'unknown';
+  const duration=Math.max(10,Math.min(600,Number(els.duration.value)||10));
+  const safeSeed=String(Math.max(0,Math.trunc(Number(seed)||42)));
+
+  // EXACT deployed HF Space order, indices 0..53.
+  const payload=[
+    CLOUD_MODEL,                  // 00 dit_model_selector
+    'custom',                     // 01 generation_mode
+    caption,                      // 02 simple_query_input
+    language,                     // 03 simple_vocal_language
+    caption,                      // 04 captions
+    lyrics,                       // 05 lyrics
+    0,                            // 06 bpm (0 = auto/N/A)
+    '',                           // 07 key_scale
+    '',                           // 08 time_signature
+    language,                     // 09 vocal_language
+    8,                            // 10 inference_steps (XL Turbo)
+    7.0,                          // 11 guidance_scale
+    false,                        // 12 random_seed_checkbox
+    safeSeed,                     // 13 seed (Gradio Textbox)
+    null,                         // 14 reference_audio
+    duration,                     // 15 audio_duration
+    1,                            // 16 batch_size_input
+    null,                         // 17 src_audio
+    '',                           // 18 text2music_audio_code_string
+    0.0,                          // 19 repainting_start
+    -1,                           // 20 repainting_end
+    CLOUD_DEFAULT_INSTRUCTION,    // 21 instruction_display_gen
+    1.0,                          // 22 audio_cover_strength
+    'text2music',                 // 23 task_type
+    false,                        // 24 use_adg
+    0.0,                          // 25 cfg_interval_start
+    1.0,                          // 26 cfg_interval_end
+    3.0,                          // 27 shift
+    'ode',                        // 28 infer_method
+    '',                           // 29 custom_timesteps
+    'flac',                       // 30 audio_format (valid UI choice, lossless)
+    0.85,                         // 31 lm_temperature
+    true,                         // 32 think_checkbox
+    2.0,                          // 33 lm_cfg_scale
+    0,                            // 34 lm_top_k
+    0.9,                          // 35 lm_top_p
+    'NO USER INPUT',              // 36 lm_negative_prompt
+    true,                         // 37 use_cot_metas
+    true,                         // 38 use_cot_caption
+    true,                         // 39 use_cot_language
+    false,                        // 40 is_format_caption_state
+    false,                        // 41 constrained_decoding_debug
+    true,                         // 42 allow_lm_batch (deployed UI default)
+    false,                        // 43 auto_score
+    false,                        // 44 auto_lrc
+    0.5,                          // 45 score_scale (deployed UI default)
+    8,                            // 46 lm_batch_chunk_size
+    null,                         // 47 track_name dropdown blank = None/null
+    [],                           // 48 complete_track_classes
+    false,                        // 49 autogen_checkbox
+    0,                            // 50 current_batch_index
+    1,                            // 51 total_batches
+    {},                           // 52 batch_queue gr.State(value={})
+    {}                            // 53 generation_params_state gr.State(value={})
+  ];
+
+  // Local contract tests: never send shifted/invalid payloads to the provider.
+  if(payload.length!==CLOUD_SCHEMA_INPUTS)throw new Error('RIVANI Cloud payload contract failed locally. No request was sent.');
+  if(payload.some(v=>v===undefined))throw new Error('RIVANI Cloud payload contains an undefined value. No request was sent.');
+  if(!['mp3','flac'].includes(payload[30]))throw new Error('RIVANI Cloud audio format contract failed locally. No request was sent.');
+  if(!['ode','sde'].includes(payload[28]))throw new Error('RIVANI Cloud inference method contract failed locally. No request was sent.');
+  if(payload[47]!==null)throw new Error('RIVANI Cloud track selector contract failed locally. No request was sent.');
+  if(Array.isArray(payload[52])||Array.isArray(payload[53])||typeof payload[52]!=='object'||typeof payload[53]!=='object')throw new Error('RIVANI Cloud state contract failed locally. No request was sent.');
+
+  // Keep XL quality explicit. Do not silently fall back to the smaller model.
+  const modelChoices=cloudChoices(params[0]);
+  if(modelChoices.length&&!modelChoices.map(String).includes(CLOUD_MODEL)){
+    throw new Error('ACE-Step XL Turbo is not currently offered by the Cloud provider. RIVANI will not silently downgrade quality; use Private Browser or retry later.');
+  }
+  return payload;
+}
+
+function friendlyCloudProviderError(message){
+  const m=String(message||'Cloud generation failed.');
+  if(/No value provided for required parameter/i.test(m)||/not in the list of choices/i.test(m)||/value: .* choices/i.test(m)){
+    console.error('ACE-Step Cloud schema rejection:',m);
+    return 'Instant Cloud provider API rejected a compatibility setting. RIVANI stopped the request; no model download occurred. Use Private Browser for now or retry after the Cloud adapter is refreshed.';
+  }
+  return m;
 }
 
 async function ensureCloudClient(){
@@ -293,7 +321,7 @@ async function generateCloudOne(seed,variantIndex,total,prompt){
     if(msg?.type==='status'){
       const detail=msg.stage==='pending'?(Number.isFinite(msg.position)?`Queue position ${msg.position}${Number.isFinite(msg.eta)?` · ETA ${Math.round(msg.eta)}s`:''}`:'Waiting in provider queue…'):(msg.message||msg.stage||'Cloud processing');
       setProgress(cloudProgressFromStatus(msg),msg.stage==='generating'?'Generating on Cloud GPU':'Instant Cloud',detail);
-      if(msg.stage==='error'||msg.success===false){const m=msg.message||'Cloud generation failed.';throw new Error(/No value provided for required parameter/i.test(m)?`ACE-Step Cloud API schema changed (${m}). RIVANI blocked the bad request; use Private Browser until the adapter is refreshed.`:m);}
+      if(msg.stage==='error'||msg.success===false){throw new Error(friendlyCloudProviderError(msg.message||'Cloud generation failed.'));}
     }else if(msg?.type==='data'){
       lastData=msg.data;const found=uniqueAudioFiles(collectAudioFiles(msg.data,[]));if(found.length)bestFiles=found;setProgress(.78,'Receiving Cloud result',found.length?'Audio result is ready.':'ACE-Step is processing the track…');
     }
