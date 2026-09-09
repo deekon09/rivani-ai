@@ -1,0 +1,30 @@
+RIVANI AI — ACCOUNT DELETION CHECK
+
+Observed symptom:
+- A deletion request that passed its 7-day deadline is still pending.
+- Current backend code stores the request correctly in D1.
+- Permanent deletion is performed by the Worker's scheduled() handler.
+- Therefore the most likely operational failure is a missing/disabled Cron Trigger, or a scheduled run failing because a Firebase service-account/D1 binding is misconfigured.
+
+Cloudflare check:
+1. Cloudflare Dashboard -> Workers & Pages.
+2. Open worker: rivani-account-api.
+3. Settings -> Triggers -> Cron Triggers.
+4. Confirm this trigger exists:
+   0 * * * *
+5. Open Trigger Events / Worker Logs and check scheduled-event history.
+6. Confirm Worker bindings/secrets:
+   DB
+   FIREBASE_WEB_API_KEY
+   FIREBASE_PROJECT_ID
+   FIREBASE_CLIENT_EMAIL
+   FIREBASE_PRIVATE_KEY
+
+Important:
+- Cron expressions run in UTC.
+- The current Worker already has a scheduled() handler and processDueDeletions().
+- If no Cron Trigger is attached, scheduled() never runs.
+- dashboard.js in this patch now hides "Cancel deletion" once the grace deadline has passed and exposes backend retry count when available.
+- If the Firebase account has already been deleted but the browser still has an old local session, the updated dashboard treats INVALID_SESSION as expired, signs out locally, and returns to login.
+
+After the Cron is present, inspect Trigger Events / Worker Logs. A Firebase/service-account error there will identify the next backend fix without guessing.
