@@ -1,7 +1,7 @@
 import { FilesetResolver, ImageSegmenter, FaceDetector } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
 
 const $ = id => document.getElementById(id);
-const PERSON_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite";
+const PERSON_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
 const FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -36,7 +36,7 @@ const state = {
   faceCanvas: document.createElement("canvas"), faceCtx: null,
   lastSegmentAt: 0, lastFrameTime: -1, frameCount: 0, fpsStamp: performance.now(),
   previewToken: 0, lastMaskCoverage: 0, audioCtx: null, mediaSource: null, mediaDest: null, monitorGain: null,
-  exportBlobUrl: "", recordingMime: "", renderBusy: false, faceBox: null, lastFaceAt: 0
+  exportBlobUrl: "", recordingMime: "", renderBusy: false, faceBox: null, lastFaceAt: 0, maskChannel: 0, maskInvert: false, maskLocked: false
 };
 state.inferCtx = state.inferCanvas.getContext("2d", {willReadFrequently:true});
 state.maskCtx = state.maskCanvas.getContext("2d");
@@ -100,7 +100,7 @@ function configureCanvases(){
   state.inferCanvas.width=iw; state.inferCanvas.height=ih;
   state.prevPerson=null; state.prevFace=null;
 }
-function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.faceBox=null; state.lastSegmentAt=0; state.lastFaceAt=0; }
+function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.faceBox=null; state.maskChannel=0; state.maskInvert=false; state.maskLocked=false; state.lastSegmentAt=0; state.lastFaceAt=0; }
 
 function cleanupFile(){
   state.previewToken++;
@@ -205,14 +205,14 @@ async function initSegmenter(){
   try{
     state.personSegmenter=await ImageSegmenter.createFromOptions(vision,{
       baseOptions:{modelAssetPath:PERSON_MODEL_URL,delegate},
-      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
+      runningMode:"VIDEO",outputCategoryMask:false,outputConfidenceMasks:true
     });
   }catch(firstError){
     if(delegate==="CPU")throw firstError;
     setProgress(48,"Switching to compatibility mode…","GPU initialization failed; starting CPU person segmentation.");
     state.personSegmenter=await ImageSegmenter.createFromOptions(vision,{
       baseOptions:{modelAssetPath:PERSON_MODEL_URL,delegate:"CPU"},
-      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
+      runningMode:"VIDEO",outputCategoryMask:false,outputConfidenceMasks:true
     });
   }
 
@@ -232,7 +232,7 @@ async function initSegmenter(){
 
   state.modelReady=true; resetMasks();
   el.engineStatus.textContent=(IS_IOS||IS_MOBILE)?"Fast Local CPU":"Fast Local AI";
-  el.engineNote.textContent="RIVANI Fast Person Cutout ready · background mask refreshes continuously while the subject moves.";
+  el.engineNote.textContent="V44.6 · Human-confidence cutout ready · foreground polarity is safety-locked for this video.";
   setProgress(90,"AI ready…","Scanning the first frame.");
   await renderCurrentFrame(true);
   setProgress(100,"Studio ready","Background removal and studio controls are live.");
@@ -247,7 +247,7 @@ async function segmentCurrent(force=false){
   if(!state.personSegmenter||el.video.readyState<2)return false;
 
   const now=performance.now();
-  if(!force && now-state.lastSegmentAt<(IS_MOBILE?48:32))return false;
+  if(!force && now-state.lastSegmentAt<(IS_MOBILE?55:34))return false;
   state.lastSegmentAt=now;
 
   const iw=state.inferCanvas.width, ih=state.inferCanvas.height;
@@ -262,149 +262,146 @@ async function segmentCurrent(force=false){
         performance.now(),
         r=>{settled=true;resolve(r);}
       );
-      if(maybe && typeof maybe.then==="function"){
+      if(maybe&&typeof maybe.then==="function"){
         maybe.then(r=>{if(!settled&&r)resolve(r);}).catch(reject);
-      }else if(maybe && !settled && (maybe.categoryMask||maybe.confidenceMasks)){
+      }else if(maybe&&!settled&&maybe.confidenceMasks){
         resolve(maybe);
       }
     }catch(e){reject(e);}
   });
 
-  const categoryMask=result?.categoryMask||null;
   const confidence=result?.confidenceMasks||[];
-  const referenceMask=categoryMask||confidence[0]||null;
-  if(!referenceMask)throw new Error("Person segmentation mask was not returned.");
+  if(!confidence.length)throw new Error("Human confidence mask was not returned.");
 
-  const mw=Math.max(1,Number(referenceMask.width)||iw);
-  const mh=Math.max(1,Number(referenceMask.height)||ih);
+  // The official Selfie Segmentation model is a single-channel HUMAN
+  // probability mask: high value = human, low value = background.
+  // Do not use ImageSegmenter category masks here; that conversion path caused
+  // the previous full person/background inversion.
+  const firstMaskObj=confidence[0];
+  const mw=Math.max(1,Number(firstMaskObj.width)||iw);
+  const mh=Math.max(1,Number(firstMaskObj.height)||ih);
   const n=mw*mh;
 
   if(state.maskCanvas.width!==mw||state.maskCanvas.height!==mh){
     state.maskCanvas.width=mw;
     state.maskCanvas.height=mh;
     state.prevPerson=null;
+    state.maskLocked=false;
   }
 
-  // CATEGORY MASK — GPU SAFE
-  // Binary Selfie Segmenter is 0=background, 1=person. On WebGL-backed masks,
-  // converting a float category value of 1 to Uint8 can yield 255. Therefore
-  // never test bytes with === 1.
-  let categoryValues=null;
-  try{
-    if(categoryMask?.getAsFloat32Array){
-      categoryValues=categoryMask.getAsFloat32Array();
-    }else if(categoryMask?.getAsUint8Array){
-      const raw=categoryMask.getAsUint8Array();
-      categoryValues=new Float32Array(raw.length);
-      for(let i=0;i<raw.length;i++)categoryValues[i]=raw[i]>0?1:0;
-    }
-  }catch(_e){
-    categoryValues=null;
+  const arrays=[];
+  for(const m of confidence){
+    try{
+      const a=m?.getAsFloat32Array?.();
+      if(a&&a.length>=n)arrays.push(a);
+    }catch(_e){}
   }
+  if(!arrays.length)throw new Error("Human confidence data was unavailable.");
 
-  const categoryIsPerson=i=>{
-    if(!categoryValues||i>=categoryValues.length)return null;
-    return Number(categoryValues[i])>.5?1:0;
-  };
+  // Normally Selfie Segmenter returns one channel and channel 0 is the human
+  // probability. If a runtime returns more than one channel, pick the channel
+  // that is least background-like at the image border.
+  if(!state.maskLocked){
+    let bestChannel=0,bestScore=-Infinity,bestInvert=false;
 
-  // CONFIDENCE MASK — AUTO ORIENTATION
-  // Pick whichever confidence channel best correlates with category-person
-  // pixels. If a single channel is reversed, invert it automatically.
-  let personConf=null;
-  let personConfInvert=false;
-  let bestScore=-Infinity;
-
-  for(let ci=0;ci<confidence.length;ci++){
-    const m=confidence[ci];
-    if(!m?.getAsFloat32Array)continue;
-    let data;
-    try{data=m.getAsFloat32Array();}catch(_e){continue;}
-    if(!data||data.length<n)continue;
-
-    if(categoryValues&&categoryValues.length>=n){
-      let pSum=0,pN=0,bSum=0,bN=0;
-      const step=Math.max(1,Math.floor(n/4096));
+    for(let ci=0;ci<arrays.length;ci++){
+      const a=arrays[ci];
+      let border=0,bn=0,inner=0,inN=0;
+      const step=Math.max(1,Math.floor(n/5000));
       for(let i=0;i<n;i+=step){
-        const v=clamp(Number(data[i])||0,0,1);
-        if(categoryIsPerson(i)===1){pSum+=v;pN++;}
-        else{bSum+=v;bN++;}
+        const x=i%mw,y=(i/mw)|0,v=clamp(Number(a[i])||0,0,1);
+        const edge=x<mw*.12||x>mw*.88||y<mh*.12||y>mh*.88;
+        if(edge){border+=v;bn++;}
+        else{inner+=v;inN++;}
       }
-      const pMean=pSum/Math.max(1,pN);
-      const bMean=bSum/Math.max(1,bN);
-      const score=pMean-bMean;
+      const b=border/Math.max(1,bn),inn=inner/Math.max(1,inN);
 
-      if(score>bestScore){
-        bestScore=score;personConf=data;personConfInvert=false;
+      // RAW is preferred because official semantics are high=human.
+      let rawScore=(1-b)*2 + Math.max(0,inn-b)*.35;
+      if(rawScore>bestScore){bestScore=rawScore;bestChannel=ci;bestInvert=false;}
+
+      // Only permit inversion when the border is overwhelmingly high and the
+      // interior is meaningfully lower — a very strong sign that this runtime
+      // returned background probability instead.
+      if(b>.72 && inn<b-.12){
+        const invB=1-b,invI=1-inn;
+        const invScore=(1-invB)*2 + Math.max(0,invI-invB)*.35 + .15;
+        if(invScore>bestScore){bestScore=invScore;bestChannel=ci;bestInvert=true;}
       }
-      if(-score>bestScore){
-        bestScore=-score;personConf=data;personConfInvert=true;
-      }
-    }else if(!personConf){
-      personConf=data;
     }
+
+    state.maskChannel=Math.min(bestChannel,arrays.length-1);
+    state.maskInvert=bestInvert;
+    state.maskLocked=true;
+    console.info("RIVANI foreground lock",{
+      channel:state.maskChannel,
+      inverted:state.maskInvert,
+      masks:arrays.length
+    });
   }
-  const firstMask=!state.prevPerson||state.prevPerson.length!==n;
-  if(firstMask)state.prevPerson=new Float32Array(n);
+
+  const human=arrays[Math.min(state.maskChannel,arrays.length-1)]||arrays[0];
+  const firstTemporal=!state.prevPerson||state.prevPerson.length!==n;
+  if(firstTemporal)state.prevPerson=new Float32Array(n);
 
   const c=currentControls();
-  const baseKeep=Math.min(.68,c.temporal);
+  const keep=Math.min(.52,c.temporal*.72);
+  const low=.055+(c.edge/100)*.0009;
+  const high=.23+(c.edge/100)*.0015;
   const personImage=new ImageData(mw,mh);
-  let personPixels=0;
-
-  // Clean default: uncertain background-side pixels are removed, while
-  // confident person edges remain softly anti-aliased.
-  const cut=.20+(c.edge/100)*.12;
-  const hi=cut+(.24-(c.edge/100)*.08);
+  let personPixels=0,borderAlpha=0,borderN=0;
 
   for(let i=0,j=0;i<n;i++,j+=4){
-    const categoryPerson=categoryIsPerson(i);
+    let target=clamp(Number(human[i])||0,0,1);
+    if(state.maskInvert)target=1-target;
 
-    let target;
-    if(personConf && personConf.length>i){
-      let v=clamp(Number(personConf[i])||0,0,1);
-      if(personConfInvert)v=1-v;
-
-      // Category is authoritative for the subject/background core.
-      // Confidence is used only to make the boundary soft.
-      if(categoryPerson===1 && v<.34)v=.72;
-      if(categoryPerson===0 && v>.66)v=.28;
-      target=v;
-    }else{
-      target=categoryPerson===1?1:0;
-    }
-
-    const prev=firstMask?target:state.prevPerson[i];
+    const prev=firstTemporal?target:state.prevPerson[i];
     const motion=Math.abs(target-prev);
-
-    // Fast movement => trust current frame more. Static edges => smooth more.
-    const adaptiveKeep=firstMask?0:baseKeep*(1-clamp(motion*2.8,0,.92));
-    let temporal=firstMask?target:(prev*adaptiveKeep+target*(1-adaptiveKeep));
+    const adaptiveKeep=firstTemporal?0:keep*(1-clamp(motion*3.0,0,.94));
+    const temporal=firstTemporal?target:(prev*adaptiveKeep+target*(1-adaptiveKeep));
     state.prevPerson[i]=temporal;
 
-    let p=smoothstep(cut,hi,temporal);
+    // Official reference keeps human pixels from roughly >0.1. We use a soft
+    // transition around that level instead of destructive category forcing.
+    let p=smoothstep(low,high,temporal);
 
-    // Winning person category must never vanish.
-    if(categoryPerson===1){
-      p=Math.max(p,target>.55?.82:.60);
-    }
-
-    // Strong background confidence gets a clean zero.
-    if(categoryPerson===0&&target<.22)p=0;
+    // Protect clearly human cores from disappearing during fast movement.
+    if(target>.60)p=Math.max(p,.96);
+    else if(target>.40)p=Math.max(p,.80);
+    else if(target>.24)p=Math.max(p,.48);
 
     const a=Math.round(255*clamp(p,0,1));
     personImage.data[j]=255;
     personImage.data[j+1]=255;
     personImage.data[j+2]=255;
     personImage.data[j+3]=a;
-    if(a>96)personPixels++;
+
+    if(a>80)personPixels++;
+    const x=i%mw,y=(i/mw)|0;
+    if(x<mw*.08||x>mw*.92||y<mh*.08||y>mh*.92){borderAlpha+=a/255;borderN++;}
+  }
+
+  const coverage=personPixels/Math.max(1,n);
+  const borderMean=borderAlpha/Math.max(1,borderN);
+
+  // Foreground Safety Guard: an inverted background mask usually covers most
+  // of the frame and is also strong at the outer border. If that impossible
+  // pattern appears, flip polarity once and rebuild on the next frame rather
+  // than erasing the people.
+  if((coverage>.78&&borderMean>.58) && !state.maskInvert){
+    state.maskInvert=true;
+    state.prevPerson=null;
+    state.maskCtx.clearRect(0,0,mw,mh);
+    for(const m of confidence){try{m?.close?.();}catch(_e){}}
+    el.stabilityStatus.textContent="Foreground safety corrected";
+    return await segmentCurrent(true);
   }
 
   state.maskCtx.clearRect(0,0,mw,mh);
   state.maskCtx.putImageData(personImage,0,0);
-  state.lastMaskCoverage=personPixels/Math.max(1,n);
+  state.lastMaskCoverage=coverage;
 
-  // Face tracking is separate from the cutout so a face detector problem
-  // cannot hide the person or invert the background.
+  // Face tracking affects only face polish. It never controls foreground alpha.
   if(state.faceDetector && (force || now-state.lastFaceAt>140)){
     state.lastFaceAt=now;
     try{
@@ -427,9 +424,7 @@ async function segmentCurrent(force=false){
             w:state.faceBox.w*k+next.w*(1-k),
             h:state.faceBox.h*k+next.h*(1-k)
           };
-        }else{
-          state.faceBox=next;
-        }
+        }else state.faceBox=next;
       }
     }catch(faceError){
       console.warn("Face tracking frame skipped",faceError);
@@ -455,14 +450,11 @@ async function segmentCurrent(force=false){
     fctx.restore();
   }
 
-  el.personStatus.textContent=state.lastMaskCoverage>.02?"Person locked":"Searching";
-  el.faceStatus.textContent=state.faceBox?"Face tracked":"Person only";
-  el.stabilityStatus.textContent=c.temporal>.62?"Stable + motion adapt":c.temporal>.3?"Motion adapt":"Responsive";
+  el.personStatus.textContent=coverage>.01?"Human locked":"Searching";
+  el.faceStatus.textContent=state.faceBox?"Face tracked":"Human mask only";
+  el.stabilityStatus.textContent=state.maskInvert?"Foreground safety · corrected":"Foreground safety · locked";
 
-  try{categoryMask?.close?.();}catch(_e){}
-  for(const m of confidence){
-    try{m?.close?.();}catch(_e){}
-  }
+  for(const m of confidence){try{m?.close?.();}catch(_e){}}
   return true;
 }
 function drawCover(ctx,img,w,h){
@@ -673,7 +665,7 @@ async function exportVideo(){
 el.exportBtn.addEventListener("click",exportVideo);
 
 function resetControls(){
-  el.edgeClean.value=52;el.feather.value=1.0;el.temporal.value=44;el.light.value=18;el.smooth.value=18;el.glow.value=12;el.clarity.value=10;el.warmth.value=6;
+  el.edgeClean.value=40;el.feather.value=1.0;el.temporal.value=35;el.light.value=18;el.smooth.value=18;el.glow.value=12;el.clarity.value=10;el.warmth.value=6;
   [el.edgeClean,el.feather,el.temporal,el.light,el.smooth,el.glow,el.clarity,el.warmth].forEach(x=>x.dispatchEvent(new Event("input")));
   state.bg="transparent";el.bgModes.querySelectorAll("[data-bg]").forEach(x=>x.classList.toggle("active",x.dataset.bg==="transparent"));resetMasks();
   if(state.modelReady&&el.video.paused)renderCurrentFrame(true).catch(()=>{});

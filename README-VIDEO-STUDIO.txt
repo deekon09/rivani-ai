@@ -1,32 +1,42 @@
-RIVANI VIDEO STUDIO V44.5 — GPU MASK VALUE FIX
+RIVANI VIDEO STUDIO V44.6 — CONFIDENCE MASK RESET
 
-Replace:
-- video-studio.html
-- video-studio.css
-- video-studio.js
+THIS VERSION REMOVES THE CATEGORY-MASK PATH ENTIRELY.
 
-Based on the actual V44.4 failed soccer output:
-background stayed visible while people became blue/studio silhouettes.
+Why:
+The Selfie Segmentation model's native output is a single-channel human
+probability mask. Official MediaPipe documentation describes high mask values
+as human and low values as background, and its reference example keeps pixels
+where the segmentation mask is above about 0.1.
 
-Cause:
-Selfie Segmenter is documented as 0=background, 1=person, but a WebGL-backed
-category mask can become 0/255 when converted to Uint8. V44.4 used ===1.
+V44.2–V44.5 mixed this with ImageSegmenter category-mask conversions and
+confidence-channel guessing. That is what allowed the whole foreground and
+background to invert.
 
-V44.5:
-- reads category mask as Float32 first
-- tests person with >0.5, never ===1
-- Uint8 fallback treats any non-zero category as person
-- automatically correlates every confidence channel with category-person pixels
-- automatically inverts a reversed confidence channel
-- category decides the core; confidence only softens edges
-- no chroma assist
-- Ready-button hang fix, Choose Another Video and Clear Video retained
+V44.6:
+- uses outputConfidenceMasks only
+- uses the higher-quality general selfie_segmenter model
+- channel 0 is treated as HUMAN probability by default
+- no category mask
+- no chroma-key assist
+- no class-ID checks
+- strong border sanity check can flip only if the mask is obviously background
+- Foreground Safety Guard prevents a high-border/full-frame mask from erasing people
+- soft threshold near the official >0.1 guidance
+- motion-adaptive smoothing remains, but is weaker to avoid trails
+- face tracking only affects cosmetic face polish, never the foreground cutout
+- Choose Another Video / Clear Video / Ready-button fix remain
 
 CACHE CHECK:
-Before Start AI Studio, UI must show:
-V44.5 · Upload first. AI model loads only when processing starts.
+Before starting AI, the page must show:
+V44.6 CONFIDENCE MASK · Upload first...
 
 TEST:
-Hard refresh, use the same soccer video, choose Studio preview first.
-Men should stay normal-color; field/trees/net should be replaced.
-Do not export until preview is correct.
+1) Hard refresh.
+2) Confirm V44.6 text.
+3) Use the same soccer video.
+4) Start AI Studio once.
+5) Choose Studio background.
+6) People must remain visible in their real colors.
+7) Do NOT export until preview is correct.
+
+Private Beta / noindex stays in place.
