@@ -65,7 +65,10 @@
   <div class="vs-editor hidden" id="vsEditor">
     <div class="vs-filebar">
       <div><strong id="vsFileName">video.mp4</strong><span id="vsFileMeta">—</span></div>
-      <button id="vsReplaceBtn" type="button">Replace video</button>
+      <div class="vs-file-actions">
+        <button id="vsReplaceBtn" type="button">Choose Another Video</button>
+        <button id="vsClearBtn" class="vs-clear-video" type="button">Clear Video</button>
+      </div>
     </div>
 
     <div class="vs-grid">
@@ -87,9 +90,9 @@
 
         <div class="vs-control">
           <div class="vs-label-row"><label>Hair & edge stability</label><span>LOCAL AI</span></div>
-          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">35%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="35"/></div>
-          <div class="vs-slider"><div><span>Feather</span><b id="vsFeatherValue">2px</b></div><input id="vsFeather" type="range" min="0" max="8" step="0.5" value="2"/></div>
-          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">72%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="72"/></div>
+          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">65%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="65"/></div>
+          <div class="vs-slider"><div><span>Feather</span><b id="vsFeatherValue">0.8px</b></div><input id="vsFeather" type="range" min="0" max="8" step="0.1" value="0.8"/></div>
+          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">55%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="55"/></div>
         </div>
 
         <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>

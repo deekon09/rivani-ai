@@ -1,14 +1,15 @@
-import { FilesetResolver, ImageSegmenter } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
+import { FilesetResolver, ImageSegmenter, FaceDetector } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/+esm";
 
 const $ = id => document.getElementById(id);
-const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite";
+const PERSON_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter_landscape/float16/latest/selfie_segmenter_landscape.tflite";
+const FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
 const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") || Math.min(screen.width || 9999, screen.height || 9999) < 900;
 
 const el = {
   upload: $("vsUpload"), file: $("vsFileInput"), choose: $("vsChooseBtn"), editor: $("vsEditor"),
-  replace: $("vsReplaceBtn"), name: $("vsFileName"), meta: $("vsFileMeta"), video: $("vsSourceVideo"),
+  replace: $("vsReplaceBtn"), clear: $("vsClearBtn"), name: $("vsFileName"), meta: $("vsFileMeta"), video: $("vsSourceVideo"),
   canvas: $("vsCanvas"), stage: $("vsStage"), start: $("vsStartBtn"), preview: $("vsPreviewBtn"),
   exportBtn: $("vsExportBtn"), reset: $("vsResetBtn"), engineNote: $("vsEngineNote"),
   status: $("vsStatus"), fps: $("vsFps"), processing: $("vsProcessing"), processingTitle: $("vsProcessingTitle"),
@@ -25,7 +26,7 @@ const el = {
 };
 
 const state = {
-  file: null, url: "", segmenter: null, modelReady: false, running: false, exporting: false,
+  file: null, url: "", personSegmenter: null, faceDetector: null, modelReady: false, running: false, exporting: false,
   bg: "transparent", customBg: null, customBgUrl: "", prevPerson: null, prevFace: null,
   inferCanvas: document.createElement("canvas"), inferCtx: null,
   maskCanvas: document.createElement("canvas"), maskCtx: null,
@@ -35,7 +36,7 @@ const state = {
   faceCanvas: document.createElement("canvas"), faceCtx: null,
   lastSegmentAt: 0, lastFrameTime: -1, frameCount: 0, fpsStamp: performance.now(),
   previewToken: 0, lastMaskCoverage: 0, audioCtx: null, mediaSource: null, mediaDest: null, monitorGain: null,
-  exportBlobUrl: "", recordingMime: "", renderBusy: false
+  exportBlobUrl: "", recordingMime: "", renderBusy: false, faceBox: null, lastFaceAt: 0, chromaAssist: null
 };
 state.inferCtx = state.inferCanvas.getContext("2d", {willReadFrequently:true});
 state.maskCtx = state.maskCanvas.getContext("2d");
@@ -99,7 +100,7 @@ function configureCanvases(){
   state.inferCanvas.width=iw; state.inferCanvas.height=ih;
   state.prevPerson=null; state.prevFace=null;
 }
-function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.lastSegmentAt=0; }
+function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.faceBox=null; state.chromaAssist=null; state.lastSegmentAt=0; state.lastFaceAt=0; }
 
 function cleanupFile(){
   state.previewToken++;
@@ -136,12 +137,32 @@ async function loadVideo(file){
   state.frameCtx.drawImage(el.video,0,0,state.frameCanvas.width,state.frameCanvas.height);
   el.stage.classList.remove("ai-ready");
   el.preview.disabled=true; el.exportBtn.disabled=true;
-  state.modelReady=false; state.segmenter?.close?.(); state.segmenter=null;
+  state.modelReady=false;
+  try{state.personSegmenter?.close?.();}catch(_e){}
+  try{state.faceDetector?.close?.();}catch(_e){}
+  state.personSegmenter=null; state.faceDetector=null;
+  el.start.disabled=false; el.start.innerHTML="<span>✦</span> Start AI Studio →";
   el.engineStatus.textContent="Not loaded"; el.personStatus.textContent="Waiting"; el.faceStatus.textContent="Waiting"; el.stabilityStatus.textContent="Waiting";
   el.engineNote.textContent="AI model loads only when processing starts.";
 }
 el.choose.addEventListener("click",()=>el.file.click());
 el.replace.addEventListener("click",()=>el.file.click());
+el.clear?.addEventListener("click",()=>{
+  cleanupFile();
+  state.file=null;
+  el.editor.classList.add("hidden");
+  el.upload.classList.remove("hidden");
+  el.stage.classList.remove("ai-ready");
+  el.status.textContent="Choose a video to begin.";
+  el.fps.textContent="—";
+  el.start.disabled=false;
+  el.start.innerHTML="<span>✦</span> Start AI Studio →";
+  el.preview.disabled=true;el.exportBtn.disabled=true;
+  el.engineStatus.textContent="Not loaded";
+  el.personStatus.textContent="Waiting";
+  el.faceStatus.textContent="Waiting";
+  el.stabilityStatus.textContent="Waiting";
+});
 el.file.addEventListener("change",()=>{const f=el.file.files?.[0];if(f)loadVideo(f).catch(()=>{});el.file.value="";});
 ["dragenter","dragover"].forEach(t=>el.upload.addEventListener(t,e=>{e.preventDefault();el.upload.classList.add("drag");}));
 ["dragleave","drop"].forEach(t=>el.upload.addEventListener(t,e=>{e.preventDefault();el.upload.classList.remove("drag");}));
@@ -174,109 +195,237 @@ async function ensureAuth(){
 }
 
 async function initSegmenter(){
-  if(state.modelReady&&state.segmenter)return;
+  if(state.modelReady&&state.personSegmenter)return;
   showProcessing(true); setProgress(8,"Preparing local AI…","Loading MediaPipe Vision runtime.");
   el.engineStatus.textContent="Loading";
   const vision=await FilesetResolver.forVisionTasks(WASM_URL);
-  setProgress(35,"Loading person model…","Downloading the local selfie segmentation model.");
+
+  setProgress(30,"Loading fast person cutout…","Starting the dedicated video-call person segmentation model.");
   const delegate=(IS_IOS||IS_MOBILE)?"CPU":"GPU";
   try{
-    state.segmenter=await ImageSegmenter.createFromOptions(vision,{
-      baseOptions:{modelAssetPath:MODEL_URL,delegate},
-      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
+    state.personSegmenter=await ImageSegmenter.createFromOptions(vision,{
+      baseOptions:{modelAssetPath:PERSON_MODEL_URL,delegate},
+      runningMode:"VIDEO",outputCategoryMask:false,outputConfidenceMasks:true
     });
   }catch(firstError){
     if(delegate==="CPU")throw firstError;
-    setProgress(55,"Switching to compatibility mode…","GPU initialization failed; starting CPU segmentation.");
-    state.segmenter=await ImageSegmenter.createFromOptions(vision,{
-      baseOptions:{modelAssetPath:MODEL_URL,delegate:"CPU"},
-      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
+    setProgress(48,"Switching to compatibility mode…","GPU initialization failed; starting CPU person segmentation.");
+    state.personSegmenter=await ImageSegmenter.createFromOptions(vision,{
+      baseOptions:{modelAssetPath:PERSON_MODEL_URL,delegate:"CPU"},
+      runningMode:"VIDEO",outputCategoryMask:false,outputConfidenceMasks:true
     });
   }
+
+  // Face detection is tiny and is used only to constrain skin smoothing/light.
+  setProgress(68,"Loading face tracker…","Preparing lightweight face-region tracking.");
+  try{
+    state.faceDetector=await FaceDetector.createFromOptions(vision,{
+      baseOptions:{modelAssetPath:FACE_MODEL_URL,delegate:"CPU"},
+      runningMode:"VIDEO",
+      minDetectionConfidence:.45,
+      minSuppressionThreshold:.3
+    });
+  }catch(faceError){
+    console.warn("Face detector unavailable; cutout remains active.",faceError);
+    state.faceDetector=null;
+  }
+
   state.modelReady=true; resetMasks();
-  el.engineStatus.textContent=(IS_IOS||IS_MOBILE)?"Local CPU":"Local AI";
-  el.engineNote.textContent="RIVANI Person Cutout ready · model runs on this device.";
-  setProgress(92,"AI ready…","Scanning the first frame.");
+  el.engineStatus.textContent=(IS_IOS||IS_MOBILE)?"Fast Local CPU":"Fast Local AI";
+  el.engineNote.textContent="RIVANI Fast Person Cutout ready · background mask refreshes continuously while the subject moves.";
+  setProgress(90,"AI ready…","Scanning the first frame.");
   await renderCurrentFrame(true);
-  setProgress(100,"Studio ready","Background and face controls are live.");
-  setTimeout(()=>showProcessing(false),220);
+  setProgress(100,"Studio ready","Background removal and studio controls are live.");
+  setTimeout(()=>showProcessing(false),180);
   el.preview.disabled=false; el.exportBtn.disabled=false; el.afterState.textContent="AI Studio";
   el.stage.classList.add("ai-ready");
 }
-
 function smoothstep(edge0,edge1,x){
   const t=clamp((x-edge0)/(edge1-edge0)); return t*t*(3-2*t);
 }
+function detectChromaAssist(ctx,w,h){
+  // Sample only outer zones. Assist activates only for a strongly dominant
+  // green or blue screen, never for ordinary mixed-color rooms.
+  let rs=0,gs=0,bs=0,count=0;
+  const img=ctx.getImageData(0,0,w,h).data;
+  const sx=Math.max(2,Math.floor(w/26)),sy=Math.max(2,Math.floor(h/18));
+  for(let y=0;y<h;y+=sy){
+    for(let x=0;x<w;x+=sx){
+      const edge=x<w*.16||x>w*.84||y<h*.14||y>h*.86;
+      if(!edge)continue;
+      const i=(y*w+x)*4;
+      rs+=img[i];gs+=img[i+1];bs+=img[i+2];count++;
+    }
+  }
+  if(!count)return null;
+  const r=rs/count,g=gs/count,b=bs/count;
+  const greenRatio=g/(Math.max(r,b)+1);
+  const blueRatio=b/(Math.max(r,g)+1);
+  if(g>70&&greenRatio>1.28){
+    return {mode:"green",strength:clamp((greenRatio-1.18)/.72,.35,1)};
+  }
+  if(b>70&&blueRatio>1.28){
+    return {mode:"blue",strength:clamp((blueRatio-1.18)/.72,.35,1)};
+  }
+  return null;
+}
 async function segmentCurrent(force=false){
-  if(!state.segmenter||el.video.readyState<2)return false;
+  if(!state.personSegmenter||el.video.readyState<2)return false;
   const now=performance.now();
-  if(!force && now-state.lastSegmentAt<(IS_MOBILE?70:42))return false;
+  if(!force && now-state.lastSegmentAt<(IS_MOBILE?48:32))return false;
   state.lastSegmentAt=now;
+
   const iw=state.inferCanvas.width, ih=state.inferCanvas.height;
-  state.inferCtx.clearRect(0,0,iw,ih); state.inferCtx.drawImage(el.video,0,0,iw,ih);
+  state.inferCtx.clearRect(0,0,iw,ih);
+  state.inferCtx.drawImage(el.video,0,0,iw,ih);
+
   const result=await new Promise((resolve,reject)=>{
     let settled=false;
     try{
-      const maybe=state.segmenter.segmentForVideo(state.inferCanvas,performance.now(),r=>{settled=true;resolve(r);});
-      if(maybe && typeof maybe.then==="function") maybe.then(r=>{if(!settled&&r)resolve(r);}).catch(reject);
-      else if(maybe && maybe.categoryMask && !settled) resolve(maybe);
+      const maybe=state.personSegmenter.segmentForVideo(
+        state.inferCanvas,
+        performance.now(),
+        r=>{settled=true;resolve(r);}
+      );
+      if(maybe && typeof maybe.then==="function"){
+        maybe.then(r=>{if(!settled&&r)resolve(r);}).catch(reject);
+      }else if(maybe && maybe.confidenceMasks && !settled){
+        resolve(maybe);
+      }
     }catch(e){reject(e);}
   });
+
   const confidence=result?.confidenceMasks||[];
-  const category=result?.categoryMask||null;
+  // Binary selfie segmenter: channel 0 = background, channel 1 = person.
+  const personMask=confidence[1]||null;
   const bgMask=confidence[0]||null;
-  const faceConfidence=confidence[3]||null;
-  const referenceMask=bgMask||category;
-  if(!referenceMask)throw new Error("Person mask was not returned.");
+  const referenceMask=personMask||bgMask;
+  if(!referenceMask)throw new Error("Person confidence mask was not returned.");
 
-  // IMPORTANT: MediaPipe segmentation masks have their own geometry. The model
-  // used here normally emits a square mask even when the source video is 16:9.
-  // Never reinterpret that flat array using the video/inference-canvas width.
-  const mw=Math.max(1,Number(referenceMask.width)||Math.round(Math.sqrt(referenceMask.getAsUint8Array?.().length||1)));
-  const mh=Math.max(1,Number(referenceMask.height)||Math.round((referenceMask.getAsUint8Array?.().length||mw)/mw));
+  const mw=Math.max(1,Number(referenceMask.width)||iw);
+  const mh=Math.max(1,Number(referenceMask.height)||ih);
   if(state.maskCanvas.width!==mw||state.maskCanvas.height!==mh){
-    state.maskCanvas.width=mw;state.maskCanvas.height=mh;
-    state.faceMaskCanvas.width=mw;state.faceMaskCanvas.height=mh;
-    state.prevPerson=null;state.prevFace=null;
+    state.maskCanvas.width=mw;state.maskCanvas.height=mh;state.prevPerson=null;
   }
 
-  const bgData=bgMask?.getAsFloat32Array?.()||null;
-  const faceData=faceConfidence?.getAsFloat32Array?.()||null;
-  const classes=(!bgData&&category)?category.getAsUint8Array():null;
+  const personData=personMask?.getAsFloat32Array?.()||null;
+  const bgData=(!personData&&bgMask?.getAsFloat32Array)?bgMask.getAsFloat32Array():null;
   const n=mw*mh;
-  if((bgData&&bgData.length<n)||(classes&&classes.length<n))throw new Error("Segmentation mask geometry mismatch.");
-  const firstMask=!state.prevPerson||state.prevPerson.length!==n;
-  if(firstMask){state.prevPerson=new Float32Array(n);state.prevFace=new Float32Array(n);}
-  const c=currentControls(), keep=c.temporal,faceKeep=Math.min(.78,keep);
-  let personPixels=0,facePixels=0;
-  const personImage=new ImageData(mw,mh),faceImage=new ImageData(mw,mh);
-  // Soft confidence alpha is much cleaner on hair than a hard category cutout.
-  const lo=.08+(c.edge/100)*.12, hi=.92-(c.edge/100)*.12;
-  for(let i=0,j=0;i<n;i++,j+=4){
-    const cls=classes?classes[i]|0:0;
-    const target=bgData?clamp(1-bgData[i],0,1):(cls===0?0:1);
-    const face=faceData?clamp(faceData[i],0,1):(cls===3?1:0);
-    const temporalPerson=firstMask?target:(state.prevPerson[i]*keep+target*(1-keep));
-    const temporalFace=firstMask?face:(state.prevFace[i]*faceKeep+face*(1-faceKeep));
-    state.prevPerson[i]=temporalPerson;state.prevFace[i]=temporalFace;
-    const p=smoothstep(lo,hi,temporalPerson);
-    const f=smoothstep(.10,.72,temporalFace);
-    const a=Math.round(255*p),fa=Math.round(255*f);
-    personImage.data[j]=personImage.data[j+1]=personImage.data[j+2]=255;personImage.data[j+3]=a;
-    faceImage.data[j]=faceImage.data[j+1]=faceImage.data[j+2]=255;faceImage.data[j+3]=fa;
-    if(a>80)personPixels++; if(fa>80)facePixels++;
+  if((personData&&personData.length<n)||(bgData&&bgData.length<n)){
+    throw new Error("Segmentation mask geometry mismatch.");
   }
-  state.maskCtx.clearRect(0,0,mw,mh);state.maskCtx.putImageData(personImage,0,0);
-  state.faceMaskCtx.clearRect(0,0,mw,mh);state.faceMaskCtx.putImageData(faceImage,0,0);
+
+  const firstMask=!state.prevPerson||state.prevPerson.length!==n;
+  if(firstMask)state.prevPerson=new Float32Array(n);
+
+  const c=currentControls();
+  const baseKeep=Math.min(.76,c.temporal);
+  const personImage=new ImageData(mw,mh);
+  let personPixels=0;
+  state.chromaAssist=detectChromaAssist(state.inferCtx,iw,ih);
+  const inferPixels=state.chromaAssist?state.inferCtx.getImageData(0,0,iw,ih).data:null;
+
+  // Default is intentionally clean rather than permissive:
+  // uncertain background-side pixels are removed, while high-confidence hair
+  // stays soft. Temporal hold is reduced automatically on moving boundaries.
+  const cut=.20+(c.edge/100)*.13;
+  const soft=.27-(c.edge/100)*.10;
+  const hi=Math.max(cut+.10,cut+soft);
+
+  for(let i=0,j=0;i<n;i++,j+=4){
+    let target=personData?clamp(personData[i],0,1):clamp(1-bgData[i],0,1);
+
+    // Hybrid screen cleanup: only if the outer frame strongly looks like a
+    // green/blue screen. High-confidence person pixels are protected so a
+    // green shirt or blue clothing is not automatically erased.
+    if(state.chromaAssist&&inferPixels){
+      const mx=i%mw,my=Math.floor(i/mw);
+      const sx=Math.min(iw-1,Math.max(0,Math.round(mx/(Math.max(1,mw-1))*(iw-1))));
+      const sy=Math.min(ih-1,Math.max(0,Math.round(my/(Math.max(1,mh-1))*(ih-1))));
+      const pi=(sy*iw+sx)*4;
+      const r=inferPixels[pi],g=inferPixels[pi+1],b=inferPixels[pi+2];
+      const dom=state.chromaAssist.mode==="green"?(g-Math.max(r,b)):(b-Math.max(r,g));
+      const screenBg=smoothstep(18,82,dom)*state.chromaAssist.strength;
+      const protect=smoothstep(.58,.88,target);
+      target=clamp(target*(1-screenBg*(1-protect)*.98),0,1);
+    }
+
+    const prev=firstMask?target:state.prevPerson[i];
+    const motion=Math.abs(target-prev);
+    const adaptiveKeep=firstMask?0:baseKeep*(1-clamp(motion*2.4,0,.88));
+    let temporal=firstMask?target:(prev*adaptiveKeep+target*(1-adaptiveKeep));
+    state.prevPerson[i]=temporal;
+
+    let p=smoothstep(cut,hi,temporal);
+    if(target>.86)p=Math.max(p,smoothstep(.72,.94,target));
+    if(target<.12)p=0;
+
+    const a=Math.round(255*p);
+    personImage.data[j]=personImage.data[j+1]=personImage.data[j+2]=255;
+    personImage.data[j+3]=a;
+    if(a>96)personPixels++;
+  }
+
+  state.maskCtx.clearRect(0,0,mw,mh);
+  state.maskCtx.putImageData(personImage,0,0);
   state.lastMaskCoverage=personPixels/Math.max(1,n);
+
+  // Lightweight face tracking every ~140 ms; the last box is smoothly held
+  // between detections so studio effects do not jump.
+  if(state.faceDetector && (force || now-state.lastFaceAt>140)){
+    state.lastFaceAt=now;
+    try{
+      const faceResult=state.faceDetector.detectForVideo(state.inferCanvas,performance.now());
+      const detection=faceResult?.detections?.[0];
+      const b=detection?.boundingBox;
+      if(b){
+        const sx=el.canvas.width/iw, sy=el.canvas.height/ih;
+        const next={
+          x:(b.originX-b.width*.16)*sx,
+          y:(b.originY-b.height*.25)*sy,
+          w:b.width*1.32*sx,
+          h:b.height*1.48*sy
+        };
+        if(state.faceBox){
+          const k=.58;
+          state.faceBox={
+            x:state.faceBox.x*k+next.x*(1-k),
+            y:state.faceBox.y*k+next.y*(1-k),
+            w:state.faceBox.w*k+next.w*(1-k),
+            h:state.faceBox.h*k+next.h*(1-k)
+          };
+        }else state.faceBox=next;
+      }
+    }catch(faceError){console.warn("Face tracking frame skipped",faceError);}
+  }
+
+  const fctx=state.faceMaskCtx,w=state.faceMaskCanvas.width,h=state.faceMaskCanvas.height;
+  fctx.clearRect(0,0,w,h);
+  if(state.faceBox){
+    const b=state.faceBox;
+    fctx.save();
+    fctx.filter="blur(8px)";
+    fctx.fillStyle="#fff";
+    fctx.beginPath();
+    fctx.ellipse(
+      clamp(b.x+b.w*.5,0,w),
+      clamp(b.y+b.h*.5,0,h),
+      Math.max(8,b.w*.47),
+      Math.max(8,b.h*.50),
+      0,0,Math.PI*2
+    );
+    fctx.fill();
+    fctx.restore();
+  }
+
   el.personStatus.textContent=state.lastMaskCoverage>.02?"Locked":"Searching";
-  el.faceStatus.textContent=facePixels/n>.002?"Face detected":"Person only";
-  el.stabilityStatus.textContent=c.temporal>.6?"High":c.temporal>.3?"Balanced":"Responsive";
+  el.faceStatus.textContent=state.faceBox?"Face tracked":"Person tracked";
+  el.stabilityStatus.textContent=state.chromaAssist
+    ?`Motion + ${state.chromaAssist.mode==="green"?"Green":"Blue"} Screen Assist`
+    :(c.temporal>.62?"Stable + motion adapt":c.temporal>.3?"Motion adapt":"Responsive");
   for(const m of confidence){try{m?.close?.();}catch(_e){}}
-  try{category?.close?.();}catch(_e){}
   return true;
 }
-
 function drawCover(ctx,img,w,h){
   const sw=img.width||img.videoWidth,sh=img.height||img.videoHeight;
   const s=Math.max(w/sw,h/sh),dw=sw*s,dh=sh*s;
@@ -371,16 +520,25 @@ el.video.addEventListener("pause",()=>{if(state.modelReady&&!state.exporting){el
 
 el.start.addEventListener("click",async()=>{
   if(!state.file)return;
+  if(state.modelReady){
+    showProcessing(false);
+    el.start.disabled=true;
+    el.start.textContent="✓ Background AI Ready";
+    el.status.textContent="AI is ready. Use Preview AI or Export Processed Video.";
+    return;
+  }
   if(!(await ensureAuth()))return;
   try{
     el.start.disabled=true;showProcessing(true);setProgress(4,"Starting AI Studio…","Your video stays on this device.");
     await initSegmenter();
     el.status.textContent="AI Studio ready. Preview or export.";
-    el.start.textContent="✓ AI Studio Ready";
+    el.start.textContent="✓ Background AI Ready";
+    el.start.disabled=true;
   }catch(e){
     console.error(e);showProcessing(false);el.engineStatus.textContent="Unavailable";el.engineNote.textContent="Local AI could not start on this browser/device.";
+    el.start.disabled=false;
     alert(`Video Studio could not start: ${e?.message||e}`);
-  }finally{el.start.disabled=false;}
+  }
 });
 
 function selectMime(){
@@ -411,8 +569,10 @@ async function seekTo(time){
 async function exportVideo(){
   if(state.exporting||!state.modelReady)return;
   if(state.bg==="transparent"){
-    alert("Transparent video export is not reliable with this browser recorder yet. The transparent AI preview is valid, but for a clean video export choose Blur, Studio, White, Black, Custom Color or Custom Image. RIVANI will add a dedicated alpha-video export path separately.");
-    return;
+    state.bg="studio";
+    el.bgModes.querySelectorAll("[data-bg]").forEach(x=>x.classList.toggle("active",x.dataset.bg==="studio"));
+    el.status.textContent="Export switched to Studio background because this browser recorder cannot guarantee transparent-video alpha.";
+    await renderCurrentFrame(true).catch(()=>{});
   }
   if(!(await ensureAuth()))return;
   if(typeof el.canvas.captureStream!=="function"||typeof MediaRecorder==="undefined"){alert("This browser does not support local canvas video export. Try current Chrome or Edge desktop.");return;}
@@ -474,7 +634,7 @@ async function exportVideo(){
 el.exportBtn.addEventListener("click",exportVideo);
 
 function resetControls(){
-  el.edgeClean.value=35;el.feather.value=2;el.temporal.value=72;el.light.value=18;el.smooth.value=18;el.glow.value=12;el.clarity.value=10;el.warmth.value=6;
+  el.edgeClean.value=65;el.feather.value=.8;el.temporal.value=55;el.light.value=18;el.smooth.value=18;el.glow.value=12;el.clarity.value=10;el.warmth.value=6;
   [el.edgeClean,el.feather,el.temporal,el.light,el.smooth,el.glow,el.clarity,el.warmth].forEach(x=>x.dispatchEvent(new Event("input")));
   state.bg="transparent";el.bgModes.querySelectorAll("[data-bg]").forEach(x=>x.classList.toggle("active",x.dataset.bg==="transparent"));resetMasks();
   if(state.modelReady&&el.video.paused)renderCurrentFrame(true).catch(()=>{});
@@ -482,6 +642,7 @@ function resetControls(){
 el.reset.addEventListener("click",resetControls);
 
 window.addEventListener("beforeunload",()=>{
-  try{state.segmenter?.close?.();}catch(_e){}
+  try{state.personSegmenter?.close?.();}catch(_e){}
+  try{state.faceDetector?.close?.();}catch(_e){}
   if(state.url)URL.revokeObjectURL(state.url);if(state.customBgUrl)URL.revokeObjectURL(state.customBgUrl);if(state.exportBlobUrl)URL.revokeObjectURL(state.exportBlobUrl);
 });
