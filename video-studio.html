@@ -11,7 +11,7 @@
 <meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
-<link rel="stylesheet" href="video-studio.css?v=44.0"/>
+<link rel="stylesheet" href="video-studio.css?v=44.1"/>
 </head>
 <body class="video-studio-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -75,7 +75,7 @@
         <div class="vs-control">
           <label>Background style</label>
           <div class="vs-background-grid" id="vsBgModes">
-            <button class="active" data-bg="transparent" type="button"><i class="checker"></i><b>Remove</b><small>Transparent</small></button>
+            <button class="active" data-bg="transparent" type="button"><i class="checker"></i><b>Remove</b><small>AI preview</small></button>
             <button data-bg="blur" type="button"><i class="blur"></i><b>Blur</b><small>Bokeh</small></button>
             <button data-bg="studio" type="button"><i class="studio"></i><b>Studio</b><small>Gradient</small></button>
             <button data-bg="white" type="button"><i class="white"></i><b>White</b><small>Clean</small></button>
@@ -164,7 +164,7 @@
             <option value="mp4">MP4 if supported</option>
             <option value="webm">WebM</option>
           </select>
-          <small>Transparent background requests WebM/VP9 first. Alpha-channel preservation depends on browser encoder support.</small>
+          <small>Transparent cutout is available in AI preview. For reliable video export in this Beta, choose Blur, Studio, White, Black, Custom Color or Custom Image.</small>
         </div>
 
         <button class="btn btn-primary vs-export-btn" id="vsExportBtn" type="button" disabled>Export Processed Video →</button>
@@ -197,7 +197,7 @@
 </footer>
 
 <script src="script.js?v=30.0-secure-launch"></script>
-<script src="video-studio.js?v=44.0" type="module"></script>
+<script src="video-studio.js?v=44.1" type="module"></script>
 <script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>

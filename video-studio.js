@@ -97,7 +97,6 @@ function configureCanvases(){
   const scale=Math.min(1,maxInfer/Math.max(vw,vh));
   const iw=Math.max(96,Math.round(vw*scale)), ih=Math.max(96,Math.round(vh*scale));
   state.inferCanvas.width=iw; state.inferCanvas.height=ih;
-  state.maskCanvas.width=iw; state.maskCanvas.height=ih; state.faceMaskCanvas.width=iw; state.faceMaskCanvas.height=ih;
   state.prevPerson=null; state.prevFace=null;
 }
 function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.lastSegmentAt=0; }
@@ -184,14 +183,14 @@ async function initSegmenter(){
   try{
     state.segmenter=await ImageSegmenter.createFromOptions(vision,{
       baseOptions:{modelAssetPath:MODEL_URL,delegate},
-      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:false
+      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
     });
   }catch(firstError){
     if(delegate==="CPU")throw firstError;
     setProgress(55,"Switching to compatibility mode…","GPU initialization failed; starting CPU segmentation.");
     state.segmenter=await ImageSegmenter.createFromOptions(vision,{
       baseOptions:{modelAssetPath:MODEL_URL,delegate:"CPU"},
-      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:false
+      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
     });
   }
   state.modelReady=true; resetMasks();
@@ -223,34 +222,58 @@ async function segmentCurrent(force=false){
       else if(maybe && maybe.categoryMask && !settled) resolve(maybe);
     }catch(e){reject(e);}
   });
-  const mask=result?.categoryMask;
-  if(!mask)throw new Error("Person mask was not returned.");
-  const classes=mask.getAsUint8Array?mask.getAsUint8Array():new Uint8Array(mask.getAsFloat32Array());
-  const n=classes.length;
+  const confidence=result?.confidenceMasks||[];
+  const category=result?.categoryMask||null;
+  const bgMask=confidence[0]||null;
+  const faceConfidence=confidence[3]||null;
+  const referenceMask=bgMask||category;
+  if(!referenceMask)throw new Error("Person mask was not returned.");
+
+  // IMPORTANT: MediaPipe segmentation masks have their own geometry. The model
+  // used here normally emits a square mask even when the source video is 16:9.
+  // Never reinterpret that flat array using the video/inference-canvas width.
+  const mw=Math.max(1,Number(referenceMask.width)||Math.round(Math.sqrt(referenceMask.getAsUint8Array?.().length||1)));
+  const mh=Math.max(1,Number(referenceMask.height)||Math.round((referenceMask.getAsUint8Array?.().length||mw)/mw));
+  if(state.maskCanvas.width!==mw||state.maskCanvas.height!==mh){
+    state.maskCanvas.width=mw;state.maskCanvas.height=mh;
+    state.faceMaskCanvas.width=mw;state.faceMaskCanvas.height=mh;
+    state.prevPerson=null;state.prevFace=null;
+  }
+
+  const bgData=bgMask?.getAsFloat32Array?.()||null;
+  const faceData=faceConfidence?.getAsFloat32Array?.()||null;
+  const classes=(!bgData&&category)?category.getAsUint8Array():null;
+  const n=mw*mh;
+  if((bgData&&bgData.length<n)||(classes&&classes.length<n))throw new Error("Segmentation mask geometry mismatch.");
   const firstMask=!state.prevPerson||state.prevPerson.length!==n;
   if(firstMask){state.prevPerson=new Float32Array(n);state.prevFace=new Float32Array(n);}
-  const c=currentControls(), keep=c.temporal;
+  const c=currentControls(), keep=c.temporal,faceKeep=Math.min(.78,keep);
   let personPixels=0,facePixels=0;
-  const personImage=new ImageData(iw,ih),faceImage=new ImageData(iw,ih);
-  const threshold=.42 + (c.edge-50)*.0022;
+  const personImage=new ImageData(mw,mh),faceImage=new ImageData(mw,mh);
+  // Soft confidence alpha is much cleaner on hair than a hard category cutout.
+  const lo=.08+(c.edge/100)*.12, hi=.92-(c.edge/100)*.12;
   for(let i=0,j=0;i<n;i++,j+=4){
-    const cls=classes[i]|0, target=cls===0?0:1, face=cls===3?1:0;
-    let p=state.prevPerson[i]=firstMask?target:(state.prevPerson[i]*keep+target*(1-keep));
-    const faceKeep=Math.min(.82,keep);
-    let f=state.prevFace[i]=firstMask?face:(state.prevFace[i]*faceKeep+face*(1-faceKeep));
-    p=smoothstep(threshold-.18,threshold+.18,p); f=smoothstep(.24,.62,f);
+    const cls=classes?classes[i]|0:0;
+    const target=bgData?clamp(1-bgData[i],0,1):(cls===0?0:1);
+    const face=faceData?clamp(faceData[i],0,1):(cls===3?1:0);
+    const temporalPerson=firstMask?target:(state.prevPerson[i]*keep+target*(1-keep));
+    const temporalFace=firstMask?face:(state.prevFace[i]*faceKeep+face*(1-faceKeep));
+    state.prevPerson[i]=temporalPerson;state.prevFace[i]=temporalFace;
+    const p=smoothstep(lo,hi,temporalPerson);
+    const f=smoothstep(.10,.72,temporalFace);
     const a=Math.round(255*p),fa=Math.round(255*f);
     personImage.data[j]=personImage.data[j+1]=personImage.data[j+2]=255;personImage.data[j+3]=a;
     faceImage.data[j]=faceImage.data[j+1]=faceImage.data[j+2]=255;faceImage.data[j+3]=fa;
     if(a>80)personPixels++; if(fa>80)facePixels++;
   }
-  state.maskCtx.clearRect(0,0,iw,ih);state.maskCtx.putImageData(personImage,0,0);
-  state.faceMaskCtx.clearRect(0,0,iw,ih);state.faceMaskCtx.putImageData(faceImage,0,0);
+  state.maskCtx.clearRect(0,0,mw,mh);state.maskCtx.putImageData(personImage,0,0);
+  state.faceMaskCtx.clearRect(0,0,mw,mh);state.faceMaskCtx.putImageData(faceImage,0,0);
   state.lastMaskCoverage=personPixels/Math.max(1,n);
   el.personStatus.textContent=state.lastMaskCoverage>.02?"Locked":"Searching";
   el.faceStatus.textContent=facePixels/n>.002?"Face detected":"Person only";
   el.stabilityStatus.textContent=c.temporal>.6?"High":c.temporal>.3?"Balanced":"Responsive";
-  mask.close?.(); result?.close?.();
+  for(const m of confidence){try{m?.close?.();}catch(_e){}}
+  try{category?.close?.();}catch(_e){}
   return true;
 }
 
@@ -387,6 +410,10 @@ async function seekTo(time){
 }
 async function exportVideo(){
   if(state.exporting||!state.modelReady)return;
+  if(state.bg==="transparent"){
+    alert("Transparent video export is not reliable with this browser recorder yet. The transparent AI preview is valid, but for a clean video export choose Blur, Studio, White, Black, Custom Color or Custom Image. RIVANI will add a dedicated alpha-video export path separately.");
+    return;
+  }
   if(!(await ensureAuth()))return;
   if(typeof el.canvas.captureStream!=="function"||typeof MediaRecorder==="undefined"){alert("This browser does not support local canvas video export. Try current Chrome or Edge desktop.");return;}
   state.exporting=true;state.previewToken++;el.video.pause();el.video.controls=false;el.exportBtn.disabled=true;el.preview.disabled=true;
