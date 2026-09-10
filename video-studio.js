@@ -36,7 +36,7 @@ const state = {
   faceCanvas: document.createElement("canvas"), faceCtx: null,
   lastSegmentAt: 0, lastFrameTime: -1, frameCount: 0, fpsStamp: performance.now(),
   previewToken: 0, lastMaskCoverage: 0, audioCtx: null, mediaSource: null, mediaDest: null, monitorGain: null,
-  exportBlobUrl: "", recordingMime: "", renderBusy: false, faceBox: null, lastFaceAt: 0, chromaAssist: null
+  exportBlobUrl: "", recordingMime: "", renderBusy: false, faceBox: null, lastFaceAt: 0
 };
 state.inferCtx = state.inferCanvas.getContext("2d", {willReadFrequently:true});
 state.maskCtx = state.maskCanvas.getContext("2d");
@@ -100,7 +100,7 @@ function configureCanvases(){
   state.inferCanvas.width=iw; state.inferCanvas.height=ih;
   state.prevPerson=null; state.prevFace=null;
 }
-function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.faceBox=null; state.chromaAssist=null; state.lastSegmentAt=0; state.lastFaceAt=0; }
+function resetMasks(){ state.prevPerson=null; state.prevFace=null; state.faceBox=null; state.lastSegmentAt=0; state.lastFaceAt=0; }
 
 function cleanupFile(){
   state.previewToken++;
@@ -205,14 +205,14 @@ async function initSegmenter(){
   try{
     state.personSegmenter=await ImageSegmenter.createFromOptions(vision,{
       baseOptions:{modelAssetPath:PERSON_MODEL_URL,delegate},
-      runningMode:"VIDEO",outputCategoryMask:false,outputConfidenceMasks:true
+      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
     });
   }catch(firstError){
     if(delegate==="CPU")throw firstError;
     setProgress(48,"Switching to compatibility mode…","GPU initialization failed; starting CPU person segmentation.");
     state.personSegmenter=await ImageSegmenter.createFromOptions(vision,{
       baseOptions:{modelAssetPath:PERSON_MODEL_URL,delegate:"CPU"},
-      runningMode:"VIDEO",outputCategoryMask:false,outputConfidenceMasks:true
+      runningMode:"VIDEO",outputCategoryMask:true,outputConfidenceMasks:true
     });
   }
 
@@ -243,34 +243,9 @@ async function initSegmenter(){
 function smoothstep(edge0,edge1,x){
   const t=clamp((x-edge0)/(edge1-edge0)); return t*t*(3-2*t);
 }
-function detectChromaAssist(ctx,w,h){
-  // Sample only outer zones. Assist activates only for a strongly dominant
-  // green or blue screen, never for ordinary mixed-color rooms.
-  let rs=0,gs=0,bs=0,count=0;
-  const img=ctx.getImageData(0,0,w,h).data;
-  const sx=Math.max(2,Math.floor(w/26)),sy=Math.max(2,Math.floor(h/18));
-  for(let y=0;y<h;y+=sy){
-    for(let x=0;x<w;x+=sx){
-      const edge=x<w*.16||x>w*.84||y<h*.14||y>h*.86;
-      if(!edge)continue;
-      const i=(y*w+x)*4;
-      rs+=img[i];gs+=img[i+1];bs+=img[i+2];count++;
-    }
-  }
-  if(!count)return null;
-  const r=rs/count,g=gs/count,b=bs/count;
-  const greenRatio=g/(Math.max(r,b)+1);
-  const blueRatio=b/(Math.max(r,g)+1);
-  if(g>70&&greenRatio>1.28){
-    return {mode:"green",strength:clamp((greenRatio-1.18)/.72,.35,1)};
-  }
-  if(b>70&&blueRatio>1.28){
-    return {mode:"blue",strength:clamp((blueRatio-1.18)/.72,.35,1)};
-  }
-  return null;
-}
 async function segmentCurrent(force=false){
   if(!state.personSegmenter||el.video.readyState<2)return false;
+
   const now=performance.now();
   if(!force && now-state.lastSegmentAt<(IS_MOBILE?48:32))return false;
   state.lastSegmentAt=now;
@@ -289,79 +264,114 @@ async function segmentCurrent(force=false){
       );
       if(maybe && typeof maybe.then==="function"){
         maybe.then(r=>{if(!settled&&r)resolve(r);}).catch(reject);
-      }else if(maybe && maybe.confidenceMasks && !settled){
+      }else if(maybe && !settled && (maybe.categoryMask||maybe.confidenceMasks)){
         resolve(maybe);
       }
     }catch(e){reject(e);}
   });
 
+  const categoryMask=result?.categoryMask||null;
   const confidence=result?.confidenceMasks||[];
-  // Binary selfie segmenter: channel 0 = background, channel 1 = person.
-  const personMask=confidence[1]||null;
-  const bgMask=confidence[0]||null;
-  const referenceMask=personMask||bgMask;
-  if(!referenceMask)throw new Error("Person confidence mask was not returned.");
+  const referenceMask=categoryMask||confidence[0]||null;
+  if(!referenceMask)throw new Error("Person segmentation mask was not returned.");
 
   const mw=Math.max(1,Number(referenceMask.width)||iw);
   const mh=Math.max(1,Number(referenceMask.height)||ih);
+  const n=mw*mh;
+
   if(state.maskCanvas.width!==mw||state.maskCanvas.height!==mh){
-    state.maskCanvas.width=mw;state.maskCanvas.height=mh;state.prevPerson=null;
+    state.maskCanvas.width=mw;
+    state.maskCanvas.height=mh;
+    state.prevPerson=null;
   }
 
-  const personData=personMask?.getAsFloat32Array?.()||null;
-  const bgData=(!personData&&bgMask?.getAsFloat32Array)?bgMask.getAsFloat32Array():null;
-  const n=mw*mh;
-  if((personData&&personData.length<n)||(bgData&&bgData.length<n)){
-    throw new Error("Segmentation mask geometry mismatch.");
+  // The category mask is authoritative:
+  // Selfie Segmenter labels are 0 = background, 1 = person.
+  let cats=null;
+  if(categoryMask?.getAsUint8Array){
+    cats=categoryMask.getAsUint8Array();
+  }else if(categoryMask?.getAsFloat32Array){
+    const raw=categoryMask.getAsFloat32Array();
+    cats=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)cats[i]=Math.round(raw[i]);
+  }
+
+  // Confidence-mask mapping is verified against the category mask instead of
+  // assuming which channel is foreground. This prevents full mask inversion.
+  let personConf=null;
+  let singleConfInvert=false;
+
+  if(confidence.length>=2 && confidence[1]?.getAsFloat32Array){
+    personConf=confidence[1].getAsFloat32Array();
+  }else if(confidence.length===1 && confidence[0]?.getAsFloat32Array){
+    personConf=confidence[0].getAsFloat32Array();
+
+    if(cats && cats.length>=n && personConf.length>=n){
+      let pSum=0,pN=0,bSum=0,bN=0;
+      const step=Math.max(1,Math.floor(n/4096));
+      for(let i=0;i<n;i+=step){
+        const v=clamp(personConf[i],0,1);
+        if((cats[i]|0)===1){pSum+=v;pN++;}
+        else{bSum+=v;bN++;}
+      }
+      const pMean=pSum/Math.max(1,pN);
+      const bMean=bSum/Math.max(1,bN);
+      singleConfInvert=bMean>pMean;
+    }
   }
 
   const firstMask=!state.prevPerson||state.prevPerson.length!==n;
   if(firstMask)state.prevPerson=new Float32Array(n);
 
   const c=currentControls();
-  const baseKeep=Math.min(.76,c.temporal);
+  const baseKeep=Math.min(.68,c.temporal);
   const personImage=new ImageData(mw,mh);
   let personPixels=0;
-  state.chromaAssist=detectChromaAssist(state.inferCtx,iw,ih);
-  const inferPixels=state.chromaAssist?state.inferCtx.getImageData(0,0,iw,ih).data:null;
 
-  // Default is intentionally clean rather than permissive:
-  // uncertain background-side pixels are removed, while high-confidence hair
-  // stays soft. Temporal hold is reduced automatically on moving boundaries.
-  const cut=.20+(c.edge/100)*.13;
-  const soft=.27-(c.edge/100)*.10;
-  const hi=Math.max(cut+.10,cut+soft);
+  // Clean default: uncertain background-side pixels are removed, while
+  // confident person edges remain softly anti-aliased.
+  const cut=.20+(c.edge/100)*.12;
+  const hi=cut+(.24-(c.edge/100)*.08);
 
   for(let i=0,j=0;i<n;i++,j+=4){
-    let target=personData?clamp(personData[i],0,1):clamp(1-bgData[i],0,1);
+    const categoryPerson=cats&&cats.length>i ? ((cats[i]|0)===1 ? 1 : 0) : null;
 
-    // Hybrid screen cleanup: only if the outer frame strongly looks like a
-    // green/blue screen. High-confidence person pixels are protected so a
-    // green shirt or blue clothing is not automatically erased.
-    if(state.chromaAssist&&inferPixels){
-      const mx=i%mw,my=Math.floor(i/mw);
-      const sx=Math.min(iw-1,Math.max(0,Math.round(mx/(Math.max(1,mw-1))*(iw-1))));
-      const sy=Math.min(ih-1,Math.max(0,Math.round(my/(Math.max(1,mh-1))*(ih-1))));
-      const pi=(sy*iw+sx)*4;
-      const r=inferPixels[pi],g=inferPixels[pi+1],b=inferPixels[pi+2];
-      const dom=state.chromaAssist.mode==="green"?(g-Math.max(r,b)):(b-Math.max(r,g));
-      const screenBg=smoothstep(18,82,dom)*state.chromaAssist.strength;
-      const protect=smoothstep(.58,.88,target);
-      target=clamp(target*(1-screenBg*(1-protect)*.98),0,1);
+    let target;
+    if(personConf && personConf.length>i){
+      let v=clamp(personConf[i],0,1);
+      if(singleConfInvert)v=1-v;
+
+      // Confidence gives soft hair/edge alpha, but category wins if the
+      // confidence channel is obviously inconsistent at this pixel.
+      if(categoryPerson===1 && v<.08)v=.58;
+      if(categoryPerson===0 && v>.92)v=.35;
+      target=v;
+    }else{
+      target=categoryPerson===1?1:0;
     }
 
     const prev=firstMask?target:state.prevPerson[i];
     const motion=Math.abs(target-prev);
-    const adaptiveKeep=firstMask?0:baseKeep*(1-clamp(motion*2.4,0,.88));
+
+    // Fast movement => trust current frame more. Static edges => smooth more.
+    const adaptiveKeep=firstMask?0:baseKeep*(1-clamp(motion*2.8,0,.92));
     let temporal=firstMask?target:(prev*adaptiveKeep+target*(1-adaptiveKeep));
     state.prevPerson[i]=temporal;
 
     let p=smoothstep(cut,hi,temporal);
-    if(target>.86)p=Math.max(p,smoothstep(.72,.94,target));
-    if(target<.12)p=0;
 
-    const a=Math.round(255*p);
-    personImage.data[j]=personImage.data[j+1]=personImage.data[j+2]=255;
+    // Never let a confident category-person core disappear.
+    if(categoryPerson===1 && target>.72){
+      p=Math.max(p,smoothstep(.58,.90,target));
+    }
+
+    // Strong background confidence gets a clean zero to avoid room bleed.
+    if(categoryPerson===0 && target<.14)p=0;
+
+    const a=Math.round(255*clamp(p,0,1));
+    personImage.data[j]=255;
+    personImage.data[j+1]=255;
+    personImage.data[j+2]=255;
     personImage.data[j+3]=a;
     if(a>96)personPixels++;
   }
@@ -370,8 +380,8 @@ async function segmentCurrent(force=false){
   state.maskCtx.putImageData(personImage,0,0);
   state.lastMaskCoverage=personPixels/Math.max(1,n);
 
-  // Lightweight face tracking every ~140 ms; the last box is smoothly held
-  // between detections so studio effects do not jump.
+  // Face tracking is separate from the cutout so a face detector problem
+  // cannot hide the person or invert the background.
   if(state.faceDetector && (force || now-state.lastFaceAt>140)){
     state.lastFaceAt=now;
     try{
@@ -394,9 +404,13 @@ async function segmentCurrent(force=false){
             w:state.faceBox.w*k+next.w*(1-k),
             h:state.faceBox.h*k+next.h*(1-k)
           };
-        }else state.faceBox=next;
+        }else{
+          state.faceBox=next;
+        }
       }
-    }catch(faceError){console.warn("Face tracking frame skipped",faceError);}
+    }catch(faceError){
+      console.warn("Face tracking frame skipped",faceError);
+    }
   }
 
   const fctx=state.faceMaskCtx,w=state.faceMaskCanvas.width,h=state.faceMaskCanvas.height;
@@ -418,12 +432,14 @@ async function segmentCurrent(force=false){
     fctx.restore();
   }
 
-  el.personStatus.textContent=state.lastMaskCoverage>.02?"Locked":"Searching";
-  el.faceStatus.textContent=state.faceBox?"Face tracked":"Person tracked";
-  el.stabilityStatus.textContent=state.chromaAssist
-    ?`Motion + ${state.chromaAssist.mode==="green"?"Green":"Blue"} Screen Assist`
-    :(c.temporal>.62?"Stable + motion adapt":c.temporal>.3?"Motion adapt":"Responsive");
-  for(const m of confidence){try{m?.close?.();}catch(_e){}}
+  el.personStatus.textContent=state.lastMaskCoverage>.02?"Person locked":"Searching";
+  el.faceStatus.textContent=state.faceBox?"Face tracked":"Person only";
+  el.stabilityStatus.textContent=c.temporal>.62?"Stable + motion adapt":c.temporal>.3?"Motion adapt":"Responsive";
+
+  try{categoryMask?.close?.();}catch(_e){}
+  for(const m of confidence){
+    try{m?.close?.();}catch(_e){}
+  }
   return true;
 }
 function drawCover(ctx,img,w,h){
@@ -634,7 +650,7 @@ async function exportVideo(){
 el.exportBtn.addEventListener("click",exportVideo);
 
 function resetControls(){
-  el.edgeClean.value=65;el.feather.value=.8;el.temporal.value=55;el.light.value=18;el.smooth.value=18;el.glow.value=12;el.clarity.value=10;el.warmth.value=6;
+  el.edgeClean.value=52;el.feather.value=1.0;el.temporal.value=44;el.light.value=18;el.smooth.value=18;el.glow.value=12;el.clarity.value=10;el.warmth.value=6;
   [el.edgeClean,el.feather,el.temporal,el.light,el.smooth,el.glow,el.clarity,el.warmth].forEach(x=>x.dispatchEvent(new Event("input")));
   state.bg="transparent";el.bgModes.querySelectorAll("[data-bg]").forEach(x=>x.classList.toggle("active",x.dataset.bg==="transparent"));resetMasks();
   if(state.modelReady&&el.video.paused)renderCurrentFrame(true).catch(()=>{});

@@ -1,26 +1,34 @@
-RIVANI VIDEO STUDIO V44.3 — PURE CUTOUT / MOTION FIX
+RIVANI VIDEO STUDIO V44.4 — MASK ORIENTATION FIX
 
 REPLACE THESE 3 FILES IN REPO ROOT:
 1) video-studio.html
 2) video-studio.css
 3) video-studio.js
 
-FIXED
-- No more second-click "AI Ready -> 4%" stuck overlay.
-- Ready button becomes disabled: ✓ Background AI Ready.
-- Choose Another Video added.
-- Clear Video added.
-- Faster MediaPipe Selfie Segmenter Landscape is now the primary person/background model.
-- Motion-adaptive temporal smoothing refreshes edges faster when hands/body move.
-- Stronger default cutout: Edge Clean 65%, Feather 0.8px, Temporal 55%.
-- Lightweight BlazeFace tracks the face region for smoothing/light instead of using the slow multiclass model every frame.
-- Automatic Green/Blue Screen Assist activates only when the outer scene strongly resembles a screen.
-- High-confidence person pixels are protected so green/blue clothing is not blindly keyed out.
-- Transparent preview remains available.
-- Export does not stop with the old transparent warning; if alpha cannot be guaranteed by MediaRecorder, export switches to Studio background automatically.
+CRITICAL FIX
+V44.3 could invert the Selfie Segmenter confidence mask on some browser/runtime
+outputs. The visible symptom is exactly what the test files showed:
+- original/background stays visible
+- the people become blue/studio-color silhouettes
+- transparent and color modes look reversed
 
-WHY THIS VERSION IS BETTER FOR DANCE / MOVEMENT
-The previous multiclass segmentation path is much slower. V44.3 uses the dedicated real-time selfie/person model for the cutout and keeps face tracking separate. That allows more frequent person-mask refreshes and less trailing background around moving hands/body.
+V44.4 fixes this by:
+- enabling the authoritative category mask
+- using category 0 = background and category 1 = person
+- auto-validating any single confidence mask against the category result
+- never blindly assuming confidence channel orientation
+- removing the experimental green/blue chroma assist for now
+- keeping motion-adaptive temporal smoothing
+- reducing destructive defaults to Edge Clean 52%, Feather 1px, Temporal 44%
+- keeping Choose Another Video, Clear Video and the fixed disabled Ready button
 
-PRIVATE BETA
-Keep noindex. Do not add homepage/sitemap until the same sample and at least one normal-room face-cam video pass.
+TEST FIRST
+Use the same 30-second soccer/men video:
+1) Upload.
+2) Start AI Studio ONCE.
+3) Test Studio background first.
+4) People should remain normal-color and the environment should be replaced.
+5) Then test Blur and White.
+6) Only after preview looks correct, export 720p.
+
+PRIVATE BETA / NOINDEX remains intentional.
