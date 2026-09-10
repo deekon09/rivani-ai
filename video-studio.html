@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#030616"/>
+<link rel="icon" type="image/png" sizes="512x512" href="/assets/rivani-ai-favicon.png"/>
+<link rel="shortcut icon" href="/favicon.ico"/>
+<link rel="apple-touch-icon" href="/assets/rivani-ai-favicon.png"/>
+<title>RIVANI Video Studio — AI Background Remover & Face Enhancer</title>
+<meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
+<meta name="robots" content="noindex,nofollow"/>
+<link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
+<link rel="stylesheet" href="video-studio.css?v=44.0"/>
+</head>
+<body class="video-studio-page">
+<div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
+
+<header class="site-header">
+  <div class="container nav-wrap">
+    <a aria-label="RIVANI AI home" class="brand" href="/"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/></a>
+    <button aria-expanded="false" aria-label="Open menu" class="mobile-menu-btn" id="mobileMenuBtn"><span></span><span></span><span></span></button>
+    <nav aria-label="Primary navigation" class="main-nav" id="mainNav">
+      <a href="/">Home</a><a class="active" href="/#tools">Tools</a><a href="/features">Features</a><a href="/about">About</a><a href="/articles">Articles</a><a href="/privacy">Policies</a>
+    </nav>
+    <div class="nav-account"><a class="nav-login" data-auth-login href="auth.html?mode=login">Log in</a><a class="nav-cta" data-auth-signup href="auth.html?mode=signup">Sign up</a></div>
+  </div>
+</header>
+
+<main>
+<section class="vs-hero section">
+  <div class="container vs-hero-grid">
+    <div class="reveal">
+      <div class="vs-badges"><span class="status-pill">PRIVATE BETA</span><span class="vs-local-chip">◆ Browser-side AI</span></div>
+      <span class="section-kicker">RIVANI VIDEO STUDIO</span>
+      <h1>Remove the room.<br/><span>Keep the person.</span></h1>
+      <p>No green screen required. RIVANI separates the person from the background, stabilizes difficult edges and adds creator-style lighting, smoothing and polish in one local workflow.</p>
+      <div class="vs-points"><span>✓ Face-cam optimized</span><span>✓ No server GPU bill</span><span>✓ Background blur / replace</span><span>✓ Studio face polish</span></div>
+    </div>
+    <div class="vs-hero-card reveal delay-1">
+      <span class="section-kicker">CREATOR STUDIO</span>
+      <strong>Background + Face + Finish</strong>
+      <div class="vs-feature-grid">
+        <div><b>Person Cutout</b><span>No green screen</span></div>
+        <div><b>Hair Edge</b><span>Temporal smoothing</span></div>
+        <div><b>Studio Light</b><span>Face-forward polish</span></div>
+        <div><b>Local Export</b><span>MP4 / WebM when supported</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section vs-workspace-section">
+<div class="container">
+  <div class="vs-upload" id="vsUpload">
+    <input id="vsFileInput" type="file" hidden accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v"/>
+    <div class="vs-upload-icon">▶</div>
+    <span class="section-kicker">UPLOAD VIDEO</span>
+    <h2>Drop a face-cam video here</h2>
+    <p>MP4 · WebM · MOV / M4V where your browser can decode them</p>
+    <button class="btn btn-primary" id="vsChooseBtn" type="button">Choose Video</button>
+    <small>The file is opened with a local object URL. Processing starts only after you press Start AI Studio.</small>
+  </div>
+
+  <div class="vs-editor hidden" id="vsEditor">
+    <div class="vs-filebar">
+      <div><strong id="vsFileName">video.mp4</strong><span id="vsFileMeta">—</span></div>
+      <button id="vsReplaceBtn" type="button">Replace video</button>
+    </div>
+
+    <div class="vs-grid">
+      <aside class="vs-panel">
+        <div class="vs-panel-head"><span class="section-kicker">BACKGROUND</span><h2>Cutout Control</h2><p>RIVANI uses a person-specific local segmentation model and keeps the last mask stable between frames.</p></div>
+
+        <div class="vs-control">
+          <label>Background style</label>
+          <div class="vs-background-grid" id="vsBgModes">
+            <button class="active" data-bg="transparent" type="button"><i class="checker"></i><b>Remove</b><small>Transparent</small></button>
+            <button data-bg="blur" type="button"><i class="blur"></i><b>Blur</b><small>Bokeh</small></button>
+            <button data-bg="studio" type="button"><i class="studio"></i><b>Studio</b><small>Gradient</small></button>
+            <button data-bg="white" type="button"><i class="white"></i><b>White</b><small>Clean</small></button>
+            <button data-bg="black" type="button"><i class="black"></i><b>Black</b><small>Dark</small></button>
+            <button data-bg="custom" type="button"><i class="custom"></i><b>Color</b><small>Custom</small></button>
+          </div>
+          <div class="vs-custom-row"><input id="vsCustomColor" type="color" value="#101b3d"/><button id="vsCustomBgBtn" type="button">Custom image</button><input id="vsCustomBgInput" hidden type="file" accept="image/*"/></div>
+        </div>
+
+        <div class="vs-control">
+          <div class="vs-label-row"><label>Hair & edge stability</label><span>LOCAL AI</span></div>
+          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">35%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="35"/></div>
+          <div class="vs-slider"><div><span>Feather</span><b id="vsFeatherValue">2px</b></div><input id="vsFeather" type="range" min="0" max="8" step="0.5" value="2"/></div>
+          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">72%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="72"/></div>
+        </div>
+
+        <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>
+        <div class="vs-engine-note" id="vsEngineNote">Upload first. AI model loads only when processing starts.</div>
+      </aside>
+
+      <section class="vs-main">
+        <div class="vs-stage-shell">
+          <div class="vs-stage checker-stage" id="vsStage">
+            <canvas id="vsCanvas" aria-label="RIVANI processed video preview"></canvas>
+            <video id="vsSourceVideo" playsinline controls preload="metadata"></video>
+            <div class="vs-processing hidden" id="vsProcessing">
+              <div class="vs-spinner"></div>
+              <strong id="vsProcessingTitle">Preparing local AI…</strong>
+              <p id="vsProcessingText">Loading the person segmentation engine.</p>
+              <div class="vs-progress"><span id="vsProgressFill"></span></div>
+              <small id="vsProgressMeta">0%</small>
+            </div>
+            <div class="vs-stage-badges"><span>BEFORE <b id="vsBeforeState">Source</b></span><span>AFTER <b id="vsAfterState">Waiting</b></span></div>
+          </div>
+        </div>
+
+        <div class="vs-playbar">
+          <button id="vsPreviewBtn" type="button" disabled>▶ Preview AI</button>
+          <span id="vsStatus">Choose a video to begin.</span>
+          <span id="vsFps">—</span>
+        </div>
+
+        <div class="vs-scan">
+          <div><span class="section-kicker">SMART FRAME SCAN</span><h3>Live frame status</h3></div>
+          <div class="vs-scan-grid">
+            <article><b>Person</b><span id="vsPersonStatus">Waiting</span></article>
+            <article><b>Hair / Face</b><span id="vsFaceStatus">Waiting</span></article>
+            <article><b>Stability</b><span id="vsStabilityStatus">Waiting</span></article>
+            <article><b>Engine</b><span id="vsEngineStatus">Not loaded</span></article>
+          </div>
+        </div>
+
+        <div class="vs-result hidden" id="vsResult">
+          <div><span class="section-kicker">EXPORT READY</span><h3 id="vsResultTitle">Processed video</h3><p id="vsResultMeta">—</p></div>
+          <video id="vsResultVideo" controls playsinline></video>
+          <a class="btn btn-primary" id="vsDownloadBtn" download="rivani-video.webm">Download Video</a>
+        </div>
+      </section>
+
+      <aside class="vs-panel">
+        <div class="vs-panel-head"><span class="section-kicker">FACE STUDIO</span><h2>Creator Finish</h2><p>Face-aware polish uses the segmentation classes, so skin smoothing is restrained to the detected face area.</p></div>
+
+        <div class="vs-control">
+          <div class="vs-label-row"><label>Studio Finish</label><span>BETA</span></div>
+          <div class="vs-slider"><div><span>Studio Light</span><b id="vsLightValue">18%</b></div><input id="vsLight" type="range" min="-20" max="45" value="18"/></div>
+          <div class="vs-slider"><div><span>Face Smooth</span><b id="vsSmoothValue">18%</b></div><input id="vsSmooth" type="range" min="0" max="60" value="18"/></div>
+          <div class="vs-slider"><div><span>Soft Glow</span><b id="vsGlowValue">12%</b></div><input id="vsGlow" type="range" min="0" max="50" value="12"/></div>
+          <div class="vs-slider"><div><span>Clarity</span><b id="vsClarityValue">10%</b></div><input id="vsClarity" type="range" min="-20" max="45" value="10"/></div>
+          <div class="vs-slider"><div><span>Warmth</span><b id="vsWarmthValue">6%</b></div><input id="vsWarmth" type="range" min="-30" max="30" value="6"/></div>
+        </div>
+
+        <div class="vs-control">
+          <label>Export resolution</label>
+          <select id="vsResolution">
+            <option value="720">720p · Fast / mobile friendly</option>
+            <option value="1080" selected>1080p · Recommended</option>
+            <option value="original">Original · device permitting</option>
+          </select>
+          <small>Export runs locally in real time. On weaker devices, 720p is safer and smoother.</small>
+        </div>
+
+        <div class="vs-control">
+          <label>Format</label>
+          <select id="vsFormat">
+            <option value="auto" selected>Auto · best browser format</option>
+            <option value="mp4">MP4 if supported</option>
+            <option value="webm">WebM</option>
+          </select>
+          <small>Transparent background requests WebM/VP9 first. Alpha-channel preservation depends on browser encoder support.</small>
+        </div>
+
+        <button class="btn btn-primary vs-export-btn" id="vsExportBtn" type="button" disabled>Export Processed Video →</button>
+        <button class="vs-reset-btn" id="vsResetBtn" type="button">Reset Studio Controls</button>
+        <div class="vs-privacy-note"><b>Private processing:</b> source frames are processed on-device. The MediaPipe runtime/model files are downloaded from their public CDN/model host; your video frames are not uploaded by this page.</div>
+      </aside>
+    </div>
+  </div>
+</div>
+</section>
+
+<section class="section vs-info-section">
+  <div class="container vs-info-grid">
+    <article><span>01</span><h3>No green screen</h3><p>Person-specific segmentation separates background from hair, skin, face, clothing and accessories.</p></article>
+    <article><span>02</span><h3>Stable edges</h3><p>Temporal mask blending reduces the frame-to-frame edge chatter common in basic background removers.</p></article>
+    <article><span>03</span><h3>Face-aware finish</h3><p>Face smoothing is restricted to the detected face class while lighting and glow stay restrained to the subject.</p></article>
+    <article><span>04</span><h3>₹0 processing bill</h3><p>Segmentation, compositing and recording happen in the browser instead of a paid RIVANI GPU/API.</p></article>
+  </div>
+</section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-brand"><img alt="RIVANI AI" src="assets/rivani-ai-logo.png"/><p>Smarter tools. Better results.</p></div>
+    <div><strong>Platform</strong><a href="/#tools">All Tools</a><a href="/articles">Tool Guides</a><a href="/features">Features</a></div>
+    <div><strong>Company</strong><a href="/about">About</a><a href="/articles">Articles</a><a href="auth.html">Account</a></div>
+    <div><strong>Legal</strong><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/acceptable-use">Acceptable Use</a><a href="/cookies">Cookies</a></div>
+  </div>
+  <div class="container footer-bottom"><span>© <span id="year"></span> RIVANI AI. All rights reserved.</span><span>Built as a focused AI tools platform.</span></div>
+</footer>
+
+<script src="script.js?v=30.0-secure-launch"></script>
+<script src="video-studio.js?v=44.0" type="module"></script>
+<script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
+</body>
+</html>
