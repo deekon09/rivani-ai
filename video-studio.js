@@ -285,41 +285,64 @@ async function segmentCurrent(force=false){
     state.prevPerson=null;
   }
 
-  // The category mask is authoritative:
-  // Selfie Segmenter labels are 0 = background, 1 = person.
-  let cats=null;
-  if(categoryMask?.getAsUint8Array){
-    cats=categoryMask.getAsUint8Array();
-  }else if(categoryMask?.getAsFloat32Array){
-    const raw=categoryMask.getAsFloat32Array();
-    cats=new Uint8Array(raw.length);
-    for(let i=0;i<raw.length;i++)cats[i]=Math.round(raw[i]);
+  // CATEGORY MASK — GPU SAFE
+  // Binary Selfie Segmenter is 0=background, 1=person. On WebGL-backed masks,
+  // converting a float category value of 1 to Uint8 can yield 255. Therefore
+  // never test bytes with === 1.
+  let categoryValues=null;
+  try{
+    if(categoryMask?.getAsFloat32Array){
+      categoryValues=categoryMask.getAsFloat32Array();
+    }else if(categoryMask?.getAsUint8Array){
+      const raw=categoryMask.getAsUint8Array();
+      categoryValues=new Float32Array(raw.length);
+      for(let i=0;i<raw.length;i++)categoryValues[i]=raw[i]>0?1:0;
+    }
+  }catch(_e){
+    categoryValues=null;
   }
 
-  // Confidence-mask mapping is verified against the category mask instead of
-  // assuming which channel is foreground. This prevents full mask inversion.
+  const categoryIsPerson=i=>{
+    if(!categoryValues||i>=categoryValues.length)return null;
+    return Number(categoryValues[i])>.5?1:0;
+  };
+
+  // CONFIDENCE MASK — AUTO ORIENTATION
+  // Pick whichever confidence channel best correlates with category-person
+  // pixels. If a single channel is reversed, invert it automatically.
   let personConf=null;
-  let singleConfInvert=false;
+  let personConfInvert=false;
+  let bestScore=-Infinity;
 
-  if(confidence.length>=2 && confidence[1]?.getAsFloat32Array){
-    personConf=confidence[1].getAsFloat32Array();
-  }else if(confidence.length===1 && confidence[0]?.getAsFloat32Array){
-    personConf=confidence[0].getAsFloat32Array();
+  for(let ci=0;ci<confidence.length;ci++){
+    const m=confidence[ci];
+    if(!m?.getAsFloat32Array)continue;
+    let data;
+    try{data=m.getAsFloat32Array();}catch(_e){continue;}
+    if(!data||data.length<n)continue;
 
-    if(cats && cats.length>=n && personConf.length>=n){
+    if(categoryValues&&categoryValues.length>=n){
       let pSum=0,pN=0,bSum=0,bN=0;
       const step=Math.max(1,Math.floor(n/4096));
       for(let i=0;i<n;i+=step){
-        const v=clamp(personConf[i],0,1);
-        if((cats[i]|0)===1){pSum+=v;pN++;}
+        const v=clamp(Number(data[i])||0,0,1);
+        if(categoryIsPerson(i)===1){pSum+=v;pN++;}
         else{bSum+=v;bN++;}
       }
       const pMean=pSum/Math.max(1,pN);
       const bMean=bSum/Math.max(1,bN);
-      singleConfInvert=bMean>pMean;
+      const score=pMean-bMean;
+
+      if(score>bestScore){
+        bestScore=score;personConf=data;personConfInvert=false;
+      }
+      if(-score>bestScore){
+        bestScore=-score;personConf=data;personConfInvert=true;
+      }
+    }else if(!personConf){
+      personConf=data;
     }
   }
-
   const firstMask=!state.prevPerson||state.prevPerson.length!==n;
   if(firstMask)state.prevPerson=new Float32Array(n);
 
@@ -334,17 +357,17 @@ async function segmentCurrent(force=false){
   const hi=cut+(.24-(c.edge/100)*.08);
 
   for(let i=0,j=0;i<n;i++,j+=4){
-    const categoryPerson=cats&&cats.length>i ? ((cats[i]|0)===1 ? 1 : 0) : null;
+    const categoryPerson=categoryIsPerson(i);
 
     let target;
     if(personConf && personConf.length>i){
-      let v=clamp(personConf[i],0,1);
-      if(singleConfInvert)v=1-v;
+      let v=clamp(Number(personConf[i])||0,0,1);
+      if(personConfInvert)v=1-v;
 
-      // Confidence gives soft hair/edge alpha, but category wins if the
-      // confidence channel is obviously inconsistent at this pixel.
-      if(categoryPerson===1 && v<.08)v=.58;
-      if(categoryPerson===0 && v>.92)v=.35;
+      // Category is authoritative for the subject/background core.
+      // Confidence is used only to make the boundary soft.
+      if(categoryPerson===1 && v<.34)v=.72;
+      if(categoryPerson===0 && v>.66)v=.28;
       target=v;
     }else{
       target=categoryPerson===1?1:0;
@@ -360,13 +383,13 @@ async function segmentCurrent(force=false){
 
     let p=smoothstep(cut,hi,temporal);
 
-    // Never let a confident category-person core disappear.
-    if(categoryPerson===1 && target>.72){
-      p=Math.max(p,smoothstep(.58,.90,target));
+    // Winning person category must never vanish.
+    if(categoryPerson===1){
+      p=Math.max(p,target>.55?.82:.60);
     }
 
-    // Strong background confidence gets a clean zero to avoid room bleed.
-    if(categoryPerson===0 && target<.14)p=0;
+    // Strong background confidence gets a clean zero.
+    if(categoryPerson===0&&target<.22)p=0;
 
     const a=Math.round(255*clamp(p,0,1));
     personImage.data[j]=255;
