@@ -1,64 +1,66 @@
-RIVANI VIDEO STUDIO V45.5 — NATIVE VP9 ALPHA EXPORT
+RIVANI VIDEO STUDIO V45.6 — CONNECTED SUBJECT MATTE
 
-WHAT THE SCREENSHOT PROVED
-V45.4 reached 70% and then failed with:
-  No such filter: alphamerge
-  Error initializing complex filters
-  Invalid argument
+GOAL
+Close the visible gap with Cutout.pro without changing the proven V45.5 model
+or the working native VP9 alpha exporter.
 
-Cause:
-The ffmpeg.js "webm" build is intentionally minimal and does not include the
-alphamerge video filter. The AI cutout was not the failure; the final alpha
-merge step was.
+WHAT CHANGED
 
-V45.5 FIX
-The ffmpeg.js alpha pipeline is removed completely.
+1) CLASS 5 HARD DELETE IS REMOVED
+V45.5 deleted multiclass category 5 ("others/accessories") everywhere.
+That caused holes through footballs / phones / bags / objects held in front of
+the body.
 
-Transparent export now uses:
-- Mediabunny 1.56.1
-- browser WebCodecs VideoEncoder
-- CanvasSource with alpha: "keep"
-- VP9
-- WebM container that supports VP9 alpha side data
-- Opus audio when the browser can encode it
+V45.6 preserves category-5 pixels ONLY when they are touching or immediately
+adjacent to real human classes (hair, skin, face, clothes).
+Independent background objects are still suppressed.
 
-There is NO:
-- ffmpeg.js worker
-- matte recording
-- alphamerge filter
-- forced Studio gradient fallback
+2) CONNECTED-SUBJECT SUPPORT
+The engine creates a fast expanded support map around human classes.
+Held / worn / touching foreground can join the subject.
+Unrelated distant objects cannot.
 
-TRANSPARENT SAFETY FIX
-V45.4 also painted "Studio Light" on the final canvas. On a transparent canvas,
-that could create faint semi-transparent pixels outside the person.
-V45.5 moves Studio Light inside the subject mask, so transparent background
-pixels remain clear.
+3) COLOR-AWARE EDGE MATTE
+Uncertain edge alpha is refined with a lightweight 3x3 RGB-guided filter.
+Neighbouring pixels with similar source colour influence the matte more than
+different-colour background pixels.
+This reduces jagged edges, coloured fringe and excess soft alpha.
 
-HUMAN-ONLY CUTOUT
-The V45.3/V45.4 stable multiclass cutout is retained.
-Class 5 (others/accessories) remains hard-removed.
+4) LESS SEMI-TRANSPARENT FRINGE
+The matte transition is narrower and default Feather is reduced to 0.35px.
+This targets the higher semi-transparent-edge ratio seen in the RIVANI output.
+
+5) BETTER MOTION TEMPORAL
+Background release is faster than foreground acquisition.
+This reduces trails behind moving arms / shoulders / legs without destabilizing
+the main person core.
+
+UNCHANGED / PRESERVED
+- same stable Selfie Multiclass model
+- same V45.5 native WebCodecs + Mediabunny VP9 alpha export
+- transparent never silently becomes Studio gradient
+- Choose Another Video / Clear Video
+- face-only glow
+- subject-only Studio Light
+- inversion safety guard
 
 CACHE BREAK
 New engine file:
-  video-studio-v455.js
-Do not rename it.
+  video-studio-v456.js
 
 VERIFY
 Page must show:
-  V45.5 ENGINE ACTIVE · human-only + native VP9 alpha export loaded
+  V45.6 ENGINE ACTIVE · connected-subject matte + native VP9 alpha loaded
 
 TEST
-1) Open /video-studio.html?v=455
-2) Confirm V45.5 ENGINE ACTIVE.
-3) Upload the same soccer video.
-4) Start AI.
-5) Choose Remove/Transparent.
-6) Preview must show checkerboard behind the people.
-7) Export.
-8) Result should say "Transparent WebM ready".
-9) Test the exported WebM over a colored webpage/background in Chrome.
-   Some desktop media players display transparent video over black even when
-   the alpha channel is valid.
+Use the same soccer sample and compare against Cutout.pro at 0.5s / 1.5s /
+2.5s / 3.5s / 4.5s.
 
-If the browser reports that VP9 alpha is unsupported, V45.5 stops with a clear
-error. It never replaces transparency with a gradient.
+Look for:
+- no torso holes behind held football
+- football/held object preserved only when attached to the human
+- cleaner hair and shoulder edge
+- less semi-transparent fringe
+- less motion trail
+- isolated background still removed
+- transparent export still works
