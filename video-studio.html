@@ -13,7 +13,7 @@
 <meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
-<link rel="stylesheet" href="video-studio.css?v=45.0-cache-reset"/>
+<link rel="stylesheet" href="video-studio.css?v=45.1-category-mask"/>
 </head>
 <body class="video-studio-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -92,13 +92,13 @@
 
         <div class="vs-control">
           <div class="vs-label-row"><label>Hair & edge stability</label><span>LOCAL AI</span></div>
-          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">42%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="42"/></div>
-          <div class="vs-slider"><div><span>Feather</span><b id="vsFeatherValue">1px</b></div><input id="vsFeather" type="range" min="0" max="8" step="0.1" value="1"/></div>
-          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">32%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="32"/></div>
+          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">48%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="48"/></div>
+          <div class="vs-slider"><div><span>Feather</span><b id="vsFeatherValue">1.2px</b></div><input id="vsFeather" type="range" min="0" max="8" step="0.1" value="1.2"/></div>
+          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">28%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="28"/></div>
         </div>
 
         <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>
-        <div class="vs-engine-note" id="vsEngineNote">V45.0 HTML READY · waiting for the new JS engine…</div>
+        <div class="vs-engine-note" id="vsEngineNote">V45.1 HTML READY · loading category-mask engine…</div>
       </aside>
 
       <section class="vs-main">
@@ -202,7 +202,7 @@
 </footer>
 
 <script src="script.js?v=30.0-secure-launch"></script>
-<script src="video-studio-v450.js" type="module"></script>
+<script src="video-studio-v451.js" type="module"></script>
 <script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>
