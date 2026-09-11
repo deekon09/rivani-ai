@@ -1,66 +1,73 @@
-RIVANI VIDEO STUDIO V45.6 — CONNECTED SUBJECT MATTE
+RIVANI VIDEO STUDIO V45.7 — HD SOURCE-QUALITY PRESERVE
 
-GOAL
-Close the visible gap with Cutout.pro without changing the proven V45.5 model
-or the working native VP9 alpha exporter.
+WHY THIS PATCH EXISTS
+The uploaded V45.6 transparent result was technically valid, but ffprobe showed:
+- 608 × 1080
+- 24 fps
+- ~3.33 Mbps
 
-WHAT CHANGED
+For a typical 1080 × 1920 portrait source, 608 × 1080 means the old "1080p"
+logic was shrinking the LONG side to 1080. That throws away a large amount of
+camera detail.
 
-1) CLASS 5 HARD DELETE IS REMOVED
-V45.5 deleted multiclass category 5 ("others/accessories") everywhere.
-That caused holes through footballs / phones / bags / objects held in front of
-the body.
+V45.7 FIXES
 
-V45.6 preserves category-5 pixels ONLY when they are touching or immediately
-adjacent to real human classes (hair, skin, face, clothes).
-Independent background objects are still suppressed.
+1) ORIENTATION-AWARE HD
+720:
+- landscape 1280 × 720
+- portrait 720 × 1280
 
-2) CONNECTED-SUBJECT SUPPORT
-The engine creates a fast expanded support map around human classes.
-Held / worn / touching foreground can join the subject.
-Unrelated distant objects cannot.
+Full HD:
+- landscape 1920 × 1080
+- portrait 1080 × 1920
 
-3) COLOR-AWARE EDGE MATTE
-Uncertain edge alpha is refined with a lightweight 3x3 RGB-guided filter.
-Neighbouring pixels with similar source colour influence the matte more than
-different-colour background pixels.
-This reduces jagged edges, coloured fringe and excess soft alpha.
+Original:
+- preserves uploaded source resolution by default
+- only caps above a 4K-oriented frame box
 
-4) LESS SEMI-TRANSPARENT FRINGE
-The matte transition is narrower and default Feather is reduced to 0.35px.
-This targets the higher semi-transparent-edge ratio seen in the RIVANI output.
+2) ORIGINAL IS NOW DEFAULT
+The export selector defaults to:
+Original · preserve source quality
 
-5) BETTER MOTION TEMPORAL
-Background release is faster than foreground acquisition.
-This reduces trails behind moving arms / shoulders / legs without destabilizing
-the main person core.
+3) NO SILENT MOBILE 720P DOWNGRADE
+Transparent export no longer forces mobile to 720p.
 
-UNCHANGED / PRESERVED
-- same stable Selfie Multiclass model
-- same V45.5 native WebCodecs + Mediabunny VP9 alpha export
-- transparent never silently becomes Studio gradient
-- Choose Another Video / Clear Video
-- face-only glow
-- subject-only Studio Light
-- inversion safety guard
+4) HIGHER BITRATE
+Approx targets:
+- Full HD: 14 Mbps
+- ~1440p: 22 Mbps
+- 4K-ish: 32 Mbps
+- ~720p: 9 Mbps
 
-CACHE BREAK
-New engine file:
-  video-studio-v456.js
+This is intentionally much higher than the previous ~4 Mbps class used by the
+608×1080 export.
+
+5) SOURCE-LIKE FPS
+Best-effort source frame-rate detection via captureStream track settings.
+Fallback is 30 fps. Actual frame timestamps still follow decoded source frames.
+
+6) CAMERA LOOK PRESERVED
+Face Studio defaults are now all ZERO:
+- Studio Light 0
+- Face Smooth 0
+- Soft Glow 0
+- Clarity 0
+- Warmth 0
+
+Background removal should not change the person's skin, sharpness, warmth or
+contrast unless the user chooses to.
+
+7) CUTOUT ENGINE UNCHANGED
+V45.6 connected-subject matte is preserved.
+Native VP9 alpha export is preserved.
 
 VERIFY
 Page must show:
-  V45.6 ENGINE ACTIVE · connected-subject matte + native VP9 alpha loaded
+V45.7 ENGINE ACTIVE · connected matte + HD source-quality export loaded
 
 TEST
-Use the same soccer sample and compare against Cutout.pro at 0.5s / 1.5s /
-2.5s / 3.5s / 4.5s.
-
-Look for:
-- no torso holes behind held football
-- football/held object preserved only when attached to the human
-- cleaner hair and shoulder edge
-- less semi-transparent fringe
-- less motion trail
-- isolated background still removed
-- transparent export still works
+Use a portrait 1080×1920 source:
+- choose Original: exported dimensions should remain 1080×1920
+- choose Full HD: also 1080×1920
+- exported face/shirt should look like the source, without automatic smoothing
+- transparent alpha should remain valid

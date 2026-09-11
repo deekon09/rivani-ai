@@ -13,7 +13,7 @@
 <meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
-<link rel="stylesheet" href="video-studio.css?v=45.6-subject-matte"/>
+<link rel="stylesheet" href="video-studio.css?v=45.7-hd-preserve"/>
 </head>
 <body class="video-studio-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -98,7 +98,7 @@
         </div>
 
         <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>
-        <div class="vs-engine-note" id="vsEngineNote">V45.6 HTML READY · loading connected-subject matte engine…</div>
+        <div class="vs-engine-note" id="vsEngineNote">V45.7 HTML READY · loading HD-preserve export engine…</div>
       </aside>
 
       <section class="vs-main">
@@ -141,25 +141,25 @@
       </section>
 
       <aside class="vs-panel">
-        <div class="vs-panel-head"><span class="section-kicker">FACE STUDIO</span><h2>Creator Finish</h2><p>Face-aware polish uses the segmentation classes, so skin smoothing is restrained to the detected face area.</p></div>
+        <div class="vs-panel-head"><span class="section-kicker">FACE STUDIO</span><h2>Creator Finish</h2><p>Face polish is optional. All appearance-changing controls start at 0 so the exported person keeps the original camera look unless you intentionally adjust them.</p></div>
 
         <div class="vs-control">
           <div class="vs-label-row"><label>Studio Finish</label><span>BETA</span></div>
-          <div class="vs-slider"><div><span>Studio Light</span><b id="vsLightValue">18%</b></div><input id="vsLight" type="range" min="-20" max="45" value="18"/></div>
-          <div class="vs-slider"><div><span>Face Smooth</span><b id="vsSmoothValue">18%</b></div><input id="vsSmooth" type="range" min="0" max="60" value="18"/></div>
+          <div class="vs-slider"><div><span>Studio Light</span><b id="vsLightValue">0%</b></div><input id="vsLight" type="range" min="-20" max="45" value="0"/></div>
+          <div class="vs-slider"><div><span>Face Smooth</span><b id="vsSmoothValue">0%</b></div><input id="vsSmooth" type="range" min="0" max="60" value="0"/></div>
           <div class="vs-slider"><div><span>Soft Glow</span><b id="vsGlowValue">0%</b></div><input id="vsGlow" type="range" min="0" max="50" value="0"/></div>
-          <div class="vs-slider"><div><span>Clarity</span><b id="vsClarityValue">10%</b></div><input id="vsClarity" type="range" min="-20" max="45" value="10"/></div>
-          <div class="vs-slider"><div><span>Warmth</span><b id="vsWarmthValue">6%</b></div><input id="vsWarmth" type="range" min="-30" max="30" value="6"/></div>
+          <div class="vs-slider"><div><span>Clarity</span><b id="vsClarityValue">0%</b></div><input id="vsClarity" type="range" min="-20" max="45" value="0"/></div>
+          <div class="vs-slider"><div><span>Warmth</span><b id="vsWarmthValue">0%</b></div><input id="vsWarmth" type="range" min="-30" max="30" value="0"/></div>
         </div>
 
         <div class="vs-control">
           <label>Export resolution</label>
           <select id="vsResolution">
-            <option value="720">720p · Fast / mobile friendly</option>
-            <option value="1080" selected>1080p · Recommended</option>
-            <option value="original">Original · device permitting</option>
+            <option value="720">HD · 1280×720 / 720×1280</option>
+            <option value="1080">Full HD · 1920×1080 / 1080×1920</option>
+            <option value="original" selected>Original · preserve source quality</option>
           </select>
-          <small>Export runs locally in real time. On weaker devices, 720p is safer and smoother.</small>
+          <small>Original preserves the uploaded frame size up to a 4K-oriented cap. Full HD keeps portrait video at 1080×1920 instead of shrinking it to 608×1080.</small>
         </div>
 
         <div class="vs-control">
@@ -202,7 +202,7 @@
 </footer>
 
 <script src="script.js?v=30.0-secure-launch"></script>
-<script src="video-studio-v456.js" type="module"></script>
+<script src="video-studio-v457.js" type="module"></script>
 <script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>
