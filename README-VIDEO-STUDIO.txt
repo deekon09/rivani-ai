@@ -1,55 +1,64 @@
-RIVANI VIDEO STUDIO V45.4 — HUMAN ONLY + TRUE ALPHA
+RIVANI VIDEO STUDIO V45.5 — NATIVE VP9 ALPHA EXPORT
 
-BASE
-Keeps the proven V45.2/V45.3 multiclass cutout architecture. No model swap.
+WHAT THE SCREENSHOT PROVED
+V45.4 reached 70% and then failed with:
+  No such filter: alphamerge
+  Error initializing complex filters
+  Invalid argument
 
-FIX 1 — HUMAN ONLY
-Selfie Multiclass classes:
-0 background
-1 hair
-2 body skin
-3 face skin
-4 clothes
-5 others/accessories
+Cause:
+The ffmpeg.js "webm" build is intentionally minimal and does not include the
+alphamerge video filter. The AI cutout was not the failure; the final alpha
+merge step was.
 
-V45.4 hard-removes class 5. This is intentionally aggressive because the
-product requirement is HUMAN ONLY: footballs and other held/non-human objects
-should not remain.
+V45.5 FIX
+The ffmpeg.js alpha pipeline is removed completely.
 
-FIX 2 — TRANSPARENT EXPORT
-The old export code silently changed:
-transparent -> Studio gradient
-before recording. That behavior is completely removed.
+Transparent export now uses:
+- Mediabunny 1.56.1
+- browser WebCodecs VideoEncoder
+- CanvasSource with alpha: "keep"
+- VP9
+- WebM container that supports VP9 alpha side data
+- Opus audio when the browser can encode it
 
-Transparent mode now:
-1) records processed subject color locally
-2) records an alpha matte locally from the AI mask
-3) loads ffmpeg.js WebM worker from jsDelivr only when needed
-4) alpha-merges the two local streams
-5) exports VP8 WebM with yuva420p + auto-alt-ref 0
+There is NO:
+- ffmpeg.js worker
+- matte recording
+- alphamerge filter
+- forced Studio gradient fallback
 
-No source frames are uploaded to RIVANI or a processing server.
-The CDN supplies encoder code only.
+TRANSPARENT SAFETY FIX
+V45.4 also painted "Studio Light" on the final canvas. On a transparent canvas,
+that could create faint semi-transparent pixels outside the person.
+V45.5 moves Studio Light inside the subject mask, so transparent background
+pixels remain clear.
 
-IMPORTANT BROWSER SUPPORT
-- Chrome / Edge / Firefox desktop: transparent WebM path
-- Safari / iPhone: WebM alpha is not reliably supported; V45.4 shows an error
-  instead of producing a fake gradient/opaque export.
+HUMAN-ONLY CUTOUT
+The V45.3/V45.4 stable multiclass cutout is retained.
+Class 5 (others/accessories) remains hard-removed.
 
 CACHE BREAK
-New file:
-video-studio-v454.js
-Do not rename.
+New engine file:
+  video-studio-v455.js
+Do not rename it.
 
 VERIFY
 Page must show:
-V45.4 ENGINE ACTIVE · human-only + true-alpha export loaded
+  V45.5 ENGINE ACTIVE · human-only + native VP9 alpha export loaded
 
-TEST ORDER
-1) Same soccer video -> Studio -> Preview:
-   people stay, balls/objects should be removed more aggressively.
-2) Select Transparent -> Preview:
-   checkerboard/no background.
-3) Export Processed Video while Transparent is selected.
-4) Result title must say "Transparent WebM ready".
-5) Place exported WebM over another colored background in Chrome/Edge to verify alpha.
+TEST
+1) Open /video-studio.html?v=455
+2) Confirm V45.5 ENGINE ACTIVE.
+3) Upload the same soccer video.
+4) Start AI.
+5) Choose Remove/Transparent.
+6) Preview must show checkerboard behind the people.
+7) Export.
+8) Result should say "Transparent WebM ready".
+9) Test the exported WebM over a colored webpage/background in Chrome.
+   Some desktop media players display transparent video over black even when
+   the alpha channel is valid.
+
+If the browser reports that VP9 alpha is unsupported, V45.5 stops with a clear
+error. It never replaces transparency with a gradient.
