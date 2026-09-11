@@ -13,7 +13,7 @@
 <meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
-<link rel="stylesheet" href="video-studio.css?v=45.3-human-only"/>
+<link rel="stylesheet" href="video-studio.css?v=45.4-true-alpha"/>
 </head>
 <body class="video-studio-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -98,7 +98,7 @@
         </div>
 
         <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>
-        <div class="vs-engine-note" id="vsEngineNote">V45.3 HTML READY · loading human-only polish engine…</div>
+        <div class="vs-engine-note" id="vsEngineNote">V45.4 HTML READY · loading human-only + true-alpha engine…</div>
       </aside>
 
       <section class="vs-main">
@@ -169,7 +169,7 @@
             <option value="mp4">MP4 if supported</option>
             <option value="webm">WebM</option>
           </select>
-          <small>Transparent cutout is available in AI preview. For reliable video export in this Beta, choose Blur, Studio, White, Black, Custom Color or Custom Image.</small>
+          <small>Transparent exports as a real alpha WebM on Chrome / Edge / Firefox desktop. It never silently switches to Studio. Safari/iPhone alpha WebM export is not supported in this Beta.</small>
         </div>
 
         <button class="btn btn-primary vs-export-btn" id="vsExportBtn" type="button" disabled>Export Processed Video →</button>
@@ -202,7 +202,7 @@
 </footer>
 
 <script src="script.js?v=30.0-secure-launch"></script>
-<script src="video-studio-v453.js" type="module"></script>
+<script src="video-studio-v454.js" type="module"></script>
 <script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>

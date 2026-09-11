@@ -1,56 +1,55 @@
-RIVANI VIDEO STUDIO V45.3 — HUMAN-ONLY POLISH
+RIVANI VIDEO STUDIO V45.4 — HUMAN ONLY + TRUE ALPHA
 
 BASE
-This keeps the V45.2 stable multiclass segmentation engine because the uploaded
-soccer result proved the core cutout is finally correct:
-- people remain visible
-- field / trees / net are replaced
+Keeps the proven V45.2/V45.3 multiclass cutout architecture. No model swap.
 
-V45.3 DOES NOT CHANGE THE MODEL ARCHITECTURE.
+FIX 1 — HUMAN ONLY
+Selfie Multiclass classes:
+0 background
+1 hair
+2 body skin
+3 face skin
+4 clothes
+5 others/accessories
 
-POLISH FIXES
-1) Whole-body Soft Glow removed.
-   The old effect blurred the entire cutout and caused a purple/white halo.
-   Soft Glow now applies to the detected face only.
+V45.4 hard-removes class 5. This is intentionally aggressive because the
+product requirement is HUMAN ONLY: footballs and other held/non-human objects
+should not remain.
 
-2) Human-only multiclass filtering.
-   Official SelfieMulticlass classes:
-   0 background
-   1 hair
-   2 body-skin
-   3 face-skin
-   4 clothes
-   5 others/accessories
-   Classes 1-4 are protected.
-   Background is vetoed aggressively.
-   Class 5 is mostly removed so held/non-human objects are less likely to stay.
+FIX 2 — TRANSPARENT EXPORT
+The old export code silently changed:
+transparent -> Studio gradient
+before recording. That behavior is completely removed.
 
-3) Faster motion cleanup.
-   When a pixel changes from foreground to background, old alpha releases much
-   faster to reduce trails behind arms, shoulders and legs.
+Transparent mode now:
+1) records processed subject color locally
+2) records an alpha matte locally from the AI mask
+3) loads ffmpeg.js WebM worker from jsDelivr only when needed
+4) alpha-merges the two local streams
+5) exports VP8 WebM with yuva420p + auto-alt-ref 0
 
-4) Safer defaults.
-   Edge Clean 50%
-   Feather 0.7px
-   Temporal 22%
-   Soft Glow 0%
+No source frames are uploaded to RIVANI or a processing server.
+The CDN supplies encoder code only.
+
+IMPORTANT BROWSER SUPPORT
+- Chrome / Edge / Firefox desktop: transparent WebM path
+- Safari / iPhone: WebM alpha is not reliably supported; V45.4 shows an error
+  instead of producing a fake gradient/opaque export.
 
 CACHE BREAK
-New filename:
-  video-studio-v453.js
-Do not rename it.
+New file:
+video-studio-v454.js
+Do not rename.
 
 VERIFY
 Page must show:
-  V45.3 ENGINE ACTIVE · human-only polish loaded
+V45.4 ENGINE ACTIVE · human-only + true-alpha export loaded
 
-TEST
-Use the same soccer video -> Studio -> Preview AI.
-Check:
-- hair / shoulders: no bright body halo
-- moving arms: less trailing
-- field / trees / net: removed
-- football / non-human objects: more aggressively removed
-- people: remain normal and intact
-
-Do not change model/DSP architecture again unless this stable base fails.
+TEST ORDER
+1) Same soccer video -> Studio -> Preview:
+   people stay, balls/objects should be removed more aggressively.
+2) Select Transparent -> Preview:
+   checkerboard/no background.
+3) Export Processed Video while Transparent is selected.
+4) Result title must say "Transparent WebM ready".
+5) Place exported WebM over another colored background in Chrome/Edge to verify alpha.
