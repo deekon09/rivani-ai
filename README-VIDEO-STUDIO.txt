@@ -1,42 +1,50 @@
-RIVANI VIDEO STUDIO V44.6 — CONFIDENCE MASK RESET
+RIVANI VIDEO STUDIO V45.0 — CACHE RESET + REAL PERSON CHANNEL
 
-THIS VERSION REMOVES THE CATEGORY-MASK PATH ENTIRELY.
+WHY EVERY PREVIOUS FIX LOOKED THE SAME
+V44.2, V44.3, V44.4, V44.5 and V44.6 HTML files all still referenced:
+  video-studio.js?v=44.1
+So the browser/CDN could keep executing the old cached V44.1 engine while the
+visible HTML version marker changed.
 
-Why:
-The Selfie Segmentation model's native output is a single-channel human
-probability mask. Official MediaPipe documentation describes high mask values
-as human and low values as background, and its reference example keeps pixels
-where the segmentation mask is above about 0.1.
+V45.0 BREAKS THAT CACHE COMPLETELY.
 
-V44.2–V44.5 mixed this with ImageSegmenter category-mask conversions and
-confidence-channel guessing. That is what allowed the whole foreground and
-background to invert.
+UPLOAD THESE FILES TO REPO ROOT:
+1) video-studio.html                (replace)
+2) video-studio.css                 (replace)
+3) video-studio-v450.js             (NEW filename)
+4) README-VIDEO-STUDIO.txt          (optional)
 
-V44.6:
-- uses outputConfidenceMasks only
-- uses the higher-quality general selfie_segmenter model
-- channel 0 is treated as HUMAN probability by default
-- no category mask
-- no chroma-key assist
-- no class-ID checks
-- strong border sanity check can flip only if the mask is obviously background
-- Foreground Safety Guard prevents a high-border/full-frame mask from erasing people
-- soft threshold near the official >0.1 guidance
-- motion-adaptive smoothing remains, but is weaker to avoid trails
-- face tracking only affects cosmetic face polish, never the foreground cutout
-- Choose Another Video / Clear Video / Ready-button fix remain
+IMPORTANT:
+Do NOT rename video-studio-v450.js back to video-studio.js.
+The new filename is the cache break.
 
-CACHE CHECK:
-Before starting AI, the page must show:
-V44.6 CONFIDENCE MASK · Upload first...
+ENGINE:
+- MediaPipe ImageSegmenter SelfieSegmenter
+- confidence channel 0 = background
+- confidence channel 1 = person
+- V45 uses channel 1 only for foreground
+- no category-mask conversion
+- no polarity guessing
+- no chroma guessing
+- if the runtime does not return the expected two channels, V45 stops with an
+  error instead of erasing humans by guessing.
+
+VERIFY BEFORE TESTING:
+After page load, the note must change from:
+  V45.0 HTML READY...
+to:
+  V45.0 JS ACTIVE · new engine file loaded · upload a video to begin.
+
+If you do not see "V45.0 JS ACTIVE", the new JS file is not being loaded.
 
 TEST:
-1) Hard refresh.
-2) Confirm V44.6 text.
-3) Use the same soccer video.
+1) Open /video-studio.html?v=45
+2) Confirm "V45.0 JS ACTIVE".
+3) Upload the same soccer video.
 4) Start AI Studio once.
 5) Choose Studio background.
-6) People must remain visible in their real colors.
-7) Do NOT export until preview is correct.
+6) Preview only.
+7) Expected: men remain visible in original colors; field/trees/net are replaced.
+8) Do not export until preview is correct.
 
-Private Beta / noindex stays in place.
+Keep Private Beta / noindex.
