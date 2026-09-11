@@ -1,47 +1,56 @@
-RIVANI VIDEO STUDIO V45.2 — STABLE ROLLBACK + STRICT CLEANUP
+RIVANI VIDEO STUDIO V45.3 — HUMAN-ONLY POLISH
 
-THIS IS A DELIBERATE ROLLBACK.
+BASE
+This keeps the V45.2 stable multiclass segmentation engine because the uploaded
+soccer result proved the core cutout is finally correct:
+- people remain visible
+- field / trees / net are replaced
 
-The fast/category/single-mask experiments from V44.2–V45.1 are removed from the cutout path.
-V45.2 returns to the V44.1 multiclass engine — the version where the human stayed visible — and only improves post-processing.
+V45.3 DOES NOT CHANGE THE MODEL ARCHITECTURE.
 
-ENGINE
-- selfie_multiclass_256x256 (same model as V44.1)
-- confidence[0] = background probability
-- foreground = 1 - background probability
-- correct model mask dimensions are preserved
-- no binary SelfieSegmenter channel guessing
-- no category-only inversion path
-- no chroma-key experiment
+POLISH FIXES
+1) Whole-body Soft Glow removed.
+   The old effect blurred the entire cutout and caused a purple/white halo.
+   Soft Glow now applies to the detected face only.
 
-CLEANUP CHANGES
-- stricter low-confidence background removal
-- moving pixels release old foreground much faster to remove trails/halos
-- human-core protection prevents body/face/clothes disappearing
-- catastrophic full-frame/inverted masks are stopped instead of rendered
-- default Edge Clean 58%
-- default Feather 0.7px
-- default Temporal Smooth 24%
+2) Human-only multiclass filtering.
+   Official SelfieMulticlass classes:
+   0 background
+   1 hair
+   2 body-skin
+   3 face-skin
+   4 clothes
+   5 others/accessories
+   Classes 1-4 are protected.
+   Background is vetoed aggressively.
+   Class 5 is mostly removed so held/non-human objects are less likely to stay.
 
-UI FIXES
-- Choose Another Video retained
-- Clear Video retained
-- Ready button cannot be clicked again / no 4% second-click hang
-- transparent preview stays available; export switches to Studio if alpha export is unreliable
+3) Faster motion cleanup.
+   When a pixel changes from foreground to background, old alpha releases much
+   faster to reduce trails behind arms, shoulders and legs.
+
+4) Safer defaults.
+   Edge Clean 50%
+   Feather 0.7px
+   Temporal 22%
+   Soft Glow 0%
 
 CACHE BREAK
-NEW JS FILE: video-studio-v452.js
+New filename:
+  video-studio-v453.js
 Do not rename it.
 
 VERIFY
-Page must change the note to:
-V45.2 ENGINE ACTIVE · stable multiclass cutout loaded
+Page must show:
+  V45.3 ENGINE ACTIVE · human-only polish loaded
 
-TEST ONLY PREVIEW FIRST:
-1. same soccer video
-2. Start AI Studio once
-3. Studio background
-4. humans must remain normal-color
-5. field/trees/net should be removed
-6. inspect hands/legs while moving
-7. only after preview passes, export
+TEST
+Use the same soccer video -> Studio -> Preview AI.
+Check:
+- hair / shoulders: no bright body halo
+- moving arms: less trailing
+- field / trees / net: removed
+- football / non-human objects: more aggressively removed
+- people: remain normal and intact
+
+Do not change model/DSP architecture again unless this stable base fails.

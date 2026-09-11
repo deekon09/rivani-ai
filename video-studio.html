@@ -13,7 +13,7 @@
 <meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
-<link rel="stylesheet" href="video-studio.css?v=45.2-stable"/>
+<link rel="stylesheet" href="video-studio.css?v=45.3-human-only"/>
 </head>
 <body class="video-studio-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -92,13 +92,13 @@
 
         <div class="vs-control">
           <div class="vs-label-row"><label>Hair & edge stability</label><span>LOCAL AI</span></div>
-          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">58%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="58"/></div>
+          <div class="vs-slider"><div><span>Edge Clean</span><b id="vsEdgeCleanValue">50%</b></div><input id="vsEdgeClean" type="range" min="0" max="100" value="50"/></div>
           <div class="vs-slider"><div><span>Feather</span><b id="vsFeatherValue">0.7px</b></div><input id="vsFeather" type="range" min="0" max="8" step="0.1" value="0.7"/></div>
-          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">24%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="24"/></div>
+          <div class="vs-slider"><div><span>Temporal Smooth</span><b id="vsTemporalValue">22%</b></div><input id="vsTemporal" type="range" min="0" max="92" value="22"/></div>
         </div>
 
         <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>
-        <div class="vs-engine-note" id="vsEngineNote">V45.2 HTML READY · loading stable rollback engine…</div>
+        <div class="vs-engine-note" id="vsEngineNote">V45.3 HTML READY · loading human-only polish engine…</div>
       </aside>
 
       <section class="vs-main">
@@ -147,7 +147,7 @@
           <div class="vs-label-row"><label>Studio Finish</label><span>BETA</span></div>
           <div class="vs-slider"><div><span>Studio Light</span><b id="vsLightValue">18%</b></div><input id="vsLight" type="range" min="-20" max="45" value="18"/></div>
           <div class="vs-slider"><div><span>Face Smooth</span><b id="vsSmoothValue">18%</b></div><input id="vsSmooth" type="range" min="0" max="60" value="18"/></div>
-          <div class="vs-slider"><div><span>Soft Glow</span><b id="vsGlowValue">12%</b></div><input id="vsGlow" type="range" min="0" max="50" value="12"/></div>
+          <div class="vs-slider"><div><span>Soft Glow</span><b id="vsGlowValue">0%</b></div><input id="vsGlow" type="range" min="0" max="50" value="0"/></div>
           <div class="vs-slider"><div><span>Clarity</span><b id="vsClarityValue">10%</b></div><input id="vsClarity" type="range" min="-20" max="45" value="10"/></div>
           <div class="vs-slider"><div><span>Warmth</span><b id="vsWarmthValue">6%</b></div><input id="vsWarmth" type="range" min="-30" max="30" value="6"/></div>
         </div>
@@ -202,7 +202,7 @@
 </footer>
 
 <script src="script.js?v=30.0-secure-launch"></script>
-<script src="video-studio-v452.js" type="module"></script>
+<script src="video-studio-v453.js" type="module"></script>
 <script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>
