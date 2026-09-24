@@ -1,17 +1,21 @@
-RIVANI Video Studio V45.8.1 — export bitrate ReferenceError hotfix
+V45.8.2 — FRESH-FILENAME EXPORT HOTFIX
+Upload exactly these TWO files to the ROOT of deekon09/rivani-ai:
+  video-studio-v4582.js   (NEW file, do not rename)
+  video-studio.html       (REPLACE existing HTML)
+Do not upload the README. Do not delete video-studio-v457.js or v458.js.
+Audio Repair, other pages, settings, AI models and CSS are untouched.
 
-Upload ONLY these 2 website files to GitHub repository ROOT (not subfolder):
-1. video-studio-v458.js — overwrite old V45.8 JS file
-2. video-studio.html — overwrite old HTML file to force new JS cache version
+WHY:
+GitHub main already contains recorderBitrate in video-studio-v458.js, but
+the screenshot still shows the old missing-function error. This new
+module filename cannot resolve to a cached old video-studio-v458.js.
+The new file itself declares recorderBitrate(w,h).
 
-DO NOT upload README or change audio-repair files, video CSS, models,
-sliders or other tool files. Keep video-studio-v457.js unchanged.
+After both files appear in GitHub main, allow hosting deployment to finish.
+Open https://rivaniai.online/video-studio.html?v=4582 and refresh.
+Look for the engine label starting 'V45.8.2 OFFLINE EXPORT READY'.
+If it does not appear, the LIVE site is serving an old deployment/cached HTML.
+If it appears and export raises a DIFFERENT error, send that exact message.
 
-Fix: restore missing recorderBitrate(w,h) function, preserving V45.7
-resolution-aware bitrate values. Previous V45.8 exporter invoked it without
-a definition, causing export to abort immediately.
-
-After deployment, Ctrl+Shift+R and retry a short 3–5 second clip.
-The bitrate ReferenceError is fixed; this is not a claim that 4K60 browser
-export, audio synchronization, or transparent playback have passed an
-end-to-end browser test. Report any NEW exact error message if it appears.
+This resolves this specific missing-helper ReferenceError. Offline video
+decoding/encoding at 4K60 and audio sync require actual browser testing.
