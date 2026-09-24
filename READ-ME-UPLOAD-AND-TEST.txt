@@ -1,0 +1,43 @@
+RIVANI V45.8 VIDEO + AUDIO FIX / MANUAL GITHUB UPLOAD
+
+Source: user-provided latest rivani-ai-main.zip.
+
+FILES TO UPLOAD to the repository ROOT (not into rivani-ai-main/ subfolder):
+  video-studio-v458.js  <-- NEW file; do not delete video-studio-v457.js
+  video-studio.html      <-- replaces same-name file
+  audio-repair.js        <-- replaces same-name file
+  audio-repair.html      <-- replaces same-name file
+
+Do not upload README as website source; it is for you.
+DO NOT overwrite any other repo files. Video Studio CSS, both AI models, audio worker files,
+DSP, audio controls, video cutout/matte settings and all other site tools are unchanged.
+
+AUDIO PATCH: old free-limit UI incorrectly wrote repairBtn.dataset.processing="1"
+during quota lock and never cleared it after Beta/Pro unlock. Lock and actual job
+are now independent; actual enhancement alone uses processing="1" and clears
+it in finally. Errors in the click/auth path are shown instead of silently
+leaving the button looking unresponsive.
+
+VIDEO PATCH: replaces BOTH realtime export paths with source-sample decoding
+(VideoSampleSink), calls the unchanged V45.7 matte on EACH decoded frame,
+then adds each composited frame at its source timestamp to Mediabunny
+CanvasSource. Audio is read from the source (AudioSampleSink) and encoded on
+its original timeline. Transparent output still requires VP9 alpha support;
+no fallback swaps a transparent output to an opaque background.
+
+IMPORTANT BETA / TEST LIMITS:
+- Code and static checks pass; 4K60 full-duration browser export has not been
+  validated on your own browser/device. Do NOT claim the lag or audio is
+  conclusively fixed until testing actual downloaded outputs.
+- Try a 3-5 second clip at 720p or 1080p FIRST, with blur or gradient and
+  transparent separately; inspect resulting output for frame count, duration,
+  audio sync and real alpha. Then try your complete original 4K60 source.
+- Offline 4K60 can take a long time and can run out of browser memory. Chrome /
+  Edge WebCodecs + source codec support are required; unsupported paths show
+  explicit error instead of producing an incomplete video.
+- Audio Repair Clear Voice uses its original MossFormer2 ONNX model. If the
+  button starts but model download/inference errors persist, please send the
+  EXACT on-screen error; a button-state fix cannot repair an inaccessible model.
+- Strong browser cache: deployed HTML cache-busts both updated JS and Video
+  Studio CSS. Reload with Ctrl+Shift+R after GitHub/hosting deploy.
+- These are website files, NOT an offline enhancement of an MP4 file.

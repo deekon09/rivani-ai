@@ -13,7 +13,7 @@
 <meta name="description" content="Remove video backgrounds without a green screen and add studio-style face lighting, smoothing and polish directly in your browser."/>
 <meta name="robots" content="noindex,nofollow"/>
 <link rel="stylesheet" href="styles.css?v=30.0-secure-launch"/>
-<link rel="stylesheet" href="video-studio.css?v=45.7-hd-preserve"/>
+<link rel="stylesheet" href="video-studio.css?v=45.8-source-frames"/>
 </head>
 <body class="video-studio-page">
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="grid-overlay"></div>
@@ -98,7 +98,7 @@
         </div>
 
         <button class="btn btn-primary vs-start-btn" id="vsStartBtn" type="button"><span>✦</span> Start AI Studio →</button>
-        <div class="vs-engine-note" id="vsEngineNote">V45.7 HTML READY · loading HD-preserve export engine…</div>
+        <div class="vs-engine-note" id="vsEngineNote">V45.8 · offline source-timed video export; processing can take longer than the clip.</div>
       </aside>
 
       <section class="vs-main">
@@ -159,7 +159,7 @@
             <option value="1080">Full HD · 1920×1080 / 1080×1920</option>
             <option value="original" selected>Original · preserve source quality</option>
           </select>
-          <small>Original preserves the uploaded frame size up to a 4K-oriented cap. Full HD keeps portrait video at 1080×1920 instead of shrinking it to 608×1080.</small>
+          <small>Original preserves the source frame size up to 4K. Offline export processes every decoded frame, so a 4K60 video may take significantly longer than the original video duration.</small>
         </div>
 
         <div class="vs-control">
@@ -186,7 +186,7 @@
     <article><span>01</span><h3>No green screen</h3><p>Person-specific segmentation separates background from hair, skin, face, clothing and accessories.</p></article>
     <article><span>02</span><h3>Stable edges</h3><p>Temporal mask blending reduces the frame-to-frame edge chatter common in basic background removers.</p></article>
     <article><span>03</span><h3>Face-aware finish</h3><p>Face smoothing is restricted to the detected face class while lighting and glow stay restrained to the subject.</p></article>
-    <article><span>04</span><h3>₹0 processing bill</h3><p>Segmentation, compositing and recording happen in the browser instead of a paid RIVANI GPU/API.</p></article>
+    <article><span>04</span><h3>₹0 processing bill</h3><p>Segmentation, compositing and frame-by-frame export happen in the browser instead of a paid RIVANI GPU/API.</p></article>
   </div>
 </section>
 </main>
@@ -202,7 +202,7 @@
 </footer>
 
 <script src="script.js?v=30.0-secure-launch"></script>
-<script src="video-studio-v457.js" type="module"></script>
+<script src="video-studio-v458.js" type="module"></script>
 <script src="auth-nav.js?v=30.0-secure-launch" type="module"></script>
 </body>
 </html>

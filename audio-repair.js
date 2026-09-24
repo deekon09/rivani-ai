@@ -196,20 +196,15 @@ function freeJobsRemaining(){return Math.max(0,FREE_DAILY_JOBS-readFreeJobUsage(
 function renderDailyJobUsage(){
   const card=$("freeDailyLimitCard");
   const locked=!isProPlan()&&freeJobsRemaining()<=0;
-
   card?.classList.toggle("hidden",!locked);
+  if(!repairBtn)return;
 
-  if(repairBtn){
-    repairBtn.classList.toggle("quota-locked",locked);
-    repairBtn.setAttribute("aria-disabled",String(locked));
-
-    if(locked){
-      repairBtn.dataset.processing="1";
-  repairBtn.disabled=true;
-    }else if(repairBtn.dataset.processing!=="1"){
-      repairBtn.disabled=false;
-    }
-  }
+  // A quota lock must never masquerade as an in-progress enhancement.
+  // Beta/Pro entitlement may unlock after initial page render.
+  const processing=repairBtn.dataset.processing==="1";
+  repairBtn.classList.toggle("quota-locked",locked);
+  repairBtn.setAttribute("aria-disabled",String(locked||processing));
+  repairBtn.disabled=locked||processing;
 }
 
 function canStartAnotherFreeJob(){
@@ -648,7 +643,18 @@ setTimeout(renderPlanAccess,0);
 setTimeout(renderPlanAccess,900);
 
 scanBtn?.addEventListener("click",async()=>{if(await requireAudioAccount())runScan();});
-repairBtn?.addEventListener("click",async()=>{if(await requireAudioAccount())repairLocally();});
+repairBtn?.addEventListener("click",async()=>{
+  if(repairBtn.dataset.processing==="1")return;
+  try{
+    if(!sourceBuffer){alert("Choose an audio file and scan it before enhancing.");return;}
+    if(!(await requireAudioAccount()))return;
+    if(!canStartAnotherFreeJob()){showFreeLimitReached();return;}
+    await repairLocally();
+  }catch(error){
+    console.error("Audio Repair could not start",error);
+    alert("Audio Repair could not start: "+String(error?.message||error));
+  }
+});
 
 $("tryAgainBtn")?.addEventListener("click",()=>{
   result.classList.add("hidden");
@@ -1076,6 +1082,8 @@ async function repairLocally(){
     }
   }
 
+  // Disable for the actual job only. This flag is cleared in finally.
+  repairBtn.dataset.processing="1";
   repairBtn.disabled=true;
 
   // Performance Mode changes only decorative rendering, never audio quality.
