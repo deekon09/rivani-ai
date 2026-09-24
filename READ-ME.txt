@@ -1,0 +1,17 @@
+RIVANI Video Studio V45.8.1 — export bitrate ReferenceError hotfix
+
+Upload ONLY these 2 website files to GitHub repository ROOT (not subfolder):
+1. video-studio-v458.js — overwrite old V45.8 JS file
+2. video-studio.html — overwrite old HTML file to force new JS cache version
+
+DO NOT upload README or change audio-repair files, video CSS, models,
+sliders or other tool files. Keep video-studio-v457.js unchanged.
+
+Fix: restore missing recorderBitrate(w,h) function, preserving V45.7
+resolution-aware bitrate values. Previous V45.8 exporter invoked it without
+a definition, causing export to abort immediately.
+
+After deployment, Ctrl+Shift+R and retry a short 3–5 second clip.
+The bitrate ReferenceError is fixed; this is not a claim that 4K60 browser
+export, audio synchronization, or transparent playback have passed an
+end-to-end browser test. Report any NEW exact error message if it appears.

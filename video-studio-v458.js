@@ -49,8 +49,8 @@ state.frameCtx = state.frameCanvas.getContext("2d");
 state.subjectCtx = state.subjectCanvas.getContext("2d");
 state.faceCtx = state.faceCanvas.getContext("2d");
 const outCtx = el.canvas.getContext("2d");
-const RIVANI_VIDEO_BUILD="V45.8-OFFLINE-EXPORT";
-queueMicrotask(()=>{if(el.engineNote)el.engineNote.textContent="V45.8 OFFLINE EXPORT · full source-frame processing, original settings";console.info("RIVANI Video Studio",RIVANI_VIDEO_BUILD);});
+const RIVANI_VIDEO_BUILD="V45.8.1-BITRATE-HOTFIX";
+queueMicrotask(()=>{if(el.engineNote)el.engineNote.textContent="V45.8.1 OFFLINE EXPORT · bitrate helper restored, original settings";console.info("RIVANI Video Studio",RIVANI_VIDEO_BUILD);});
 
 function clamp(v,a=0,b=1){ return Math.max(a, Math.min(b,v)); }
 function pct(v){ return `${Math.round(Number(v)||0)}%`; }
@@ -167,7 +167,7 @@ el.clear?.addEventListener("click",()=>{
   el.start.disabled=false;el.start.innerHTML="<span>✦</span> Start AI Studio →";
   el.preview.disabled=true;el.exportBtn.disabled=true;
   el.engineStatus.textContent="Not loaded";el.personStatus.textContent="Waiting";el.faceStatus.textContent="Waiting";el.stabilityStatus.textContent="Waiting";
-  el.engineNote.textContent="V45.8 OFFLINE EXPORT · full source-frame processing, original settings";
+  el.engineNote.textContent="V45.8.1 OFFLINE EXPORT · bitrate helper restored, original settings";
 });
 el.file.addEventListener("change",()=>{const f=el.file.files?.[0];if(f)loadVideo(f).catch(()=>{});el.file.value="";});
 ["dragenter","dragover"].forEach(t=>el.upload.addEventListener(t,e=>{e.preventDefault();el.upload.classList.add("drag");}));
@@ -642,6 +642,17 @@ async function prepareAudioTrack(){
     await state.audioCtx.resume();state.monitorGain.gain.value=0;
     return state.mediaDest.stream.getAudioTracks();
   }catch(e){console.warn("Audio export fallback",e);return [];}
+}
+
+// V45.8.1 hotfix: preserve V45.7's resolution-aware video bitrate policy.
+// Offline export still uses the original matte, controls, and frame timestamps.
+function recorderBitrate(w,h){
+  const pixels=w*h;
+  if(pixels>=8000000)return 32000000; // 4K-ish
+  if(pixels>=3500000)return 22000000; // 1440p-ish
+  if(pixels>=1800000)return 14000000; // Full HD portrait/landscape
+  if(pixels>=900000)return 9000000;   // 720p / ~1MP
+  return 6000000;
 }
 
 /* RIVANI V45.8: experimental source-timed offline exporter.
