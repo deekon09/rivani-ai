@@ -100,3 +100,7 @@ https://rivani-ai.rivani.workers.dev/*
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
 /music.css
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+# Audio Repair AI runtime changes frequently during Beta.
+/rivani-ai-worker.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0

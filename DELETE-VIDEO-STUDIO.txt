@@ -1,0 +1,19 @@
+DELETE these files from the ROOT of GitHub repo deekon09/rivani-ai:
+
+README-VIDEO-STUDIO.txt
+video-studio-v450.js
+video-studio-v451.js
+video-studio-v452.js
+video-studio-v453.js
+video-studio-v454.js
+video-studio-v455.js
+video-studio-v456.js
+video-studio-v457.js
+video-studio-v458.js
+video-studio-v4582.js
+video-studio-v459.js
+video-studio.css
+video-studio.html
+video-studio.js
+
+Current public pages/sitemap/robots/script/styles were checked and no active Video Studio link/reference was found.

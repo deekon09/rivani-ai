@@ -1,4 +1,4 @@
-// RIVANI AI V16 - Clear Voice X
+// RIVANI AI V25 - Clear Voice X · same-quality adaptive acceleration
 // MossFormer2_SE_48K ONNX in-browser speech enhancement.
 // No server GPU. No RNNoise/DeepFilter stacking. No time-domain dry/wet mix.
 //
@@ -11,7 +11,8 @@
 // needs to manually install/download a model file.
 
 const ORT_VERSION = "1.29.0";
-const ORT_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
+const ORT_WASM_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.min.mjs`;
+const ORT_WEBGPU_URL = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort.webgpu.min.mjs`;
 const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 
 const MODEL_PROXY_URL =
@@ -49,18 +50,18 @@ function detectAdaptivePerformance(){
   if(!mobile&&!lowMemory&&cores>=8){
     return {
       mode:"fast",
-      yieldMs:1,
-      frameYieldEvery:64,
-      chunkRestMs:3
+      yieldMs:0,
+      frameYieldEvery:128,
+      chunkRestMs:0
     };
   }
 
   if(!mobile&&!lowMemory&&cores>=6){
     return {
       mode:"balanced",
-      yieldMs:2,
-      frameYieldEvery:32,
-      chunkRestMs:8
+      yieldMs:1,
+      frameYieldEvery:64,
+      chunkRestMs:2
     };
   }
 
@@ -84,7 +85,8 @@ let ort = null;
 let session = null;
 let provider = null;
 let modelPromise = null;
-let runtimePromise = null;
+let wasmRuntimePromise = null;
+let webgpuRuntimePromise = null;
 let bluestein1920 = null;
 let melFilters = null;
 let symmetricHamming1920 = null;
@@ -112,11 +114,28 @@ self.onmessage = async (event) => {
     self.postMessage({
       type:"phase",
       phase:"model",
-      text:"RIVANI AI is enhancing the voice…"
+      text:provider==="webgpu"
+        ?"RIVANI AI is enhancing the voice with GPU acceleration…"
+        :"RIVANI AI is enhancing the voice…"
     });
 
     const started = performance.now();
-    const output = await denoiseLong(input, strength, assists);
+    let output;
+    try {
+      output = await denoiseLong(input, strength, assists);
+    } catch (inferenceError) {
+      if (provider !== "webgpu") throw inferenceError;
+
+      // Some GPUs can compile a graph but reject an operator later at run time.
+      // Retry the SAME model/DSP on the proven WASM path, never a weaker model.
+      self.postMessage({
+        type:"phase",
+        phase:"model",
+        text:"GPU compatibility fallback · continuing with full-quality stable CPU…"
+      });
+      await forceWasmSession();
+      output = await denoiseLong(input, strength, assists);
+    }
     const elapsedMs = performance.now() - started;
 
     self.postMessage({
@@ -134,29 +153,82 @@ self.onmessage = async (event) => {
   }
 };
 
-async function ensureRuntime() {
-  if (ort) return ort;
+async function ensureRuntime(kind="wasm") {
+  if (kind === "webgpu") {
+    if (!webgpuRuntimePromise) {
+      webgpuRuntimePromise = (async () => {
+        self.postMessage({
+          type:"phase",
+          phase:"model",
+          text:"Preparing RIVANI GPU acceleration…"
+        });
+        return await import(ORT_WEBGPU_URL);
+      })();
+    }
+    return await webgpuRuntimePromise;
+  }
 
-  if (!runtimePromise) {
-    runtimePromise = (async () => {
-      self.postMessage({type:"phase", phase:"model", text:"Loading RIVANI AI engine…"});
-      const mod = await import(ORT_URL);
-
+  if (!wasmRuntimePromise) {
+    wasmRuntimePromise = (async () => {
+      self.postMessage({
+        type:"phase",
+        phase:"model",
+        text:"Loading RIVANI AI engine…"
+      });
+      const mod = await import(ORT_WASM_URL);
       mod.env.wasm.wasmPaths = ORT_WASM_BASE;
 
-      // V23.3 stability rollback:
-      // Clear Voice's approved browser baseline is full WASM, single-thread.
-      // This avoids the SharedArrayBuffer / threaded-WASM initialization hang
-      // seen after cross-origin isolation was enabled for the speed experiment.
-      // Model weights, DSP, chunking and audio quality are unchanged.
-      mod.env.wasm.numThreads = 1;
+      // Same full-precision model. Threads are enabled only when the hosting
+      // context safely supports SharedArrayBuffer; otherwise keep stable 1-thread.
+      const isolated = Boolean(self.crossOriginIsolated);
+      const cores = Math.max(1, Number(self.navigator?.hardwareConcurrency) || 4);
+      mod.env.wasm.numThreads = isolated
+        ? Math.max(1, Math.min(4, cores - 1))
+        : 1;
 
-      ort = mod;
-      return ort;
+      return mod;
     })();
   }
 
-  return runtimePromise;
+  return await wasmRuntimePromise;
+}
+
+function shouldTryWebGPU(){
+  const nav=self.navigator||{};
+  const ua=String(nav.userAgent||"");
+  const mobile=/Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  // Keep phones/low-power profile on the stable path. Desktop WebGPU is the
+  // speed path; quality/model/DSP are identical.
+  return !mobile && RIVANI_PERF.mode!=="cool" && Boolean(nav.gpu);
+}
+
+async function createWasmSession(modelBytes=null){
+  const runtime = await ensureRuntime("wasm");
+  const bytes = modelBytes || await loadModelBytes();
+
+  self.postMessage({
+    type:"phase",
+    phase:"model",
+    text:"Starting full-quality RIVANI AI engine…"
+  });
+
+  session = await runtime.InferenceSession.create(bytes, {
+    executionProviders:["wasm"],
+    graphOptimizationLevel:"all",
+    executionMode:"sequential",
+    preferredOutputLocation:"cpu"
+  });
+  ort = runtime;
+  provider = runtime.env?.wasm?.numThreads > 1 ? "wasm-threaded" : "wasm-full";
+  return session;
+}
+
+async function forceWasmSession(){
+  try { await session?.release?.(); } catch {}
+  try { await session?.dispose?.(); } catch {}
+  session = null;
+  provider = null;
+  return await createWasmSession();
 }
 
 async function ensureSession() {
@@ -164,38 +236,38 @@ async function ensureSession() {
   if (modelPromise) return modelPromise;
 
   modelPromise = (async () => {
-    const runtime = await ensureRuntime();
     const modelBytes = await loadModelBytes();
 
-    self.postMessage({
-      type:"phase",
-      phase:"model",
-      text:"Starting RIVANI AI engine…"
-    });
+    if (shouldTryWebGPU()) {
+      try {
+        const runtime = await ensureRuntime("webgpu");
+        self.postMessage({
+          type:"phase",
+          phase:"model",
+          text:"Starting full-quality RIVANI GPU engine…"
+        });
 
-    try {
-      session = await runtime.InferenceSession.create(modelBytes, {
-        executionProviders:["wasm"],
-        graphOptimizationLevel:"all",
-        executionMode:"sequential",
-        preferredOutputLocation:"cpu"
-      });
-      provider = "wasm-full";
-      return session;
-    } catch (error) {
-      // Do not silently swap to another denoiser. Surface a diagnostic that
-      // distinguishes browser-runtime incompatibility from model download.
-      const msg = String(error?.message || error || "");
-      if (/Cast\(13\)|Could not find an implementation/i.test(msg)) {
-        throw new Error(
-          "MossFormer2 model loaded correctly, but this browser ONNX runtime " +
-          "cannot execute one Cast(13) node in the exported graph. " +
-          "This requires a browser-safe MossFormer2 ONNX export, not another noise filter. " +
-          "Runtime detail: " + msg
-        );
+        session = await runtime.InferenceSession.create(modelBytes, {
+          executionProviders:["webgpu"],
+          graphOptimizationLevel:"all",
+          executionMode:"sequential"
+        });
+        ort = runtime;
+        provider = "webgpu";
+        return session;
+      } catch (gpuError) {
+        console.warn("RIVANI WebGPU acceleration unavailable; using stable WASM.", gpuError);
+        self.postMessage({
+          type:"phase",
+          phase:"model",
+          text:"GPU acceleration unavailable here · using full-quality stable CPU…"
+        });
+        session = null;
+        provider = null;
       }
-      throw error;
     }
+
+    return await createWasmSession(modelBytes);
   })();
 
   try {
@@ -205,7 +277,6 @@ async function ensureSession() {
     throw e;
   }
 }
-
 async function loadModelBytes() {
   const cache = "caches" in self ? await caches.open(MODEL_CACHE) : null;
 

@@ -1,0 +1,24 @@
+RIVANI AUDIO REPAIR V25 SPEED PATCH
+
+UPLOAD/REPLACE in GitHub repo root:
+1. rivani-ai-worker.js
+2. _headers
+
+Do NOT replace audio-repair.js or audio-repair.html with an older copy.
+The current live audio-repair.js already contains the Enhance-button unlock fix.
+
+WHAT CHANGED
+- SAME MossFormer2_SE_48K model
+- SAME 48 kHz processing
+- SAME 4-second context / 1-second overlap
+- SAME mask / ISTFT / enhancement strength
+- Desktop Chrome/Edge: WebGPU attempted first
+- If WebGPU is unsupported or fails: automatic full-quality WASM fallback
+- High-end devices spend less time in intentional scheduling sleeps
+- No denoising strength reduction, no sample-rate reduction, no segment skipping
+
+VIDEO STUDIO
+See DELETE-VIDEO-STUDIO.txt. Delete those files manually from GitHub.
+No active Video Studio references were found in the current homepage/features/articles/sitemap/robots/script/styles checks.
+
+After upload/deletion, wait for hosting deploy and hard refresh Audio Repair.
