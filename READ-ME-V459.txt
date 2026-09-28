@@ -1,0 +1,17 @@
+RIVANI VIDEO STUDIO V45.9 — EDGE REFINE ONLY
+
+UPLOAD TO REPO ROOT:
+1. video-studio-v459.js  — new file
+2. video-studio.html     — replace existing file
+
+DO NOT delete older video-studio JS files.
+Audio Repair and all other tools are untouched.
+Transparent background still exports as WebM; that is expected for VP9 alpha.
+
+After deploy open:
+https://rivaniai.online/video-studio.html?v=459
+
+Confirm the page shows:
+V45.9 EDGE REFINE ACTIVE
+
+Changes: boundary-only matte smoothing, smoother mask upscale, slightly stronger connected-object support, defaults Edge Clean 60 / Feather 0.55 / Temporal 18.
