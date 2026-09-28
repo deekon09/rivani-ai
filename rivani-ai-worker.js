@@ -1,4 +1,4 @@
-// RIVANI AI V25 - Clear Voice X · same-quality adaptive acceleration
+// RIVANI AI V25.1 - Clear Voice X · same-quality hybrid WebGPU/WASM acceleration
 // MossFormer2_SE_48K ONNX in-browser speech enhancement.
 // No server GPU. No RNNoise/DeepFilter stacking. No time-domain dry/wet mix.
 //
@@ -60,8 +60,8 @@ function detectAdaptivePerformance(){
     return {
       mode:"balanced",
       yieldMs:1,
-      frameYieldEvery:64,
-      chunkRestMs:2
+      frameYieldEvery:96,
+      chunkRestMs:1
     };
   }
 
@@ -114,8 +114,8 @@ self.onmessage = async (event) => {
     self.postMessage({
       type:"phase",
       phase:"model",
-      text:provider==="webgpu"
-        ?"RIVANI AI is enhancing the voice with GPU acceleration…"
+      text:String(provider||"").startsWith("webgpu")
+        ?"RIVANI AI is enhancing the voice with hybrid GPU acceleration…"
         :"RIVANI AI is enhancing the voice…"
     });
 
@@ -124,7 +124,7 @@ self.onmessage = async (event) => {
     try {
       output = await denoiseLong(input, strength, assists);
     } catch (inferenceError) {
-      if (provider !== "webgpu") throw inferenceError;
+      if (!String(provider||"").startsWith("webgpu")) throw inferenceError;
 
       // Some GPUs can compile a graph but reject an operator later at run time.
       // Retry the SAME model/DSP on the proven WASM path, never a weaker model.
@@ -160,9 +160,19 @@ async function ensureRuntime(kind="wasm") {
         self.postMessage({
           type:"phase",
           phase:"model",
-          text:"Preparing RIVANI GPU acceleration…"
+          text:"Preparing RIVANI hybrid GPU acceleration…"
         });
-        return await import(ORT_WEBGPU_URL);
+        const mod = await import(ORT_WEBGPU_URL);
+        // The WebGPU bundle can partition unsupported nodes to WASM when both
+        // execution providers are listed. Keep WASM fallback single-threaded
+        // unless the page is safely cross-origin isolated.
+        mod.env.wasm.wasmPaths = ORT_WASM_BASE;
+        const isolated = Boolean(self.crossOriginIsolated);
+        const cores = Math.max(1, Number(self.navigator?.hardwareConcurrency) || 4);
+        mod.env.wasm.numThreads = isolated
+          ? Math.max(1, Math.min(4, cores - 1))
+          : 1;
+        return mod;
       })();
     }
     return await webgpuRuntimePromise;
@@ -248,12 +258,16 @@ async function ensureSession() {
         });
 
         session = await runtime.InferenceSession.create(modelBytes, {
-          executionProviders:["webgpu"],
+          // Hybrid graph partitioning: compatible heavy nodes stay on WebGPU,
+          // unsupported nodes fall back to WASM instead of abandoning GPU use.
+          // Model weights, features, mask math and output quality are unchanged.
+          executionProviders:["webgpu","wasm"],
           graphOptimizationLevel:"all",
-          executionMode:"sequential"
+          executionMode:"sequential",
+          preferredOutputLocation:"cpu"
         });
         ort = runtime;
-        provider = "webgpu";
+        provider = "webgpu+wasm";
         return session;
       } catch (gpuError) {
         console.warn("RIVANI WebGPU acceleration unavailable; using stable WASM.", gpuError);
@@ -493,7 +507,7 @@ async function denoiseLong(input, strength, assists={}) {
       segment:s+1,
       segments:positions.length,
       progress:Math.round((s / positions.length) * 100),
-      text:`AI enhancing segment ${s+1} of ${positions.length}…`
+      text:`${String(provider||"").startsWith("webgpu")?"GPU accelerated · ":""}AI enhancing segment ${s+1} of ${positions.length}…`
     });
 
     const enhanced = await enhanceSegment(seg, strength, assists);
